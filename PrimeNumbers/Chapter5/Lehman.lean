@@ -693,4 +693,48 @@ theorem lehmanPasses_le_cuberoot {n : ℕ} (hn : 1 ≤ n) :
   push_cast at h hmul ⊢
   linarith
 
+/-! ## Bit operations -/
+
+section BitCost
+
+open PrimeNumbers.Chapter9
+
+/-- The bit operations of step [Loop] of Algorithm 5.1.2.  The inner loop for a given `k`
+performs exactly the operations of the Fermat loop on `4kn` (a squaring, an integer square
+root and a check per pass), so it is charged by `fermatCost`. -/
+def lehmanCost (C : CostModel) (sq : ℕ → ℕ) (n r6 : ℕ) : (k fuel : ℕ) → ℕ
+  | _, 0 => 0
+  | k, fuel + 1 =>
+    fermatCost C sq (4 * k * n) (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) +
+      match lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with
+      | some _ => 0
+      | none => lehmanCost C sq n r6 (k + 1) fuel
+
+/-- **Bit complexity of the Lehman method**, for any cost model and any monotone
+square-root cost `sq`: if every `a` examined is at most `A`, the loop costs at most
+`(number of passes) · (2 · C.mul + sq)` at the size of `A`.  With `lehmanPasses_le_cuberoot`
+the number of passes is at most `4 n^{1/3} + 2`, and `A ≤ 4 (n^{1/3} + 1) n + n^{1/6} + 2`
+has about `4/3` the bit length of `n`. -/
+theorem lehmanCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n r6 A : ℕ}
+    (k fuel : ℕ)
+    (hA : ∀ k', k ≤ k' → k' < k + fuel →
+      ceilSqrt (4 * k' * n) + (r6 / (4 * Nat.sqrt k') + 2) ≤ A + 1) :
+    lehmanCost C sq n r6 k fuel ≤
+      (∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + i)) + 2)) *
+        (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+  induction fuel generalizing k with
+  | zero => simp [lehmanCost]
+  | succ fuel ih =>
+    have h₁ := fermatCost_le C hsq (n := 4 * k * n) (r6 / (4 * Nat.sqrt k) + 2)
+      (hA k le_rfl (by omega))
+    have h₂ := ih (k + 1) fun k' hk₁ hk₂ ↦ hA k' (by omega) (by omega)
+    rw [Finset.sum_range_succ', add_zero]
+    have hcongr : ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + (i + 1))) + 2) =
+        ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + 1 + i)) + 2) :=
+      Finset.sum_congr rfl fun i _ ↦ by rw [add_right_comm, add_assoc]
+    rw [hcongr, lehmanCost, add_mul]
+    split <;> omega
+
+end BitCost
+
 end PrimeNumbers.Chapter5

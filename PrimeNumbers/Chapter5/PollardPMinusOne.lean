@@ -334,6 +334,56 @@ theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
   nlinarith [Nat.zero_le (Nat.log 2 B), Nat.zero_le n.size,
     Nat.zero_le (Nat.log 2 B * n.size)]
 
+/-! ### Second stage: bit operations -/
+
+/-- The bit operations of `stage2Loop`: per prime `Q`, the power `c₁^(Q - prevQ)`, the
+update of `h`, and the accumulation into `P`. -/
+def stage2Cost (C : CostModel) (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ → ℕ
+  | _, _, _, [] => 0
+  | prevQ, h, P, Q :: Qs =>
+    let pw := powMod c₁ (Q - prevQ) n
+    let h' := h * pw % n
+    powModCost C c₁ (Q - prevQ) n + (C.mul h.size pw.size + C.divMod (h * pw).size n.size) +
+      (C.mul P.size (h' + n - 1).size + C.divMod (P * (h' + n - 1)).size n.size) +
+      stage2Cost C n c₁ Q h' (P * (h' + n - 1) % n) Qs
+
+/-- **Bit complexity of the second stage**, for any cost model: per prime `Q ∈ (B, B']`
+one modular power with exponent at most `B'` (in practice the small difference
+`Q - prevQ`) and two modular multiplications. -/
+theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ)
+    (Qs : List ℕ) (hh : h < n) (hP : P < n) (hQs : ∀ Q ∈ Qs, Q ≤ B') :
+    stage2Cost C n c₁ prevQ h P Qs ≤
+      Qs.length * (powBound C n B' + C.mulMod n.size +
+        (C.mul n.size (n.size + 1) + C.divMod (2 * n.size + 1) n.size)) := by
+  have hn : 0 < n := by omega
+  induction Qs generalizing prevQ h P with
+  | nil => simp [stage2Cost]
+  | cons Q Qs ih =>
+    have hQ : Q ≤ B' := hQs Q (by simp)
+    have h₁ : powModCost C c₁ (Q - prevQ) n ≤ powBound C n B' :=
+      (powModCost_le C hc _).trans (Nat.add_le_add_left
+        (Nat.mul_le_mul_right _ (Nat.log_mono_right (by omega))) _)
+    have hpw : powMod c₁ (Q - prevQ) n < n := powMod_lt _ _ hn
+    have h₂ := mul_add_divMod_le C hh hpw
+    have hh' : h * powMod c₁ (Q - prevQ) n % n < n := Nat.mod_lt _ hn
+    -- `h' + n - 1 < 2n` has at most `k + 1` bits
+    have hsz : (h * powMod c₁ (Q - prevQ) n % n + n - 1).size ≤ n.size + 1 := by
+      rw [Nat.size_le, pow_succ]
+      have := Nat.lt_size_self n
+      omega
+    have h₃ : C.mul P.size (h * powMod c₁ (Q - prevQ) n % n + n - 1).size +
+        C.divMod (P * (h * powMod c₁ (Q - prevQ) n % n + n - 1)).size n.size ≤
+        C.mul n.size (n.size + 1) + C.divMod (2 * n.size + 1) n.size := by
+      refine Nat.add_le_add (C.mul_mono (size_le_of_lt hP) hsz) (C.divMod_mono _ ?_)
+      have := size_mul_le P (h * powMod c₁ (Q - prevQ) n % n + n - 1)
+      have := size_le_of_lt hP
+      omega
+    have ih := ih Q (h * powMod c₁ (Q - prevQ) n % n)
+      (P * (h * powMod c₁ (Q - prevQ) n % n + n - 1) % n) hh' (Nat.mod_lt _ hn)
+      (fun Q' hQ' ↦ hQs Q' (by simp [hQ']))
+    simp only [stage2Cost, List.length_cons, add_mul, one_mul]
+    omega
+
 end RunningTime
 
 end PrimeNumbers.Chapter5
