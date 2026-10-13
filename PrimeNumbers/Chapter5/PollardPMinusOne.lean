@@ -138,6 +138,108 @@ theorem pollardPMinusOne_ne_one {n p B c : ℕ} (hp : p.Prime) (hpn : p ∣ n) (
   rw [h] at this
   exact hp.one_lt.ne' (Nat.dvd_one.mp this)
 
+/-! ## The second stage
+
+"After searching through the exponents `M(1), …, M(B)`, we next search through the
+exponents `Q M(B)`, where `Q` runs over the primes in the interval `(B, B']`.  This then
+has the chance of uncovering those primes `p ∣ n` with `p - 1 = Q u`, where `Q` is a prime
+in `(B, B']` and `u ∣ M(B)`." -/
+
+/-- Traverse the exponents `Q M(B)`: with `c₁ = c^(M(B)) mod n` and `h = c₁^(prevQ) mod n`,
+pass to `c₁^Q` by multiplying with `c₁^(Q - prevQ)` ("the differences `Q_{i+1} - Q_i` are
+all much smaller than the `Q_i`'s"), and accumulate `P = ∏ (c₁^Q - 1) mod n`. -/
+def stage2Loop (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ → ℕ
+  | _, _, P, [] => P
+  | prevQ, h, P, Q :: Qs =>
+    let h' := h * powMod c₁ (Q - prevQ) n % n
+    stage2Loop n c₁ Q h' (P * (h' + n - 1) % n) Qs
+
+/-- The primes `Q` with `B < Q ≤ B'`. -/
+def stage2Primes (B B' : ℕ) : List ℕ := (primesUpTo B').filter (B < ·)
+
+/-- **The second stage of the Pollard `p - 1` method**: `gcd(∏_Q (c^(Q M(B)) - 1), n)` over
+the primes `Q ∈ (B, B']`. -/
+def pollardStage2 (n B B' : ℕ) (c : ℕ := 2) : ℕ :=
+  euclid n (stage2Loop n (ladders n B c % n) 0 (1 % n) (1 % n) (stage2Primes B B'))
+
+theorem pollardStage2_dvd (n B B' c : ℕ) : pollardStage2 n B B' c ∣ n := by
+  rw [pollardStage2, euclid_eq_gcd]
+  exact Nat.gcd_dvd_left _ _
+
+theorem mem_stage2Primes {B B' Q : ℕ} : Q ∈ stage2Primes B B' ↔ Q.Prime ∧ B < Q ∧ Q ≤ B' := by
+  simp only [stage2Primes, List.mem_filter, mem_primesUpTo, decide_eq_true_iff]
+  tauto
+
+theorem stage2Primes_sorted (B B' : ℕ) : (stage2Primes B B').Pairwise (· ≤ ·) := by
+  have h : (List.range (B' + 1)).Pairwise (· ≤ ·) := List.pairwise_le_range
+  exact (h.filter _).filter _
+
+/-- Loop invariant of the second stage: `h ≡ c₁^(prevQ)`, and once some factor
+`c₁^Q - 1` is divisible by `p`, so is the accumulated product. -/
+theorem dvd_stage2Loop {n p c₁ : ℕ} (hp : 1 < p) (hpn : p ∣ n) (hn : 0 < n) (prevQ h P : ℕ)
+    (Qs : List ℕ) (hh : h % n = c₁ ^ prevQ % n) (hsorted : (prevQ :: Qs).Pairwise (· ≤ ·))
+    (hw : p ∣ P ∨ ∃ Q ∈ Qs, c₁ ^ Q % p = 1) : p ∣ stage2Loop n c₁ prevQ h P Qs := by
+  induction Qs generalizing prevQ h P with
+  | nil =>
+    rcases hw with hP | ⟨Q, hQ, -⟩
+    · exact hP
+    · simp at hQ
+  | cons Q Qs ih =>
+    rw [List.pairwise_cons] at hsorted
+    have hle : prevQ ≤ Q := hsorted.1 Q (by simp)
+    -- the new `h'` is `c₁^Q mod n`
+    have hh' : h * powMod c₁ (Q - prevQ) n % n % n = c₁ ^ Q % n := by
+      rw [Nat.mod_mod, Nat.mul_mod, hh, powMod_eq, Nat.mod_mod, ← Nat.mul_mod, ← pow_add,
+        Nat.add_sub_cancel' hle]
+    refine ih Q _ _ hh' hsorted.2 ?_
+    rcases hw with hP | ⟨Q', hQ', hone⟩
+    · exact Or.inl ((Nat.dvd_mod_iff hpn).mpr (Dvd.dvd.mul_right hP _))
+    · rcases List.mem_cons.mp hQ' with rfl | htail
+      · -- this factor `h' - 1` is divisible by `p`
+        left
+        rw [Nat.dvd_mod_iff hpn]
+        refine Dvd.dvd.mul_left ?_ _
+        have hmodp : h * powMod c₁ (Q' - prevQ) n % n % p = 1 := by
+          have := congrArg (· % p) hh'
+          simp only [Nat.mod_mod_of_dvd _ hpn, Nat.mod_mod] at this
+          rw [Nat.mod_mod_of_dvd _ hpn, this, hone]
+        set h' := h * powMod c₁ (Q' - prevQ) n % n with hh'def
+        have h1 : 1 ≤ h' := by
+          rcases Nat.eq_zero_or_pos h' with h0 | hpos
+          · rw [h0, Nat.zero_mod] at hmodp; omega
+          · exact hpos
+        have hdvd : p ∣ h' - 1 :=
+          (Nat.modEq_iff_dvd' h1).mp (by rw [Nat.ModEq, hmodp, Nat.mod_eq_of_lt hp])
+        rw [show h' + n - 1 = h' - 1 + n by omega]
+        exact Dvd.dvd.add hdvd hpn
+      · exact Or.inr ⟨Q', htail, hone⟩
+
+/-- **Why the second stage works.**  If `p` is a prime factor of `n` not dividing `c`, and
+`p - 1 ∣ Q · M(B)` for some prime `Q ∈ (B, B']` — in particular if `p - 1 = Q u` with
+`u ∣ M(B)` — then `p` divides the result of the second stage. -/
+theorem dvd_pollardStage2 {n p B B' c Q : ℕ} (hp : p.Prime) (hpn : p ∣ n) (hn : 0 < n)
+    (hpc : ¬p ∣ c) (hQ : Q.Prime) (hBQ : B < Q) (hQB : Q ≤ B')
+    (hM : p - 1 ∣ Q * pm1Exponent B) : p ∣ pollardStage2 n B B' c := by
+  have : Fact p.Prime := ⟨hp⟩
+  have hc0 : (c : ZMod p) ≠ 0 := fun h ↦ hpc ((ZMod.natCast_eq_zero_iff c p).mp h)
+  -- `c₁^Q ≡ c^(Q M) ≡ 1 (mod p)`
+  have hone : (ladders n B c % n) ^ Q % p = 1 := by
+    have hz : (((ladders n B c % n) ^ Q : ℕ) : ZMod p) = 1 := by
+      have key : ((ladders n B c % n : ℕ) : ZMod p) = (c : ZMod p) ^ pm1Exponent B := by
+        have h₂ : ∀ x : ℕ, ((x % n : ℕ) : ZMod p) = (x : ZMod p) := fun x ↦ by
+          rw [ZMod.natCast_eq_natCast_iff', Nat.mod_mod_of_dvd _ hpn]
+        rw [ladder_eq, h₂, Nat.cast_pow]
+      obtain ⟨e, he⟩ := hM
+      rw [Nat.cast_pow, key, ← pow_mul, mul_comm, he, pow_mul,
+        ZMod.pow_card_sub_one_eq_one hc0, one_pow]
+    have := (ZMod.natCast_eq_natCast_iff' ((ladders n B c % n) ^ Q) 1 p).mp
+      (by rw [hz, Nat.cast_one])
+    rwa [Nat.mod_eq_of_lt hp.one_lt] at this
+  rw [pollardStage2, euclid_eq_gcd]
+  refine Nat.dvd_gcd hpn (dvd_stage2Loop hp.one_lt hpn hn 0 _ _ _ (by simp) ?_
+    (Or.inr ⟨Q, mem_stage2Primes.mpr ⟨hQ, hBQ, hQB⟩, hone⟩))
+  exact List.pairwise_cons.mpr ⟨fun _ _ ↦ Nat.zero_le _, stage2Primes_sorted B B'⟩
+
 /-! ## Running time -/
 
 section RunningTime

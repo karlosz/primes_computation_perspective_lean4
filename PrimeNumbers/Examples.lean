@@ -17,6 +17,7 @@ import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
+import PrimeNumbers.Chapter5.RhoLog
 
 /-!
 # Running the algorithms
@@ -266,5 +267,19 @@ open PrimeNumbers.Chapter9 in
 #guard isqrt (m521 * m521 + 12345) = m521
 open PrimeNumbers.Chapter9 in
 #guard isqrtSteps (m521 * m521) (2 ^ 521) ≤ 522
+
+/-! ## §5.4 Second stage of `p - 1`
+
+`4243 - 1 = 2 · 3 · 7 · 101`: stage one with `B = 10` misses the factor `101`, and the
+second stage with `B' = 150` finds it. -/
+
+#guard pollardPMinusOne (4243 * 1000003) 10 = 1
+#guard pollardStage2 (4243 * 1000003) 10 150 = 4243
+#guard stage2Primes 10 30 = [11, 13, 17, 19, 23, 29]
+
+/-! ## §5.2.2 Rho for discrete logarithms, in subgroups of prime order -/
+
+#guard rhoLog 1019 509 4 (powMod 4 123 1019) 1000 = some 123     -- `4` has order 509 mod 1019
+#guard rhoLog 2039 1019 4 (powMod 4 777 2039) 5000 = some 777    -- order 1019 mod 2039
 
 end PrimeNumbers.Examples
