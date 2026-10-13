@@ -11,6 +11,7 @@ import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
 import PrimeNumbers.Chapter3.Sieve
+import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
@@ -245,5 +246,14 @@ def m67 : ℕ := 2 ^ 67 - 1
 #guard (bsgs 1000003 2 (powMod 2 123456 1000003) 1000003).map (powMod 2 · 1000003) =
   some (powMod 2 123456 1000003)
 #guard (bsgs 101 2 3 100).map (powMod 2 · 101) = some 3      -- 2 is a primitive root of 101
+
+/-! ## §9.2.2 Integer square root (Algorithm 9.2.11) -/
+
+open PrimeNumbers.Chapter9 in
+#guard (List.range 200).all fun N ↦ isqrt N = Nat.sqrt N
+open PrimeNumbers.Chapter9 in
+#guard isqrt (m521 * m521 + 12345) = m521
+open PrimeNumbers.Chapter9 in
+#guard isqrtSteps (m521 * m521) (2 ^ 521) ≤ 522
 
 end PrimeNumbers.Examples

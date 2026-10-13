@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.IntSqrt
 import Mathlib
 
 /-!
@@ -210,6 +210,15 @@ theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n
       (Nat.mul_le_mul_left _ ?_)
     have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
     exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (hsq (by omega))
+
+/-- **Bit complexity of the Fermat method, grammar-school arithmetic**, with the integer
+square roots computed by Algorithm 9.2.11 (`isqrtCost_school_le`): at most
+`((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k))` bit operations, `k` the bit length of
+`n` — that is `O(n ln³ n)` in the worst case. -/
+theorem fermatCost_school_le {n : ℕ} (hn : 2 ≤ n) :
+    fermatCost school schoolSqrt n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
+      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * (n.size * n.size) + schoolSqrt (2 * n.size)) :=
+  fermatCost_le' school schoolSqrt_mono hn
 
 end RunningTime
 

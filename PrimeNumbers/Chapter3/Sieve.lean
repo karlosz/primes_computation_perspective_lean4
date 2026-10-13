@@ -1,4 +1,4 @@
-import Mathlib
+import PrimeNumbers.Assumed
 
 /-!
 # §3.2 Sieving: the sieve of Eratosthenes
@@ -110,62 +110,70 @@ theorem prime_of_forall_not {i : ℕ} (hi : 2 ≤ i)
   have := Nat.minFac_sq_le_self (by omega) hnp
   rwa [sq] at this
 
+/-- When the sieve reaches `p`, the bit of `p` is set iff `p` is prime. -/
+theorem SieveInv.bit_iff_prime {N p : ℕ} {bits : Array Bool} (hinv : SieveInv N p bits)
+    (hp : 2 ≤ p) (hpN : p ≤ N) : bit bits p = true ↔ p.Prime := by
+  rw [hinv p]
+  constructor
+  · rintro ⟨-, -, h⟩
+    exact prime_of_forall_not hp fun ⟨q, hq, hqp, hqq⟩ ↦
+      h ⟨q, hq, (by
+        have := Nat.le_of_dvd (by omega) hqp
+        rcases Nat.lt_or_ge q p with h | h
+        · exact h
+        · obtain rfl : q = p := by omega
+          have : q * 2 ≤ q * q := Nat.mul_le_mul_left q hp
+          omega), hqp, hqq⟩
+  · intro hpp
+    refine ⟨hp, hpN, fun ⟨q, hq, hqlt, hqp, _⟩ ↦ ?_⟩
+    have := (Nat.prime_dvd_prime_iff_eq hq hpp).mp hqp
+    omega
+
+/-- One pass of the main loop preserves the invariant. -/
+theorem SieveInv.step {N p : ℕ} {bits : Array Bool} (hinv : SieveInv N p bits) (hp : 2 ≤ p)
+    (hle : p * p ≤ N) :
+    SieveInv N (p + 1) (if bit bits p then markMultiples p bits (p * p) else bits) := by
+  have hpN : p ≤ N := (Nat.le_mul_self p).trans hle
+  have hbit := hinv.bit_iff_prime hp hpN
+  intro i
+  -- extending "struck out by a prime `< p`" to "`< p + 1`"
+  have hext : (∃ q : ℕ, q.Prime ∧ q < p + 1 ∧ q ∣ i ∧ q * q ≤ i) ↔
+      (∃ q : ℕ, q.Prime ∧ q < p ∧ q ∣ i ∧ q * q ≤ i) ∨ (p.Prime ∧ p ∣ i ∧ p * p ≤ i) := by
+    constructor
+    · rintro ⟨q, hq, hlt, h₁, h₂⟩
+      rcases Nat.lt_or_ge q p with h | h
+      · exact Or.inl ⟨q, hq, h, h₁, h₂⟩
+      · obtain rfl : q = p := by omega
+        exact Or.inr ⟨hq, h₁, h₂⟩
+    · rintro (⟨q, hq, hlt, h₁, h₂⟩ | ⟨hq, h₁, h₂⟩)
+      · exact ⟨q, hq, by omega, h₁, h₂⟩
+      · exact ⟨p, hq, by omega, h₁, h₂⟩
+  rw [hext]
+  split_ifs with hb
+  · have hpp := hbit.mp hb
+    rw [(markMultiples_spec p bits (p * p) (by omega)).2, hinv i]
+    have hmul : (p * p ≤ i ∧ p ∣ i - p * p) ↔ (p.Prime ∧ p ∣ i ∧ p * p ≤ i) := by
+      constructor
+      · rintro ⟨h₁, h₂⟩
+        refine ⟨hpp, ?_, h₁⟩
+        have : i = i - p * p + p * p := by omega
+        rw [this]; exact Dvd.dvd.add h₂ (Dvd.intro _ rfl)
+      · rintro ⟨-, h₁, h₂⟩
+        exact ⟨h₂, Nat.dvd_sub h₁ (Dvd.intro _ rfl)⟩
+    rw [hmul, not_or]
+    constructor
+    · rintro ⟨⟨a, b, c⟩, d⟩; exact ⟨a, b, c, d⟩
+    · rintro ⟨a, b, c, d⟩; exact ⟨⟨a, b, c⟩, d⟩
+  · have hnp : ¬p.Prime := fun h ↦ hb (hbit.mpr h)
+    rw [hinv i, not_or]
+    constructor
+    · rintro ⟨a, b, c⟩; exact ⟨a, b, c, fun h ↦ hnp h.1⟩
+    · rintro ⟨a, b, c, _⟩; exact ⟨a, b, c⟩
+
 theorem sieveLoop_spec (N p : ℕ) (bits : Array Bool) (hp : 2 ≤ p) (hinv : SieveInv N p bits) :
     ∀ i, bit (sieveLoop N p bits) i = true ↔ i ≤ N ∧ i.Prime := by
   fun_induction sieveLoop N p bits with
-  | case1 p bits hle ih =>
-    have hpN : p ≤ N := (Nat.le_mul_self p).trans hle.1
-    refine ih (by omega) fun i ↦ ?_
-    -- `p` is prime iff its bit is still set
-    have hbit : bit bits p = true ↔ p.Prime := by
-      rw [hinv p]
-      constructor
-      · rintro ⟨-, -, h⟩
-        exact prime_of_forall_not hp fun ⟨q, hq, hqp, hqq⟩ ↦
-          h ⟨q, hq, (by
-            have := Nat.le_of_dvd (by omega) hqp
-            rcases Nat.lt_or_ge q p with h | h
-            · exact h
-            · obtain rfl : q = p := by omega
-              have : q * 2 ≤ q * q := Nat.mul_le_mul_left q hp
-              omega), hqp, hqq⟩
-      · intro hpp
-        refine ⟨hp, hpN, fun ⟨q, hq, hqlt, hqp, _⟩ ↦ ?_⟩
-        have := (Nat.prime_dvd_prime_iff_eq hq hpp).mp hqp
-        omega
-    -- extending "struck out by a prime `< p`" to "`< p + 1`"
-    have hext : (∃ q : ℕ, q.Prime ∧ q < p + 1 ∧ q ∣ i ∧ q * q ≤ i) ↔
-        (∃ q : ℕ, q.Prime ∧ q < p ∧ q ∣ i ∧ q * q ≤ i) ∨ (p.Prime ∧ p ∣ i ∧ p * p ≤ i) := by
-      constructor
-      · rintro ⟨q, hq, hlt, h₁, h₂⟩
-        rcases Nat.lt_or_ge q p with h | h
-        · exact Or.inl ⟨q, hq, h, h₁, h₂⟩
-        · obtain rfl : q = p := by omega
-          exact Or.inr ⟨hq, h₁, h₂⟩
-      · rintro (⟨q, hq, hlt, h₁, h₂⟩ | ⟨hq, h₁, h₂⟩)
-        · exact ⟨q, hq, by omega, h₁, h₂⟩
-        · exact ⟨p, hq, by omega, h₁, h₂⟩
-    rw [hext]
-    split_ifs with hb
-    · have hpp := hbit.mp hb
-      rw [(markMultiples_spec p bits (p * p) (by omega)).2, hinv i]
-      have hmul : (p * p ≤ i ∧ p ∣ i - p * p) ↔ (p.Prime ∧ p ∣ i ∧ p * p ≤ i) := by
-        constructor
-        · rintro ⟨h₁, h₂⟩
-          refine ⟨hpp, ?_, h₁⟩
-          have : i = i - p * p + p * p := by omega
-          rw [this]; exact Dvd.dvd.add h₂ (Dvd.intro _ rfl)
-        · rintro ⟨-, h₁, h₂⟩
-          exact ⟨h₂, Nat.dvd_sub h₁ (Dvd.intro _ rfl)⟩
-      rw [hmul, not_or]
-      constructor
-      · rintro ⟨⟨a, b, c⟩, d⟩; exact ⟨a, b, c, d⟩
-      · rintro ⟨a, b, c, d⟩; exact ⟨⟨a, b, c⟩, d⟩
-    · have hnp : ¬p.Prime := fun h ↦ hb (hbit.mpr h)
-      rw [hinv i, not_or]
-      constructor
-      · rintro ⟨a, b, c⟩; exact ⟨a, b, c, fun h ↦ hnp h.1⟩
-      · rintro ⟨a, b, c, _⟩; exact ⟨a, b, c⟩
+  | case1 p bits hle ih => exact ih (by omega) (hinv.step hp hle.1)
   | case2 p bits hgt =>
     intro i
     rw [hinv i]
@@ -185,10 +193,10 @@ theorem sieveLoop_spec (N p : ℕ) (bits : Array Bool) (hp : 2 ≤ p) (hinv : Si
       have := hq.two_le
       omega
 
-/-- **Correctness of the sieve of Eratosthenes**: bit `i` of `sieve N` is set exactly when
-`i ≤ N` is prime. -/
-theorem sieve_spec (N i : ℕ) : bit (sieve N) i = true ↔ i ≤ N ∧ i.Prime := by
-  refine sieveLoop_spec N 2 _ le_rfl (fun i ↦ ?_) i
+/-- The initial array (all of `2 … N` marked) satisfies the invariant for `p = 2`. -/
+theorem sieveInv_init (N : ℕ) : SieveInv N 2
+    (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false) := by
+  intro i
   rw [bit_setIfInBounds, bit_setIfInBounds]
   have hno : ¬∃ q : ℕ, q.Prime ∧ q < 2 ∧ q ∣ i ∧ q * q ≤ i := fun ⟨q, hq, h, _⟩ ↦ by
     have := hq.two_le
@@ -206,6 +214,11 @@ theorem sieve_spec (N i : ℕ) : bit (sieve N) i = true ↔ i ≤ N ∧ i.Prime 
     constructor
     · intro hi; exact ⟨by omega, hi, hno⟩
     · rintro ⟨-, hi, -⟩; exact hi
+
+/-- **Correctness of the sieve of Eratosthenes**: bit `i` of `sieve N` is set exactly when
+`i ≤ N` is prime. -/
+theorem sieve_spec (N i : ℕ) : bit (sieve N) i = true ↔ i ≤ N ∧ i.Prime :=
+  sieveLoop_spec N 2 _ le_rfl (sieveInv_init N) i
 
 /-- `sievePrimes N` is the list of the primes `≤ N`. -/
 theorem mem_sievePrimes {N q : ℕ} : q ∈ sievePrimes N ↔ q.Prime ∧ q ≤ N := by
@@ -333,5 +346,58 @@ theorem sieveWrites_le_log (N : ℕ) :
     exact Finset.sum_congr rfl fun i _ ↦ by ring
   rw [h₄] at h₁
   refine h₁.trans (mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg N))
+
+/-! ### Counting only the primes: the `N ln ln N` bound -/
+
+/-- Only primes strike out: the sieve writes at most `∑_{p ≤ √N, p prime} ⌊N/p⌋` bits. -/
+theorem sieveCost_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
+    (hp : 2 ≤ p) (hinv : SieveInv N p bits) :
+    sieveCost N p bits ≤
+      ∑ q ∈ Finset.Ico p (Nat.sqrt N + 1), if q.Prime then N / q else 0 := by
+  fun_induction sieveCost N p bits with
+  | case1 p bits hle ih =>
+    have hps : p ≤ Nat.sqrt N := Nat.le_sqrt.mpr hle.1
+    have hpN : p ≤ N := (Nat.le_mul_self p).trans hle.1
+    have hbit := hinv.bit_iff_prime hp hpN
+    have hsize' : (if bit bits p = true then markMultiples p bits (p * p) else bits).size =
+        N + 1 := by
+      split_ifs
+      · rw [(markMultiples_spec p bits (p * p) hle.2).1, hsize]
+      · exact hsize
+    have ih := ih hsize' (by omega) (hinv.step hp hle.1)
+    have hmark : (if bit bits p = true then markCost p bits (p * p) else 0) ≤
+        if p.Prime then N / p else 0 := by
+      split_ifs with h₁ h₂ h₂
+      · exact markCost_sq_le hle.2 hle.1 hsize
+      · exact absurd (hbit.mp h₁) h₂
+      · exact Nat.zero_le _
+      · exact le_rfl
+    rw [Finset.sum_eq_sum_Ico_succ_bot (by omega : p < Nat.sqrt N + 1)]
+    simp only [dite_eq_ite] at ih
+    omega
+  | case2 p bits hgt => exact Nat.zero_le _
+
+/-- **Running time of the sieve of Eratosthenes, assuming Mertens' theorem 1.4.2**: the
+sieve up to `N ≥ 4` makes at most `N (ln ln √N + c)` bit writes — the book's
+`O(N ln ln N)`. -/
+theorem sieveWrites_le_of_mertens {c : ℝ} (hM : Assumed.Mertens c) {N : ℕ} (hN : 4 ≤ N) :
+    (sieveWrites N : ℝ) ≤ N * (Real.log (Real.log (Nat.sqrt N)) + c) := by
+  have hS : 2 ≤ Nat.sqrt N := Nat.le_sqrt.mpr (by omega)
+  have h₁ := sieveCost_le_primes N 2 _ (by simp) le_rfl (sieveInv_init N)
+  -- pass to a sum over the primes below `√N + 1`
+  have h₂ : (∑ q ∈ Finset.Ico 2 (Nat.sqrt N + 1), if q.Prime then N / q else 0) ≤
+      ∑ q ∈ Nat.primesBelow (Nat.sqrt N + 1), N / q := by
+    rw [Nat.primesBelow, Finset.sum_filter]
+    exact Finset.sum_le_sum_of_subset (fun q hq ↦ by
+      simp only [Finset.mem_Ico, Finset.mem_range] at hq ⊢; omega)
+  calc (sieveWrites N : ℝ)
+      ≤ ((∑ q ∈ Nat.primesBelow (Nat.sqrt N + 1), N / q : ℕ) : ℝ) := by
+        exact_mod_cast h₁.trans h₂
+    _ ≤ ∑ q ∈ Nat.primesBelow (Nat.sqrt N + 1), (N : ℝ) * (1 / (q : ℝ)) := by
+        push_cast
+        exact Finset.sum_le_sum fun q _ ↦ by
+          rw [mul_one_div]; exact_mod_cast Nat.cast_div_le (α := ℝ)
+    _ = N * ∑ q ∈ Nat.primesBelow (Nat.sqrt N + 1), (1 / (q : ℝ)) := by rw [Finset.mul_sum]
+    _ ≤ _ := mul_le_mul_of_nonneg_left (hM _ hS) (Nat.cast_nonneg N)
 
 end PrimeNumbers.Chapter3
