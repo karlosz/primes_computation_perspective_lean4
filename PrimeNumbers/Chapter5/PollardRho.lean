@@ -442,6 +442,120 @@ theorem pollardBrent_sound {n a s fuel g : ℕ} (hn : 0 < n)
     exact ⟨hdvd, by omega, by omega⟩
   · simp at h
 
+/-! ### Brent's variant terminates
+
+Notation: `x_i = F⁽ⁱ⁾(s)`.  In the phase with `limit = L` the loop holds `saved = x_m` and
+compares it with `x_{m+1}, …, x_{m+L}`; then it saves `x_{m+L}` and doubles `L`.  Starting
+from `m = 0`, `L = 1`, the saved index is always `m = L - 1`. -/
+
+/-- Within a phase: if one of the comparisons `x_{m+d}` vs `x_m`, `i < d ≤ L`, has a
+nontrivial gcd, the loop returns. -/
+theorem pollardBrentLoop_isSome_phase {n a s m L : ℕ} (f : ℕ) (r i : ℕ) (hr : L - i = r)
+    (h : ∃ d, i < d ∧ d ≤ L ∧
+      euclid n (absDiff ((rhoF n a)^[m + d] s) ((rhoF n a)^[m] s)) ≠ 1) :
+    (pollardBrentLoop n a ((rhoF n a)^[m] s) ((rhoF n a)^[m + i] s) i L (r + f)).isSome := by
+  induction r generalizing i with
+  | zero => obtain ⟨d, h₁, h₂, -⟩ := h; omega
+  | succ r ih =>
+    rw [Nat.add_right_comm]
+    simp only [pollardBrentLoop, ← Function.iterate_succ_apply' (rhoF n a)]
+    split_ifs with hg hlim
+    · -- the comparison at `d = i + 1` failed, so the witness has `d > i + 1 = L`: impossible
+      obtain ⟨d, h₁, h₂, h₃⟩ := h
+      have : d ≠ i + 1 := by rintro rfl; exact h₃ hg
+      omega
+    · obtain ⟨d, h₁, h₂, h₃⟩ := h
+      have : d ≠ i + 1 := by rintro rfl; exact h₃ hg
+      exact ih (i + 1) (by omega) ⟨d, by omega, h₂, h₃⟩
+    · rfl
+
+/-- A whole phase: from `(saved, cur, i) = (x_m, x_{m+i}, i)` the loop either returns or
+arrives, `L - i` steps later, at the start of the next phase `(x_{m+L}, x_{m+L}, 0)` with
+limit `2L`. -/
+theorem pollardBrentLoop_phase {n a s m L : ℕ} (f : ℕ) (r i : ℕ) (hr : L - i = r + 1) :
+    (pollardBrentLoop n a ((rhoF n a)^[m] s) ((rhoF n a)^[m + i] s) i L (r + 1 + f)).isSome ∨
+      pollardBrentLoop n a ((rhoF n a)^[m] s) ((rhoF n a)^[m + i] s) i L (r + 1 + f) =
+        pollardBrentLoop n a ((rhoF n a)^[m + L] s) ((rhoF n a)^[m + L] s) 0 (2 * L) f := by
+  induction r generalizing i with
+  | zero =>
+    have hiL : i + 1 = L := by omega
+    rw [Nat.add_right_comm]
+    simp only [pollardBrentLoop, ← Function.iterate_succ_apply' (rhoF n a), zero_add]
+    split_ifs with hg
+    · right; rw [show (m + i).succ = m + L by omega]
+    · left; rfl
+  | succ r ih =>
+    rw [Nat.add_right_comm]
+    simp only [pollardBrentLoop, ← Function.iterate_succ_apply' (rhoF n a)]
+    split_ifs with hg hlim
+    · omega
+    · exact ih (i + 1) (by omega)
+    · left; rfl
+
+/-- **Brent's variant, conditionally on the heuristic.**  If `p > 1` divides `n` and the
+sequence modulo `p` repeats within `T` steps (`RhoCollision p a s T`), Brent's search
+stops within `4T` steps with a gcd `g ≠ 1`.  (Unconditionally `T = p` works, by
+`rhoCollision_self`.)
+
+Proof: let `x_j ≡ x_k (mod p)` with `j < k ≤ T`.  Once the phase length `L` is at least
+`k`, the saved index `L - 1 ≥ j` lies on the cycle and the period `k - j ≤ L` is among the
+distances tested; the phases before that take fewer than `L` steps in total, and
+`L < 2k`. -/
+theorem pollardBrentLoop_isSome_of_collision {n p a s T : ℕ} (hp : 1 < p) (hpn : p ∣ n)
+    (hcol : RhoCollision p a s T) {fuel : ℕ} (hfuel : 4 * T ≤ fuel) :
+    (pollardBrentLoop n a s s 0 1 fuel).isSome := by
+  obtain ⟨j, k, hjk, hkT, heq⟩ := hcol
+  -- periodicity modulo `p` from index `j` on
+  have hper : ∀ m, j ≤ m →
+      (rhoF p a)^[m + (k - j)] (s % p) = (rhoF p a)^[m] (s % p) := by
+    intro m hm
+    obtain ⟨d, rfl⟩ : ∃ d, m = d + j := ⟨m - j, by omega⟩
+    rw [show d + j + (k - j) = d + k by omega, Function.iterate_add_apply, ← heq,
+      ← Function.iterate_add_apply]
+  -- a phase with `L ≥ k` succeeds; earlier phases lead to it
+  have key : ∀ e L f : ℕ, 1 ≤ L → k ≤ L * 2 ^ e →
+      (pollardBrentLoop n a ((rhoF n a)^[L - 1] s) ((rhoF n a)^[L - 1] s) 0 L
+        (L * (2 ^ (e + 1) - 1) + f)).isSome := by
+    intro e
+    induction e with
+    | zero =>
+      intro L f hL hk
+      have h := pollardBrentLoop_isSome_phase (n := n) (a := a) (s := s) (m := L - 1) (L := L)
+        f L 0 (by omega) ⟨k - j, by omega, by omega,
+          euclid_absDiff_ne_one hp hpn (by
+            rw [iterate_rhoF_mod hpn, iterate_rhoF_mod hpn, hper _ (by omega)])⟩
+      simpa using h
+    | succ e ih =>
+      intro L f hL hk
+      obtain ⟨r, hr⟩ : ∃ r, L = r + 1 := ⟨L - 1, by omega⟩
+      have hfuel' : L * (2 ^ (e + 1 + 1) - 1) + f =
+          r + 1 + (2 * L * (2 ^ (e + 1) - 1) + f) := by
+        have h2 : 1 ≤ 2 ^ (e + 1) := Nat.one_le_two_pow
+        have : 2 ^ (e + 1 + 1) - 1 = 2 * (2 ^ (e + 1) - 1) + 1 := by
+          rw [pow_succ]; omega
+        rw [this, hr]; ring
+      rw [hfuel']
+      have hphase := pollardBrentLoop_phase (n := n) (a := a) (s := s) (m := L - 1) (L := L)
+        (2 * L * (2 ^ (e + 1) - 1) + f) r 0 (by omega)
+      rcases hphase with hsome | hnext
+      · simpa using hsome
+      · rw [add_zero] at hnext
+        rw [hnext]
+        have := ih (2 * L) f (by omega) (by rw [pow_succ] at hk; nlinarith)
+        rwa [show 2 * L - 1 = L - 1 + L by omega] at this
+  -- start: `L = 1`, with `2^e ≥ k` for `e = ⌊log₂ k⌋ + 1`, and `2^(e+1) - 1 ≤ 4k`
+  have hk0 : k ≠ 0 := by omega
+  have hpow : 2 ^ Nat.log 2 k ≤ k := Nat.pow_log_le_self 2 hk0
+  have hbound : 1 * (2 ^ (Nat.log 2 k + 1 + 1) - 1) ≤ fuel := by
+    have : 2 ^ (Nat.log 2 k + 1 + 1) = 4 * 2 ^ Nat.log 2 k := by ring
+    omega
+  obtain ⟨f, hf⟩ : ∃ f, fuel = 1 * (2 ^ (Nat.log 2 k + 1 + 1) - 1) + f :=
+    ⟨fuel - 1 * (2 ^ (Nat.log 2 k + 1 + 1) - 1), by omega⟩
+  have := key (Nat.log 2 k + 1) 1 f le_rfl
+    (by rw [one_mul]; exact (Nat.lt_pow_succ_log_self (by norm_num) k).le)
+  rw [hf]
+  simpa using this
+
 section RunningTimeBrent
 
 open PrimeNumbers.Chapter9
