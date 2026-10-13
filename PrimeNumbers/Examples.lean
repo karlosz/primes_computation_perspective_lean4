@@ -13,6 +13,7 @@ import PrimeNumbers.Chapter4.LucasLehmer
 import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter5.Fermat
+import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
@@ -213,6 +214,8 @@ def m67 : ℕ := 2 ^ 67 - 1
 
 #guard pollardRho m67 1 2 200000 = some 193707721
 #guard pollardRhoAcc m67 1 2 100 2000 = some 193707721          -- one gcd per 100 passes
+#guard pollardBrent m67 1 2 400000 = some 193707721             -- Brent's cycle-finding
+#guard pollardBrent 8051 1 2 100 = some 97
 
 /-! ## §5.4 Pollard `p - 1` — the book's example `n = 2047 = 23 · 89` -/
 
@@ -241,6 +244,13 @@ def m67 : ℕ := 2 ^ 67 - 1
 #guard fermat 1000001 = some 101
 #guard fermat 97 = none                            -- so 97 is prime
 #guard fermat 10007 = none
+
+/-! ## §5.1.2 Lehman method -/
+
+#guard (lehman 8051).map (8051 % ·) = some 0 ∧ lehman 8051 ≠ some 1
+#guard (lehman 1000001).map (1000001 % ·) = some 0
+#guard (lehman (1000003 * 1000033)).map (1000003 * 1000033 % ·) = some 0   -- two primes ≈ 10⁶
+#guard lehman 1000003 = none                       -- a prime
 
 /-! ## §5.3 Baby-steps, giant-steps: discrete logarithms modulo `p = 1000003` -/
 

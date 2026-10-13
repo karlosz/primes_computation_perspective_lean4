@@ -18,6 +18,7 @@ import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
 import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter5.Fermat
+import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne

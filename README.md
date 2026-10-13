@@ -163,7 +163,9 @@ With `k` the bit length of the modulus / input:
 | 2.1.2 Euclid | ≤ `k(3k + 1)` — `O(ln² N)`, Exercise 2.6 | `euclidBitCost_school_le'` |
 | 2.1.5 `xⁿ mod m` | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln n · ln² m)`, Exercise 2.17 | `powModCost_school_le` (any model: `powModCost_le`) |
 | 2.3.5 Jacobi symbol | ≤ `k(3k + 1)` — `O(ln² m)` | `jacobiBitCost_school_le'` |
-| 2.3.8 Tonelli (`p − 1 = 2^s t`) | ≤ `6 log₂ t + 4s² + 1` multiplications mod `p` — the book's `O(s² + ln t)`; `O(ln⁴ p)` worst case, `O(ln³ p)` for small `s` | `tonelliMults_le` |
+| 2.1.4 extended Euclid, modular inverse | ≤ `4k(3k + 2)` and `4k(3k + 2) + k` — `O(ln² N)` | `extEuclidCost_school_le'`, `modInvCost_school_le` |
+| 2.3.8 Tonelli (`p − 1 = 2^s t`) | ≤ `6 log₂ t + 4s² + 1` multiplications mod `p` — the book's `O(s² + ln t)`; ≤ `(6 log₂ t + 4s² + 1)(2k² + k)` bit operations | `tonelliMults_le`, `tonelliCost_school_le` |
+| 2.3.8 full algorithm | ≤ `6 log₂ p + 4s² + 2` multiplications mod `p` (nonresidue search not counted) | `sqrtModMults_le` |
 | 3.1.1 trial division | ≤ `(2 log₂ n + √n/2 + 1)·k(k + 1)` — `O(√n ln² n)` | `trialDivisionCost_school_le` (any model: `trialDivisionCost_le`) |
 | 3.4.3 Fermat test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` | `probablePrimeCost_school_le` |
 | 3.5.2 strong probable prime test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` per base | `strongProbablePrimeCost_school_le` (any model: `strongProbablePrimeCost_le`) |
@@ -172,7 +174,7 @@ With `k` the bit length of the modulus / input:
 | §3.2 sieve of Eratosthenes | ≤ `N ln √N` bit writes unconditionally; ≤ `N (ln ln √N + c)` **assuming Mertens' theorem** (`Assumed.Mertens c`) | `sieveWrites_le_log`, `sieveWrites_le_of_mertens` |
 | 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps; ≤ `((k+1)/2 + 2)(k+1)²` bit operations | `isqrt_eq` (correctness), `isqrtSteps_le`, `isqrtCost_school_le` |
 | 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
-| 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse (a parameter) (any model) | `bsgsCost_le` |
+| 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse; grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
 
 **Where things are.**  `Chapter9/BitCost.lean` contains only the cost model and imports
 nothing else from the project.  Each algorithm's file imports it and ends with a section
@@ -226,7 +228,9 @@ AKS (§4.5).
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
+| Alg 5.1.2 Lehman method | `lehman` | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 512`); `lehmanPasses_le` (pass count) — **completeness not proved** | `Lehman` |
 | Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
+| §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
 | Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
@@ -251,10 +255,11 @@ For `p − 1`, the result can be `n` itself even when the smoothness condition h
 the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
 charged.
 
-Open in Chapter 5: Lehman's method (5.1.2) and its correctness theorem 5.1.3; the Brent
-variant of rho; rho for discrete logarithms (§5.2.2); the second stage of `p − 1`; §5.5
-(polynomial evaluation method) and §5.6 (binary quadratic forms: Algorithms 5.6.2, 5.6.3,
-5.6.7 and Theorems 5.6.1, 5.6.4).
+Open in Chapter 5: the completeness half of Theorem 5.1.3 for Lehman's method (no answer
+⇒ `n` prime; it needs Dirichlet's approximation theorem) and its closed-form `O(n^{1/3})`
+count; a termination bound for Brent's variant; rho for discrete logarithms (§5.2.2); the
+second stage of `p − 1`; §5.5 (polynomial evaluation method) and §5.6 (binary quadratic
+forms: Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 

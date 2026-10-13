@@ -393,4 +393,88 @@ theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ} (
 
 end RunningTimeAcc
 
+/-! ## Brent's variant
+
+Instead of Floyd's `F⁽ⁱ⁾(s)` versus `F⁽²ⁱ⁾(s)`, Brent compares each new iterate with the
+iterate saved at the last power of two: `x_j` against `x_{2^m}` for `2^m < j ≤ 2^{m+1}`.
+This needs one evaluation of `F` per step instead of three. -/
+
+/-- Brent's cycle search.  `saved = x_{2^m}`, `cur = x_j`, `i = j - 2^m`, `limit = 2^m`. -/
+def pollardBrentLoop (n a : ℕ) : (saved cur i limit fuel : ℕ) → Option ℕ
+  | _, _, _, _, 0 => none
+  | saved, cur, i, limit, fuel + 1 =>
+    let cur' := rhoF n a cur
+    let g := euclid n (absDiff cur' saved)
+    if g = 1 then
+      if i + 1 = limit then pollardBrentLoop n a cur' cur' 0 (2 * limit) fuel
+      else pollardBrentLoop n a saved cur' (i + 1) limit fuel
+    else some g
+
+/-- **Pollard rho with Brent's cycle-finding.** -/
+def pollardBrent (n a s fuel : ℕ) : Option ℕ :=
+  match pollardBrentLoop n a s s 0 1 fuel with
+  | some g => if g = n then none else some g
+  | none => none
+
+theorem pollardBrentLoop_spec {n a saved cur i limit fuel g : ℕ}
+    (h : pollardBrentLoop n a saved cur i limit fuel = some g) : g ∣ n ∧ g ≠ 1 := by
+  induction fuel generalizing saved cur i limit with
+  | zero => simp [pollardBrentLoop] at h
+  | succ fuel ih =>
+    simp only [pollardBrentLoop] at h
+    split_ifs at h with h1 h2
+    · exact ih h
+    · exact ih h
+    · obtain rfl := Option.some.inj h
+      exact ⟨by rw [euclid_eq_gcd]; exact Nat.gcd_dvd_left _ _, h1⟩
+
+/-- **Soundness of Brent's variant**: any `g` returned is a nontrivial factor of `n`. -/
+theorem pollardBrent_sound {n a s fuel g : ℕ} (hn : 0 < n)
+    (h : pollardBrent n a s fuel = some g) : g ∣ n ∧ 1 < g ∧ g < n := by
+  unfold pollardBrent at h
+  split at h
+  · rename_i g' hloop
+    split_ifs at h with hgn
+    obtain rfl := Option.some.inj h
+    obtain ⟨hdvd, h1⟩ := pollardBrentLoop_spec hloop
+    have hpos : 0 < g' := Nat.pos_of_dvd_of_pos hdvd hn
+    have hle : g' ≤ n := Nat.le_of_dvd hn hdvd
+    exact ⟨hdvd, by omega, by omega⟩
+  · simp at h
+
+section RunningTimeBrent
+
+open PrimeNumbers.Chapter9
+
+/-- The bit operations of `pollardBrentLoop`: one evaluation of `F` and one gcd per step. -/
+def pollardBrentCost (C : CostModel) (n a : ℕ) : (saved cur i limit fuel : ℕ) → ℕ
+  | _, _, _, _, 0 => 0
+  | saved, cur, i, limit, fuel + 1 =>
+    let cur' := rhoF n a cur
+    rhoFCost C n a cur + euclidBitCost C n (absDiff cur' saved) +
+      if euclid n (absDiff cur' saved) = 1 then
+        if i + 1 = limit then pollardBrentCost C n a cur' cur' 0 (2 * limit) fuel
+        else pollardBrentCost C n a saved cur' (i + 1) limit fuel
+      else 0
+
+/-- **Bit complexity of Brent's variant**: each step costs one modular multiplication and
+one gcd — against three and one for Algorithm 5.2.1. -/
+theorem pollardBrentCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
+    (hG : ∀ d < n, euclidBitCost C n d ≤ G) {saved cur : ℕ} (hs : saved < n) (hc : cur < n)
+    (i limit fuel : ℕ) :
+    pollardBrentCost C n a saved cur i limit fuel ≤ fuel * (C.mulMod n.size + G) := by
+  have hn : 0 < n := by omega
+  induction fuel generalizing saved cur i limit with
+  | zero => simp [pollardBrentCost]
+  | succ fuel ih =>
+    have hF : rhoF n a cur < n := Nat.mod_lt _ hn
+    have h₁ := rhoFCost_le C ha hc
+    have h₂ := hG _ (absDiff_lt hF hs)
+    have ih₁ := ih hF hF 0 (2 * limit)
+    have ih₂ := ih hs hF (i + 1) limit
+    simp only [pollardBrentCost, add_mul, one_mul]
+    split_ifs <;> omega
+
+end RunningTimeBrent
+
 end PrimeNumbers.Chapter5
