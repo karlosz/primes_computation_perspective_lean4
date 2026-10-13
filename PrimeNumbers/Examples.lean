@@ -212,6 +212,7 @@ def proth189 : ℕ := 3 * 2 ^ 189 + 1
 def m67 : ℕ := 2 ^ 67 - 1
 
 #guard pollardRho m67 1 2 200000 = some 193707721
+#guard pollardRhoAcc m67 1 2 100 2000 = some 193707721          -- one gcd per 100 passes
 
 /-! ## §5.4 Pollard `p - 1` — the book's example `n = 2047 = 23 · 89` -/
 

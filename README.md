@@ -169,8 +169,9 @@ With `k` the bit length of the modulus / input:
 | 3.5.2 strong probable prime test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` per base | `strongProbablePrimeCost_school_le` (any model: `strongProbablePrimeCost_le`) |
 | 4.1.2 Pepin test | ≤ `(4 log₂ F + 1)(k + 1)²` | `pepinCost_school_le` |
 | 4.2.7 Lucas–Lehmer | ≤ `(p − 2)(2p² + p)` — `O(p³)` | `lucasLehmerCost_school_le` (any model: `lucasLehmerCost_le`) |
-| §3.2 sieve of Eratosthenes | ≤ `∑_{p ≤ √N} ⌊N/p⌋ ≤ N ln √N` bit writes (no multiplications or divisions) | `sieveWrites_le`, `sieveWrites_le_log` |
-| 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root (any model; the square-root cost is a parameter) | `fermatCost_le'` |
+| §3.2 sieve of Eratosthenes | ≤ `N ln √N` bit writes unconditionally; ≤ `N (ln ln √N + c)` **assuming Mertens' theorem** (`Assumed.Mertens c`) | `sieveWrites_le_log`, `sieveWrites_le_of_mertens` |
+| 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps; ≤ `((k+1)/2 + 2)(k+1)²` bit operations | `isqrt_eq` (correctness), `isqrtSteps_le`, `isqrtCost_school_le` |
+| 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
 | 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse (a parameter) (any model) | `bsgsCost_le` |
 
 **Where things are.**  `Chapter9/BitCost.lean` contains only the cost model and imports
@@ -225,7 +226,8 @@ AKS (§4.5).
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
-| Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)` | `BabyGiant` |
+| Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
+| §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
 | Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
 
@@ -249,10 +251,20 @@ For `p − 1`, the result can be `n` itself even when the smoothness condition h
 the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
 charged.
 
-Open in Chapter 5: Lehman's method (5.1.2, Thm 5.1.3); the gcd-accumulation and Brent
-variants of rho; rho for discrete logarithms (§5.2.2); completeness and the `O(√n)` count
-for baby-steps giant-steps; the second stage of `p − 1`; §5.5 and §5.6 (polynomial
-evaluation, binary quadratic forms).
+Open in Chapter 5: Lehman's method (5.1.2) and its correctness theorem 5.1.3; the Brent
+variant of rho; rho for discrete logarithms (§5.2.2); the second stage of `p − 1`; §5.5
+(polynomial evaluation method) and §5.6 (binary quadratic forms: Algorithms 5.6.2, 5.6.3,
+5.6.7 and Theorems 5.6.1, 5.6.4).
+
+### Assumed theorems — `PrimeNumbers/Assumed.lean`
+
+Deep results the book states without proof and Mathlib does not have are written as
+*propositions*, never as axioms: `Assumed.Mertens c` (Theorem 1.4.2),
+`Assumed.PrimeNumberTheorem` (1.1.4), `Assumed.Brun` (1.2.1).  A theorem that needs one
+takes it as a hypothesis (so far only `sieveWrites_le_of_mertens`), so the dependence is
+visible in its statement and `#print axioms` stays at the three standard axioms.
+Algorithm-specific heuristics are handled the same way next to the algorithm
+(`RhoCollision` for Pollard rho).
 
 `PrimeNumbers/Examples.lean` runs every algorithm, on the book's worked examples and on
 inputs of 58–157 digits.

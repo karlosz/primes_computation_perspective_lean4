@@ -298,4 +298,99 @@ theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV :
 
 end RunningTime
 
+/-! ## The variant with accumulated gcd's
+
+"With the cost of one extra modular multiplication, one may put off the gcd calculation so
+that it is performed only rarely.  Namely, the numbers `U - V` may be accumulated
+(multiplied all together) modulo `n` for `k` iterations, and then the gcd of this modular
+product is taken with `n`." -/
+
+/-- `count` passes of [Factor search] without the gcd, accumulating
+`Q = Q · |U - V| mod n`.  Returns `(U, V, Q)`. -/
+def rhoBatch (n a : ℕ) : (U V Q count : ℕ) → ℕ × ℕ × ℕ
+  | U, V, Q, 0 => (U, V, Q)
+  | U, V, Q, count + 1 =>
+    let U' := rhoF n a U
+    let V' := rhoF n a (rhoF n a V)
+    rhoBatch n a U' V' (Q * absDiff U' V' % n) count
+
+/-- [Factor search] with one gcd per batch of `k` passes; at most `fuel` batches. -/
+def pollardRhoAccLoop (n a k : ℕ) (U V : ℕ) : ℕ → Option ℕ
+  | 0 => none
+  | fuel + 1 =>
+    let r := rhoBatch n a U V 1 k
+    let g := euclid n r.2.2
+    if g = 1 then pollardRhoAccLoop n a k r.1 r.2.1 fuel else some g
+
+/-- **Pollard rho with accumulated gcd's.**  Returns `none` if a batch ends with `g = n`
+(then one should redo that batch with a gcd at every pass, i.e. call `pollardRho`). -/
+def pollardRhoAcc (n a s k fuel : ℕ) : Option ℕ :=
+  match pollardRhoAccLoop n a k s s fuel with
+  | some g => if g = n then none else some g
+  | none => none
+
+theorem pollardRhoAccLoop_spec {n a k U V fuel g : ℕ}
+    (h : pollardRhoAccLoop n a k U V fuel = some g) : g ∣ n ∧ g ≠ 1 := by
+  induction fuel generalizing U V with
+  | zero => simp [pollardRhoAccLoop] at h
+  | succ fuel ih =>
+    simp only [pollardRhoAccLoop] at h
+    split_ifs at h with h1
+    · exact ih h
+    · obtain rfl := Option.some.inj h
+      exact ⟨by rw [euclid_eq_gcd]; exact Nat.gcd_dvd_left _ _, h1⟩
+
+/-- **Soundness of the accumulated variant**: any `g` returned is a nontrivial factor. -/
+theorem pollardRhoAcc_sound {n a s k fuel g : ℕ} (hn : 0 < n)
+    (h : pollardRhoAcc n a s k fuel = some g) : g ∣ n ∧ 1 < g ∧ g < n := by
+  unfold pollardRhoAcc at h
+  split at h
+  · rename_i g' hloop
+    split_ifs at h with hgn
+    obtain rfl := Option.some.inj h
+    obtain ⟨hdvd, h1⟩ := pollardRhoAccLoop_spec hloop
+    have hpos : 0 < g' := Nat.pos_of_dvd_of_pos hdvd hn
+    have hle : g' ≤ n := Nat.le_of_dvd hn hdvd
+    exact ⟨hdvd, by omega, by omega⟩
+  · simp at h
+
+section RunningTimeAcc
+
+open PrimeNumbers.Chapter9
+
+/-- The bit operations of `rhoBatch`: per pass three evaluations of `F` and one more
+modular multiplication. -/
+def rhoBatchCost (C : CostModel) (n a : ℕ) : (U V Q count : ℕ) → ℕ
+  | _, _, _, 0 => 0
+  | U, V, Q, count + 1 =>
+    let U' := rhoF n a U
+    let V₁ := rhoF n a V
+    let V' := rhoF n a V₁
+    let d := absDiff U' V'
+    rhoFCost C n a U + rhoFCost C n a V + rhoFCost C n a V₁ +
+      (C.mul Q.size d.size + C.divMod (Q * d).size n.size) +
+      rhoBatchCost C n a U' V' (Q * d % n) count
+
+/-- **Cost of a batch**: "one generic loop consists of 3 modular squarings and one modular
+multiplication" — at most `4 · C.mulMod k` bit operations per pass, and the gcd is paid
+only once per batch. -/
+theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ} (hU : U < n)
+    (hV : V < n) (hQ : Q < n) (count : ℕ) :
+    rhoBatchCost C n a U V Q count ≤ count * (4 * C.mulMod n.size) := by
+  have hn : 0 < n := by omega
+  induction count generalizing U V Q with
+  | zero => simp [rhoBatchCost]
+  | succ count ih =>
+    have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
+    have h₁ := rhoFCost_le C ha hU
+    have h₂ := rhoFCost_le C ha hV
+    have h₃ := rhoFCost_le C ha (hF V)
+    have h₄ := mul_add_divMod_le C hQ (absDiff_lt (hF U) (hF (rhoF n a V)))
+    have ih := ih (hF U) (hF (rhoF n a V))
+      (Q := Q * absDiff (rhoF n a U) (rhoF n a (rhoF n a V)) % n) (Nat.mod_lt _ hn)
+    simp only [rhoBatchCost, add_mul, one_mul]
+    omega
+
+end RunningTimeAcc
+
 end PrimeNumbers.Chapter5
