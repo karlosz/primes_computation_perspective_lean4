@@ -6,7 +6,7 @@ import PrimeNumbers.Chapter5.Fermat
 Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Section 5.1.2.
 
 * `lehman`          — Algorithm 5.1.2 (Lehman method).
-* `lehman_sound`    — for `n ≥ 512`, a returned `d` is a nontrivial divisor of `n`.  This is
+* `lehman_sound`    — for `n ≥ 576`, a returned `d` is a nontrivial divisor of `n`.  This is
                       the last paragraph of the book's proof of Theorem 5.1.3: the pair
                       found satisfies `a + b < n`, and `n ∣ (a + b)(a - b)`.
 * `lehmanPasses_le` — the number of passes of the inner loop is at most
@@ -15,7 +15,7 @@ Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Section 5.1.
 
 **Not proved:** the other half of Theorem 5.1.3, that the algorithm returning nothing
 implies `n` is prime.  That argument rests on Dirichlet's approximation theorem applied
-to `p/q` for `n = p q`; it is not formalized.  Soundness is proved for `n ≥ 512` rather
+to `p/q` for `n = p q`; it is not formalized.  Soundness is proved for `n ≥ 576` rather
 than the book's `n > 21`, to keep the inequality `a + b < n` in integer arithmetic.
 -/
 
@@ -78,12 +78,15 @@ nontrivial factor of `n` or reports nothing (the book: "proves `n` prime").
 2. for (1 ≤ k ≤ n^(1/3)) { for (2√(kn) ≤ a ≤ 2√(kn) + n^(1/6)/(4√k)) { … } }
    return "n is prime";
 ```
--/
+**One deviation from the book**: `k` runs up to `⌊n^(1/3)⌋ + 1`, one further than printed.
+The book's proof of Theorem 5.1.3 bounds the `k` it needs by `k < n^(1/3) + 1`, which for
+integers gives `k ≤ ⌊n^(1/3)⌋ + 1`, not `k ≤ n^(1/3)`; the extra value makes the
+completeness theorem below true as proved. -/
 def lehman (n : ℕ) : Option ℕ :=
   let c := iroot 3 n
   match smallDivisor n 2 (c - 1) with
   | some d => some d
-  | none => lehmanOuter n (iroot 6 n) 1 c
+  | none => lehmanOuter n (iroot 6 n) 1 (c + 1)
 
 /-! ## Soundness -/
 
@@ -124,9 +127,9 @@ theorem lehmanOuter_some {n r6 k fuel d : ℕ} (h : lehmanOuter n r6 k fuel = so
     · obtain ⟨k', h₁, h₂, h₃⟩ := ih h
       exact ⟨k', by omega, by omega, h₃⟩
 
-/-- **Soundness of Algorithm 5.1.2**: for `n ≥ 512`, a returned `d` is a nontrivial
+/-- **Soundness of Algorithm 5.1.2**: for `n ≥ 576`, a returned `d` is a nontrivial
 divisor of `n`. -/
-theorem lehman_sound {n d : ℕ} (hn : 512 ≤ n) (h : lehman n = some d) :
+theorem lehman_sound {n d : ℕ} (hn : 576 ≤ n) (h : lehman n = some d) :
     d ∣ n ∧ 1 < d ∧ d < n := by
   have hc3 : iroot 3 n ^ 3 ≤ n := iroot_pow_le (by norm_num) n
   have hr6 : iroot 6 n ^ 6 ≤ n := iroot_pow_le (by norm_num) n
@@ -168,12 +171,13 @@ theorem lehman_sound {n d : ℕ} (hn : 512 ≤ n) (h : lehman n = some d) :
       rcases Nat.eq_zero_or_pos a with rfl | h0
       · simp at hna; omega
       · exact h0
-    -- `64 k ≤ n`, because `k ≤ c` and `c³ ≤ n`
+    -- `64 k ≤ n`, because `k ≤ c + 1` and `c³ ≤ n`
     have hk64 : 64 * k ≤ n := by
-      rcases Nat.lt_or_ge k 8 with hlt | hge
+      rcases Nat.lt_or_ge k 10 with hlt | hge
       · omega
-      · have h₁ : k ^ 3 ≤ c ^ 3 := Nat.pow_le_pow_left (by omega) 3
-        have h₂ : k ^ 3 = k * k * k := by ring
+      · have hc9 : 9 ≤ c := by omega
+        have h₁ : 81 ≤ c * c := Nat.mul_le_mul hc9 hc9
+        have h₂ : c ^ 3 = c * (c * c) := by ring
         nlinarith
     -- hence `⌈√(4kn)⌉ ≤ n/4 + 1`
     have ha₀ : ceilSqrt (4 * k * n) ≤ n / 4 + 1 := by
@@ -256,7 +260,7 @@ with primes `n^{1/3} < p ≤ q`, and by Dirichlet's approximation theorem there 
 with `k = u v ≤ n^{1/3}` and `|u q - v p| < n^{1/3}`; then `a = u q + v p` works.  That
 derivation is **not formalized**; `LehmanWitness n` is what it produces. -/
 def LehmanWitness (n : ℕ) : Prop :=
-  ∃ k a b, 1 ≤ k ∧ k ≤ iroot 3 n ∧ ceilSqrt (4 * k * n) ≤ a ∧
+  ∃ k a b, 1 ≤ k ∧ k ≤ iroot 3 n + 1 ∧ ceilSqrt (4 * k * n) ≤ a ∧
     a < ceilSqrt (4 * k * n) + (iroot 6 n / (4 * Nat.sqrt k) + 2) ∧ a * a - 4 * k * n = b * b
 
 theorem lehmanInner_isSome {n k a fuel : ℕ}
@@ -396,5 +400,95 @@ theorem lehmanPasses_le_closed (n r6 c : ℕ) :
   push_cast at h₁ h₂ ⊢
   simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h₂
   nlinarith
+
+/-! ## The existence step of Theorem 5.1.3 -/
+
+/-- **Dirichlet's approximation theorem** ([Hardy and Wright, Theorem 36], as used in the
+book): for real `ξ` and `N ≥ 1` there are integers `j` and `0 < v ≤ N` with
+`|v ξ - j| ≤ 1/(N + 1)`.  This is in Mathlib. -/
+theorem dirichlet_approximation (ξ : ℝ) {N : ℕ} (hN : 0 < N) :
+    ∃ j v : ℤ, 0 < v ∧ v ≤ N ∧ |v * ξ - j| ≤ 1 / (N + 1) :=
+  Real.exists_int_int_abs_mul_sub_le ξ hN
+
+/-- The approximation used in the proof of Theorem 5.1.3.  Let `0 < p ≤ q` and let `t` be
+the real cube root of `p q`, with `t < p`.  Then there are positive integers `u, v` with
+`u v < t + 1` and `|u q - v p| < t`.
+
+Proof (the book's): apply Dirichlet's theorem to `p/q` with the bound
+`B = √(t q / p)` (the book's `n^{1/6} √(q/p)`); then `q / B = t` and `B² p / q = t`. -/
+theorem lehman_approx {p q : ℕ} (hp : 0 < p) (hpq : p ≤ q) {t : ℝ} (ht0 : 0 < t)
+    (ht : t ^ 3 = (p : ℝ) * q) (htp : t < p) :
+    ∃ u v : ℕ, 0 < u ∧ 0 < v ∧ ((u * v : ℕ) : ℝ) < t + 1 ∧ |(u : ℝ) * q - v * p| < t := by
+  have hP : (0 : ℝ) < p := by exact_mod_cast hp
+  have hQ : (0 : ℝ) < q := by exact_mod_cast hp.trans_le hpq
+  have hPQ : (p : ℝ) ≤ q := by exact_mod_cast hpq
+  -- `t ≥ 1`
+  have ht1 : 1 ≤ t := by
+    by_contra hlt
+    have h₁ : t ^ 3 < 1 := pow_lt_one₀ ht0.le (by linarith) (by norm_num)
+    have h₂ : (1 : ℝ) ≤ (p : ℝ) * q := by
+      have : (1 : ℝ) ≤ p := by exact_mod_cast hp
+      nlinarith
+    linarith
+  -- the bound `B`, with `B² = t q / p` and `t B = q`
+  set B := Real.sqrt (t * q / p) with hB
+  have hB2 : B ^ 2 = t * q / p := Real.sq_sqrt (by positivity)
+  have hB0 : 0 < B := Real.sqrt_pos.mpr (by positivity)
+  have hB1 : 1 ≤ B := by
+    have h₁ : (1 : ℝ) ≤ t * q / p := by
+      rw [le_div_iff₀ hP]; nlinarith
+    have : (1 : ℝ) ≤ B ^ 2 := by rw [hB2]; exact h₁
+    nlinarith
+  have htB : t * B = q := by
+    have hsq : (t * B) ^ 2 = (q : ℝ) ^ 2 := by
+      rw [mul_pow, hB2, show t ^ 2 * (t * (q : ℝ) / p) = t ^ 3 * q / p by ring, ht]
+      field_simp
+    nlinarith [sq_nonneg (t * B - q), mul_pos ht0 hB0]
+  -- Dirichlet with `N = ⌊B⌋`
+  have hN : 0 < ⌊B⌋₊ := Nat.floor_pos.mpr hB1
+  have hNle : (⌊B⌋₊ : ℝ) ≤ B := Nat.floor_le hB0.le
+  have hNlt : B < (⌊B⌋₊ : ℝ) + 1 := Nat.lt_floor_add_one B
+  obtain ⟨j, v, hv0, hvN, habs⟩ := dirichlet_approximation ((p : ℝ) / q) hN
+  have hv0' : (0 : ℝ) < v := by exact_mod_cast hv0
+  have hv1 : (1 : ℝ) ≤ v := by exact_mod_cast hv0
+  have hvN' : (v : ℝ) ≤ ⌊B⌋₊ := by exact_mod_cast hvN
+  have hN1 : (0 : ℝ) < (⌊B⌋₊ : ℝ) + 1 := by positivity
+  -- `|v p - j q| < t`
+  have hdiff : |(v : ℝ) * p - j * q| < t := by
+    have h₁ : (v : ℝ) * ((p : ℝ) / q) - j = ((v : ℝ) * p - j * q) / q := by field_simp
+    rw [h₁, abs_div, abs_of_pos hQ, div_le_iff₀ hQ] at habs
+    have h₂ : 1 / ((⌊B⌋₊ : ℝ) + 1) * q < t := by
+      rw [← htB, show 1 / ((⌊B⌋₊ : ℝ) + 1) * (t * B) = t * (B / ((⌊B⌋₊ : ℝ) + 1)) by ring]
+      exact mul_lt_of_lt_one_right ht0 ((div_lt_one hN1).mpr hNlt)
+    linarith
+  -- `j ≥ 1`: otherwise `|v p - j q| ≥ p > t`
+  have hj : 0 < j := by
+    by_contra hle
+    have hj0 : (j : ℝ) ≤ 0 := by exact_mod_cast not_lt.mp hle
+    have h₁ : (j : ℝ) * q ≤ 0 := mul_nonpos_of_nonpos_of_nonneg hj0 hQ.le
+    have h₂ : (p : ℝ) ≤ v * p := le_mul_of_one_le_left hP.le hv1
+    linarith [le_abs_self ((v : ℝ) * p - j * q)]
+  -- `j v < t + 1`
+  have hprod : (j : ℝ) * v < t + 1 := by
+    have h₁ : (j : ℝ) ≤ v * ((p : ℝ) / q) + 1 / ((⌊B⌋₊ : ℝ) + 1) := by
+      linarith [(abs_le.mp habs).2, neg_abs_le ((v : ℝ) * ((p : ℝ) / q) - j),
+        (abs_le.mp habs).1]
+    have h₂ : (v : ℝ) ^ 2 ≤ B ^ 2 := pow_le_pow_left₀ hv0'.le (hvN'.trans hNle) 2
+    have h₃ : (v : ℝ) ^ 2 * ((p : ℝ) / q) ≤ t := by
+      calc (v : ℝ) ^ 2 * ((p : ℝ) / q) ≤ B ^ 2 * ((p : ℝ) / q) :=
+            mul_le_mul_of_nonneg_right h₂ (by positivity)
+        _ = t := by rw [hB2]; field_simp
+    have h₄ : (v : ℝ) / ((⌊B⌋₊ : ℝ) + 1) < 1 := (div_lt_one hN1).mpr (by linarith)
+    have h₅ : (j : ℝ) * v ≤ (v * ((p : ℝ) / q) + 1 / ((⌊B⌋₊ : ℝ) + 1)) * v :=
+      mul_le_mul_of_nonneg_right h₁ hv0'.le
+    have h₆ : (v * ((p : ℝ) / q) + 1 / ((⌊B⌋₊ : ℝ) + 1)) * v =
+        (v : ℝ) ^ 2 * ((p : ℝ) / q) + (v : ℝ) / ((⌊B⌋₊ : ℝ) + 1) := by ring
+    linarith
+  -- back to natural numbers
+  have hjn : ((j.toNat : ℕ) : ℝ) = j := by exact_mod_cast Int.toNat_of_nonneg hj.le
+  have hvn : ((v.toNat : ℕ) : ℝ) = v := by exact_mod_cast Int.toNat_of_nonneg hv0.le
+  refine ⟨j.toNat, v.toNat, by omega, by omega, ?_, ?_⟩
+  · push_cast; rw [hjn, hvn]; exact hprod
+  · rw [hjn, hvn, abs_sub_comm]; exact hdiff
 
 end PrimeNumbers.Chapter5
