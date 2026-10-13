@@ -230,7 +230,8 @@ AKS (§4.5).
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
 | Alg 5.1.2 Lehman method, Thm 5.1.3 | `lehman` (with `k` up to `⌊n^{1/3}⌋ + 1`, one further than printed) | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 576`); `theorem_5_1_3_complete` (no answer ⇒ `n` prime, via Dirichlet's approximation theorem); `lehmanPasses_le_cuberoot` (≤ `4 n^{1/3} + 2` passes) | `Lehman` |
 | §5.4 second stage of `p − 1` | `pollardStage2`, `stage2Primes` | `pollardStage2_dvd`; `dvd_pollardStage2`: a prime `p ∣ n` with `p − 1 ∣ Q·M(B)` for a prime `Q ∈ (B, B']` divides the result | `PollardPMinusOne` |
-| §5.2.2 rho for discrete logarithms (in `Z_p^*`) | `rhoLog` | `rhoLog_sound`: a returned `l` has `g^l ≡ t (mod p)` (the candidate is checked before it is returned) | `RhoLog` |
+| §5.2.2 rho for discrete logarithms (in `Z_p^*`) | `rhoLog` | `rhoLog_sound`; `iterate_rhoLogStep_inv` (the walk keeps `x = g^a t^b`); `pow_rhoLogSolve` (at a collision with `gcd(b − B, N) = 1` the candidate is the logarithm); `exists_rhoLog_collision` (a collision within `p` steps); `rhoLogWalkCost_le` (3 modular multiplications per pass) | `RhoLog` |
+| §5.5 polynomial evaluation method (Pollard–Strassen) | `pollardStrassen` | `pollardStrassen_eq`: for composite `n` it returns the least prime factor — **with `f(jB) mod n` computed block by block, not by Algorithm 9.6.7** | `PolyEval` |
 | Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
 | §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentLoop_isSome_of_collision`: stops within `4T` steps given `RhoCollision p a s T` (so within `4p` unconditionally); `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
@@ -257,11 +258,14 @@ For `p − 1`, the result can be `n` itself even when the smoothness condition h
 the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
 charged.
 
-Open in Chapter 5: §5.5 (polynomial evaluation method) and §5.6 (binary quadratic forms:
-Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).  For rho for discrete
-logarithms: the walk invariant `x = g^a t^b`, and termination under the collision
-heuristic.  No bit-cost bound yet for Lehman's method, the second stage of `p − 1`, or rho
-for discrete logarithms.
+Bit-cost bounds also exist for Lehman's method (`lehmanCost_le`) and the second stage of
+`p − 1` (`stage2Cost_le`), each for an arbitrary cost model.
+
+Open in Chapter 5: for §5.5, Algorithm 9.6.7 (fast polynomial multiplication and
+multipoint evaluation), without which the method costs `√n` multiplications rather than
+`O(n^{1/4} ln² n)`, and any cost bound; §5.6 (binary quadratic forms: Algorithms 5.6.2,
+5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).  For rho for discrete logarithms, the pieces are
+proved but not assembled into one "returns the logarithm under these hypotheses" theorem.
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 

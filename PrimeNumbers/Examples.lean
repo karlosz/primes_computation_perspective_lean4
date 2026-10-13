@@ -18,6 +18,7 @@ import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
 import PrimeNumbers.Chapter5.RhoLog
+import PrimeNumbers.Chapter5.PolyEval
 
 /-!
 # Running the algorithms
@@ -281,5 +282,12 @@ second stage with `B' = 150` finds it. -/
 
 #guard rhoLog 1019 509 4 (powMod 4 123 1019) 1000 = some 123     -- `4` has order 509 mod 1019
 #guard rhoLog 2039 1019 4 (powMod 4 777 2039) 5000 = some 777    -- order 1019 mod 2039
+
+/-! ## §5.5 Polynomial evaluation method: always the least prime factor -/
+
+#guard pollardStrassen 8051 = some 83
+#guard pollardStrassen 1000001 = some 101
+#guard pollardStrassen (1000003 * 1000033) = some 1000003
+#guard pollardStrassen 1000003 = none              -- a prime
 
 end PrimeNumbers.Examples
