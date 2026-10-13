@@ -246,4 +246,155 @@ theorem lehmanPasses_le (n r6 k fuel : ℕ) :
     rw [hcongr, lehmanPasses]
     split <;> omega
 
+/-! ## Completeness, reduced to the existence statement of Theorem 5.1.3 -/
+
+/-- **The existence statement in the proof of Theorem 5.1.3**: some `k ≤ n^{1/3}` and some
+`a` in the range scanned for that `k` have `a² - 4kn` a perfect square.
+
+The book proves: if `n` is composite with no divisor in `[2, n^{1/3}]`, then `n = p q`
+with primes `n^{1/3} < p ≤ q`, and by Dirichlet's approximation theorem there are `u, v`
+with `k = u v ≤ n^{1/3}` and `|u q - v p| < n^{1/3}`; then `a = u q + v p` works.  That
+derivation is **not formalized**; `LehmanWitness n` is what it produces. -/
+def LehmanWitness (n : ℕ) : Prop :=
+  ∃ k a b, 1 ≤ k ∧ k ≤ iroot 3 n ∧ ceilSqrt (4 * k * n) ≤ a ∧
+    a < ceilSqrt (4 * k * n) + (iroot 6 n / (4 * Nat.sqrt k) + 2) ∧ a * a - 4 * k * n = b * b
+
+theorem lehmanInner_isSome {n k a fuel : ℕ}
+    (h : ∃ a' b, a ≤ a' ∧ a' < a + fuel ∧ a' * a' - 4 * k * n = b * b) :
+    (lehmanInner n k a fuel).isSome := by
+  induction fuel generalizing a with
+  | zero => obtain ⟨a', b, h₁, h₂, -⟩ := h; omega
+  | succ fuel ih =>
+    simp only [lehmanInner]
+    split_ifs with hsq
+    · rfl
+    · obtain ⟨a', b, h₁, h₂, h₃⟩ := h
+      have hne : a' ≠ a := by
+        rintro rfl
+        exact hsq (by rw [h₃, Nat.sqrt_eq])
+      exact ih ⟨a', b, by omega, by omega, h₃⟩
+
+theorem lehmanOuter_isSome {n r6 k fuel : ℕ}
+    (h : ∃ k', k ≤ k' ∧ k' < k + fuel ∧
+      (lehmanInner n k' (ceilSqrt (4 * k' * n)) (r6 / (4 * Nat.sqrt k') + 2)).isSome) :
+    (lehmanOuter n r6 k fuel).isSome := by
+  induction fuel generalizing k with
+  | zero => obtain ⟨k', h₁, h₂, -⟩ := h; omega
+  | succ fuel ih =>
+    rw [lehmanOuter]
+    split
+    · rfl
+    · rename_i hnone
+      obtain ⟨k', h₁, h₂, h₃⟩ := h
+      have hne : k' ≠ k := by
+        rintro rfl
+        rw [hnone] at h₃
+        exact absurd h₃ (by simp)
+      exact ih ⟨k', by omega, by omega, h₃⟩
+
+/-- If the existence statement holds, Algorithm 5.1.2 returns an answer. -/
+theorem lehman_isSome_of_witness {n : ℕ} (h : LehmanWitness n) : (lehman n).isSome := by
+  obtain ⟨k, a, b, hk1, hkc, ha₁, ha₂, hsq⟩ := h
+  simp only [lehman]
+  split
+  · rfl
+  · exact lehmanOuter_isSome ⟨k, hk1, by omega, lehmanInner_isSome ⟨a, b, ha₁, ha₂, hsq⟩⟩
+
+theorem smallDivisor_none {n d fuel : ℕ} (h : smallDivisor n d fuel = none) :
+    ∀ r, d ≤ r → r < d + fuel → ¬r ∣ n := by
+  induction fuel generalizing d with
+  | zero => intro r h₁ h₂; omega
+  | succ fuel ih =>
+    rw [smallDivisor] at h
+    split_ifs at h with hd
+    intro r h₁ h₂ hr
+    rcases Nat.eq_or_lt_of_le h₁ with rfl | hlt
+    · exact hd (Nat.mod_eq_zero_of_dvd hr)
+    · exact ih h r (by omega) (by omega) hr
+
+/-- **Completeness of Algorithm 5.1.2, modulo the existence statement.**  Suppose that for
+composite `n` without a divisor in `[2, n^{1/3}]` the existence statement `LehmanWitness n`
+holds (this is the part of the proof of Theorem 5.1.3 that is not formalized).  Then if
+the algorithm returns nothing, `n` is prime. -/
+theorem lehman_none_prime {n : ℕ}
+    (hex : ¬n.Prime → (∀ d, 2 ≤ d → d ≤ iroot 3 n → ¬d ∣ n) → LehmanWitness n)
+    (h : lehman n = none) : n.Prime := by
+  by_contra hnp
+  have hsmall : smallDivisor n 2 (iroot 3 n - 1) = none := by
+    simp only [lehman] at h
+    split at h
+    · exact absurd h (by simp)
+    · assumption
+  have hwit := hex hnp fun d h₁ h₂ ↦ smallDivisor_none hsmall d h₁ (by omega)
+  have := lehman_isSome_of_witness hwit
+  rw [h] at this
+  exact absurd this (by simp)
+
+/-! ## Closed form of the running time -/
+
+/-- `∑_{k=1}^{c} 1/√k ≤ 2√c`. -/
+theorem sum_inv_sqrt_le (c : ℕ) :
+    ∑ i ∈ Finset.range c, (1 / Real.sqrt ((i : ℝ) + 1)) ≤ 2 * Real.sqrt c := by
+  induction c with
+  | zero => simp
+  | succ c ih =>
+    rw [Finset.sum_range_succ]
+    have ha : (0 : ℝ) ≤ Real.sqrt c := Real.sqrt_nonneg _
+    have hb : (0 : ℝ) < Real.sqrt ((c : ℝ) + 1) := Real.sqrt_pos.mpr (by positivity)
+    have ha2 : Real.sqrt c ^ 2 = c := Real.sq_sqrt (by positivity)
+    have hb2 : Real.sqrt ((c : ℝ) + 1) ^ 2 = c + 1 := Real.sq_sqrt (by positivity)
+    have hstep : 1 / Real.sqrt ((c : ℝ) + 1) ≤
+        2 * Real.sqrt ((c : ℝ) + 1) - 2 * Real.sqrt c := by
+      rw [div_le_iff₀ hb]
+      nlinarith [sq_nonneg (Real.sqrt ((c : ℝ) + 1) - Real.sqrt c)]
+    push_cast
+    linarith
+
+/-- `⌊√k⌋ ≥ √k / 2` for `k ≥ 1`. -/
+theorem sqrt_le_two_mul_natSqrt {k : ℕ} (hk : 1 ≤ k) :
+    Real.sqrt k ≤ 2 * (Nat.sqrt k : ℝ) := by
+  have h1 : 1 ≤ Nat.sqrt k := Nat.le_sqrt.mpr (by omega)
+  have h2 : (k : ℝ) ≤ ((Nat.sqrt k : ℝ) + 1) ^ 2 := by
+    have := (Nat.lt_succ_sqrt' k).le
+    exact_mod_cast this
+  have h3 : Real.sqrt k ≤ (Nat.sqrt k : ℝ) + 1 :=
+    (Real.sqrt_le_sqrt h2).trans_eq (Real.sqrt_sq (by positivity))
+  have h4 : (1 : ℝ) ≤ Nat.sqrt k := by exact_mod_cast h1
+  linarith
+
+/-- **Closed form for the running time of Algorithm 5.1.2**: with `c = ⌊n^{1/3}⌋` and
+`r6 = ⌊n^{1/6}⌋`, step [Loop] makes at most `r6 √c + 2c` passes.  Since `r6⁶ ≤ n` and
+`c³ ≤ n` this is at most `n^{1/3} + 2 n^{1/3}`: the book's `O(n^{1/3})`. -/
+theorem lehmanPasses_le_closed (n r6 c : ℕ) :
+    (lehmanPasses n r6 1 c : ℝ) ≤ r6 * Real.sqrt c + 2 * c := by
+  have h₁ : (lehmanPasses n r6 1 c : ℝ) ≤
+      ((∑ i ∈ Finset.range c, (r6 / (4 * Nat.sqrt (1 + i)) + 2) : ℕ) : ℝ) := by
+    exact_mod_cast lehmanPasses_le n r6 1 c
+  have hterm : ∀ i ∈ Finset.range c,
+      (((r6 / (4 * Nat.sqrt (1 + i)) + 2 : ℕ)) : ℝ) ≤
+        (r6 : ℝ) / 2 * (1 / Real.sqrt ((i : ℝ) + 1)) + 2 := by
+    intro i _
+    have hs : 1 ≤ Nat.sqrt (1 + i) := Nat.le_sqrt.mpr (by omega)
+    have hspos : (0 : ℝ) < Nat.sqrt (1 + i) := by exact_mod_cast hs
+    have hrt : (0 : ℝ) < Real.sqrt ((i : ℝ) + 1) := Real.sqrt_pos.mpr (by positivity)
+    have h2 := sqrt_le_two_mul_natSqrt (k := 1 + i) (by omega)
+    rw [show ((1 + i : ℕ) : ℝ) = (i : ℝ) + 1 by push_cast; ring] at h2
+    have hdiv : ((r6 / (4 * Nat.sqrt (1 + i)) : ℕ) : ℝ) ≤ (r6 : ℝ) / (4 * Nat.sqrt (1 + i)) := by
+      have := Nat.cast_div_le (α := ℝ) (m := r6) (n := 4 * Nat.sqrt (1 + i))
+      simpa using this
+    have hcmp : (r6 : ℝ) / (4 * Nat.sqrt (1 + i)) ≤
+        (r6 : ℝ) / 2 * (1 / Real.sqrt ((i : ℝ) + 1)) := by
+      rw [div_mul_div_comm, mul_one]
+      exact div_le_div_of_nonneg_left (Nat.cast_nonneg r6) (by positivity) (by linarith)
+    push_cast
+    linarith
+  have h₂ := Finset.sum_le_sum hterm
+  rw [Finset.sum_add_distrib, ← Finset.mul_sum] at h₂
+  have h₃ := sum_inv_sqrt_le c
+  have hr : (0 : ℝ) ≤ (r6 : ℝ) / 2 := by positivity
+  have h₄ := mul_le_mul_of_nonneg_left h₃ hr
+  push_cast at h₁ h₂ ⊢
+  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h₂
+  nlinarith
+
 end PrimeNumbers.Chapter5

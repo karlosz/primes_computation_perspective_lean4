@@ -228,9 +228,9 @@ AKS (§4.5).
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
-| Alg 5.1.2 Lehman method | `lehman` | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 512`); `lehmanPasses_le` (pass count) — **completeness not proved** | `Lehman` |
+| Alg 5.1.2 Lehman method | `lehman` | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 512`); `lehman_none_prime` (no answer ⇒ prime, **given** the existence statement `LehmanWitness` of the book's proof, which is not formalized); `lehmanPasses_le_closed` (≤ `r6·√c + 2c ≤ 3 n^{1/3}` passes) | `Lehman` |
 | Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
-| §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
+| §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentLoop_isSome_of_collision`: stops within `4T` steps given `RhoCollision p a s T` (so within `4p` unconditionally); `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
 | Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
@@ -255,11 +255,11 @@ For `p − 1`, the result can be `n` itself even when the smoothness condition h
 the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
 charged.
 
-Open in Chapter 5: the completeness half of Theorem 5.1.3 for Lehman's method (no answer
-⇒ `n` prime; it needs Dirichlet's approximation theorem) and its closed-form `O(n^{1/3})`
-count; a termination bound for Brent's variant; rho for discrete logarithms (§5.2.2); the
-second stage of `p − 1`; §5.5 (polynomial evaluation method) and §5.6 (binary quadratic
-forms: Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
+Open in Chapter 5: the existence step of Theorem 5.1.3 for Lehman's method (from
+"`n` composite with no divisor up to `n^{1/3}`" to `LehmanWitness n`, via Dirichlet's
+approximation theorem); rho for discrete logarithms (§5.2.2); the second stage of
+`p − 1`; §5.5 (polynomial evaluation method) and §5.6 (binary quadratic forms:
+Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 
