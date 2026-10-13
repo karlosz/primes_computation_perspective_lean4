@@ -212,5 +212,30 @@ Open in Chapter 4: Thm 4.1.5, 4.1.6 and Alg 4.1.7; the general `n + 1` tests (4.
 4.2.8–4.2.10) and Alg 4.2.11; the finite field test (§4.3), Gauss sums test (§4.4) and
 AKS (§4.5).
 
+### Chapter 5 — `PrimeNumbers/Chapter5/`
+
+| Book | Lean function | Theorems | File |
+|---|---|---|---|
+| Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `exists_iterate_eq_iterate_two_mul` | `PollardRho` |
+| Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
+
+Bit complexity (`Chapter9/Factoring.lean`), `k` the bit length of `n`:
+
+| Algorithm | Bound | Theorem |
+|---|---|---|
+| 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd (any model); ≤ `9k² + 4k` grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school_le` |
+| 5.4.1 Pollard `p − 1` | ≤ `pm1Steps B` modular powers with exponents ≤ `B`, + 1 gcd (any model); `pm1Steps B ≤ π(B)·log₂ B` | `pm1Cost_le`, `pm1Cost_school_le`, `pm1Steps_le` |
+
+What is and is not proved about Pollard rho: `p` passes always suffice, so the total is a
+rigorous `O(p ln² n)`.  The `O(√p)` pass count the method is used for is the heuristic
+assumption that `x ↦ x² + a mod p` behaves like a random map; it is not a theorem and is
+not formalized.  A [Bad seed] (`g = n`) is reported as `none`.  For `p − 1`, the result can
+be `n` itself even when the smoothness condition holds (see the examples), and finding the
+primes up to `B` is done by trial division and is not charged.
+
+Open in Chapter 5: Fermat and Lehman methods (5.1.1, 5.1.2), the gcd-accumulation and
+Brent variants of rho, the rho and baby-steps-giant-steps discrete logarithm algorithms
+(§5.2.2, 5.3.1), the second stage of `p − 1`, and §5.5–5.6.
+
 `PrimeNumbers/Examples.lean` runs every algorithm, on the book's worked examples and on
 inputs of 58–157 digits.

@@ -11,6 +11,8 @@ import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
+import PrimeNumbers.Chapter5.PollardRho
+import PrimeNumbers.Chapter5.PollardPMinusOne
 
 /-!
 # Running the algorithms
@@ -24,7 +26,7 @@ set_option linter.hashCommand false
 
 namespace PrimeNumbers.Examples
 
-open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3 PrimeNumbers.Chapter4
+open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3 PrimeNumbers.Chapter4 PrimeNumbers.Chapter5
 
 /-! ## §2.1.1 Euclid -/
 
@@ -196,5 +198,31 @@ def proth189 : ℕ := 3 * 2 ^ 189 + 1
 #guard lucasLehmer 521
 #guard lucasLehmer 2203
 #guard !lucasLehmer 2207
+
+/-! ## §5.2 Pollard rho -/
+
+#guard pollardRho 8051 1 2 100 = some 97                       -- 8051 = 83 · 97
+#guard pollardRho (2 ^ 32 + 1) 1 2 5000 = some 641             -- F₅ = 641 · 6700417
+#guard pollardRho 97 1 2 1000 = none                           -- a prime: only the bad seed
+
+/-- Cole's number `2^67 - 1 = 193707721 · 761838257287`. -/
+def m67 : ℕ := 2 ^ 67 - 1
+
+#guard pollardRho m67 1 2 200000 = some 193707721
+
+/-! ## §5.4 Pollard `p - 1` — the book's example `n = 2047 = 23 · 89` -/
+
+#guard pollardPMinusOne 2047 10 = 1                -- B = 10: fails with g = 1
+#guard pollardPMinusOne 2047 12 = 2047             -- B = 12: fails with g = n
+#guard pollardPMinusOne 2047 8 12 = 89             -- start value c = 12, B = 8: success
+#guard pm1Exponent 12 = 27720                      -- M(12) = lcm(1, …, 12)
+#guard pollardPMinusOne 1403 5 = 61                -- 1403 = 23 · 61, and 60 ∣ M(5)
+
+-- `p = 2^31 - 1` has `p - 1 = 2 · 3² · 7 · 11 · 31 · 151 · 331`, which is 331-powersmooth,
+-- while `q = 2^61 - 1` has `1321 ∣ q - 1`.  With `c = 2` the method still fails with
+-- `g = n = p q` (28 digits), because `2` has the small orders 31 and 61 modulo `p` and `q`
+-- — the same phenomenon as for 2047.  With `c = 3` it finds `p`.
+#guard pollardPMinusOne ((2 ^ 31 - 1) * (2 ^ 61 - 1)) 331 = (2 ^ 31 - 1) * (2 ^ 61 - 1)
+#guard pollardPMinusOne ((2 ^ 31 - 1) * (2 ^ 61 - 1)) 331 3 = 2 ^ 31 - 1
 
 end PrimeNumbers.Examples

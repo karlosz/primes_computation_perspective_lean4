@@ -14,6 +14,9 @@ import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
+import PrimeNumbers.Chapter5.PollardRho
+import PrimeNumbers.Chapter5.PollardPMinusOne
 import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.Factoring
 import PrimeNumbers.Chapter9.Analyses
 import PrimeNumbers.Examples
