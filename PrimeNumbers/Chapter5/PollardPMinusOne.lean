@@ -1,6 +1,6 @@
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
-import PrimeNumbers.Chapter3.TrialDivision
+import PrimeNumbers.Chapter3.Sieve
 
 /-!
 # §5.4 Pollard `p - 1` method
@@ -25,18 +25,11 @@ namespace PrimeNumbers.Chapter5
 
 open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3
 
-/-- **Algorithm 5.4.1, step 1 [Establish prime-power base]**, the primes `p ≤ B`.
-(The book suggests a sieve, Algorithm 3.2.1; here they are found by trial division.) -/
-def primesUpTo (B : ℕ) : List ℕ :=
-  (List.range (B + 1)).filter fun q ↦ 2 ≤ q && isPrimeTD q
+/-- **Algorithm 5.4.1, step 1 [Establish prime-power base]**: the primes `p ≤ B`, found
+with the sieve of Eratosthenes of §3.2. -/
+def primesUpTo (B : ℕ) : List ℕ := sievePrimes B
 
-theorem mem_primesUpTo {B q : ℕ} : q ∈ primesUpTo B ↔ q.Prime ∧ q ≤ B := by
-  simp only [primesUpTo, List.mem_filter, List.mem_range, Bool.and_eq_true, decide_eq_true_iff]
-  constructor
-  · rintro ⟨h₁, h₂, h₃⟩
-    exact ⟨(isPrimeTD_iff (by omega)).mp h₃, by omega⟩
-  · rintro ⟨h₁, h₂⟩
-    exact ⟨by omega, h₁.two_le, (isPrimeTD_iff h₁.one_lt).mpr h₁⟩
+theorem mem_primesUpTo {B q : ℕ} : q ∈ primesUpTo B ↔ q.Prime ∧ q ≤ B := mem_sievePrimes
 
 /-- The exponent `M(B) = ∏_{p ≤ B} p^(a_p)`, where `a_p = ⌊log_p B⌋` is the maximum integer
 with `p^(a_p) ≤ B`.  This is `lcm(1, …, B)`. -/

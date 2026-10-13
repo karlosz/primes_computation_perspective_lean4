@@ -187,13 +187,15 @@ further `CostModel`s.
 | Book | Lean function | Correctness theorem | File |
 |---|---|---|---|
 | Alg 3.1.1 trial division (factoring) | `trialDivision`, `isPrimeTD` | `trialDivision_spec`, `trialDivision_perm`, `isPrimeTD_iff` | `TrialDivision` |
+| §3.2.1 sieve of Eratosthenes (basic form) | `sieve`, `sievePrimes` | `sieve_spec`, `mem_sievePrimes` | `Sieve` |
 | Thm 3.4.1 Fermat's little theorem | — | `theorem_3_4_1` | `ProbablePrime` |
 | Alg 3.4.3 probable prime test | `probablePrime` | `probablePrime_iff`, `probablePrime_of_prime` | `ProbablePrime` |
 | Thm 3.4.4, 3.4.6 (Korselt) | — | `theorem_3_4_4`, `theorem_3_4_6` (Mathlib) | `ProbablePrime` |
 | Thm 3.5.1 | — | `theorem_3_5_1` | `ProbablePrime` |
 | Alg 3.5.2 strong probable prime test | `strongProbablePrime`, `millerRabin` | `strongProbablePrime_iff`, `strongProbablePrime_of_prime`, `not_prime_of_millerRabin` | `ProbablePrime` |
 
-Open in Chapter 3: the sieves (Alg 3.2.1, 3.2.2) and smoothness test (3.3.1); the counting
+Open in Chapter 3: the blocked and wheel layouts of the sieve (Alg 3.2.1, 3.2.2 — the
+sieve formalized is the plain array version they refine) and the smoothness test (3.3.1); the counting
 theorems (3.4.2, 3.4.7, 3.5.4 "3/4 of bases are witnesses", 3.5.10–3.5.12) and the Miller
 test 3.5.13 that depends on ERH; Lucas pseudoprimes (§3.6); prime counting (§3.7).
 `theorem_3_4_6` uses Mathlib's definition of Carmichael number (`a^(n-1) ≡ 1` for `a`
@@ -216,7 +218,9 @@ AKS (§4.5).
 
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
-| Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `exists_iterate_eq_iterate_two_mul` | `PollardRho` |
+| Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
+| Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)` | `BabyGiant` |
+| Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
 
 Bit complexity (`Chapter9/Factoring.lean`), `k` the bit length of `n`:
@@ -226,16 +230,24 @@ Bit complexity (`Chapter9/Factoring.lean`), `k` the bit length of `n`:
 | 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd (any model); ≤ `9k² + 4k` grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school_le` |
 | 5.4.1 Pollard `p − 1` | ≤ `pm1Steps B` modular powers with exponents ≤ `B`, + 1 gcd (any model); `pm1Steps B ≤ π(B)·log₂ B` | `pm1Cost_le`, `pm1Cost_school_le`, `pm1Steps_le` |
 
-What is and is not proved about Pollard rho: `p` passes always suffice, so the total is a
-rigorous `O(p ln² n)`.  The `O(√p)` pass count the method is used for is the heuristic
-assumption that `x ↦ x² + a mod p` behaves like a random map; it is not a theorem and is
-not formalized.  A [Bad seed] (`g = n`) is reported as `none`.  For `p − 1`, the result can
-be `n` itself even when the smoothness condition holds (see the examples), and finding the
-primes up to `B` is done by trial division and is not charged.
+**Heuristics as explicit hypotheses.**  The `O(√p)` running time of Pollard rho rests on
+the unproved assumption that `x ↦ x² + a mod p` behaves like a random map.  That
+assumption is stated as a definition, `RhoCollision p a s T` ("the sequence modulo `p`
+repeats within `T` steps"; for a random map `T ≈ √(πp/2)` is expected), and the theorem is
+proved *conditionally* on it: `RhoCollision p a s T` ⇒ at most `T` passes ⇒ at most
+`T·(9k² + 4k)` bit operations.  Unconditionally `RhoCollision p a s p` holds
+(`rhoCollision_self`), giving the rigorous `O(p ln² n)`.  A [Bad seed] (`g = n`) is
+reported as `none`.
 
-Open in Chapter 5: Fermat and Lehman methods (5.1.1, 5.1.2), the gcd-accumulation and
-Brent variants of rho, the rho and baby-steps-giant-steps discrete logarithm algorithms
-(§5.2.2, 5.3.1), the second stage of `p − 1`, and §5.5–5.6.
+For `p − 1`, the result can be `n` itself even when the smoothness condition holds (see
+the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
+charged.
+
+Open in Chapter 5: Lehman's method (5.1.2, Thm 5.1.3); the gcd-accumulation and Brent
+variants of rho; rho for discrete logarithms (§5.2.2); completeness and the `O(√n)` count
+for baby-steps giant-steps; the second stage of `p − 1`; §5.5 and §5.6 (polynomial
+evaluation, binary quadratic forms).  No bit-cost bound yet for the sieve, the Fermat
+method or baby-steps giant-steps.
 
 `PrimeNumbers/Examples.lean` runs every algorithm, on the book's worked examples and on
 inputs of 58–157 digits.

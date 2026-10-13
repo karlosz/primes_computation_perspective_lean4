@@ -11,6 +11,9 @@ import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
+import PrimeNumbers.Chapter3.Sieve
+import PrimeNumbers.Chapter5.Fermat
+import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
 
@@ -224,5 +227,24 @@ def m67 : ℕ := 2 ^ 67 - 1
 -- — the same phenomenon as for 2047.  With `c = 3` it finds `p`.
 #guard pollardPMinusOne ((2 ^ 31 - 1) * (2 ^ 61 - 1)) 331 = (2 ^ 31 - 1) * (2 ^ 61 - 1)
 #guard pollardPMinusOne ((2 ^ 31 - 1) * (2 ^ 61 - 1)) 331 3 = 2 ^ 31 - 1
+
+/-! ## §3.2 Sieve of Eratosthenes -/
+
+#guard sievePrimes 50 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+#guard (sievePrimes 100000).length = 9592                      -- π(10⁵)
+#guard (sievePrimes 1000).all isPrimeTD
+
+/-! ## §5.1.1 Fermat method -/
+
+#guard fermat 8051 = some 83                       -- 8051 = 90² - 7² = 83 · 97
+#guard fermat 1000001 = some 101
+#guard fermat 97 = none                            -- so 97 is prime
+#guard fermat 10007 = none
+
+/-! ## §5.3 Baby-steps, giant-steps: discrete logarithms modulo `p = 1000003` -/
+
+#guard (bsgs 1000003 2 (powMod 2 123456 1000003) 1000003).map (powMod 2 · 1000003) =
+  some (powMod 2 123456 1000003)
+#guard (bsgs 101 2 3 100).map (powMod 2 · 101) = some 3      -- 2 is a primitive root of 101
 
 end PrimeNumbers.Examples

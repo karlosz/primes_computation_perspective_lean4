@@ -84,31 +84,13 @@ theorem pollardRho_sound {n a s fuel g : ℕ} (hn : 0 < n) (h : pollardRho n a s
 
 /-! ## Why the search stops: Floyd cycle-finding -/
 
-/-- **Floyd cycle-finding.**  If `f` maps into `{0, …, p - 1}`, then for any start
-`x < p` there is `1 ≤ i ≤ p` with `f⁽ⁱ⁾(x) = f⁽²ⁱ⁾(x)`.
+/-- **Floyd cycle-finding.**  If the sequence `x, f(x), f(f(x)), …` repeats, say
+`f⁽ʲ⁾(x) = f⁽ᵏ⁾(x)` with `j < k`, then `f⁽ⁱ⁾(x) = f⁽²ⁱ⁾(x)` for some `1 ≤ i ≤ k`.
 
-Proof as in the book: by the pigeonhole principle `f⁽ʲ⁾(x) = f⁽ᵏ⁾(x)` for some
-`0 ≤ j < k ≤ p`; with `l = k - j` the sequence has period `l` from index `j` on, and one
-takes for `i` the first multiple of `l` exceeding `j`. -/
-theorem exists_iterate_eq_iterate_two_mul {p : ℕ} (f : ℕ → ℕ) (hf : ∀ x, f x < p) {x : ℕ}
-    (hx : x < p) : ∃ i, 1 ≤ i ∧ i ≤ p ∧ f^[i] x = f^[2 * i] x := by
-  have hlt : ∀ i, f^[i] x < p := fun i ↦ by
-    cases i with
-    | zero => simpa using hx
-    | succ i => rw [Function.iterate_succ_apply']; exact hf _
-  -- pigeonhole among `f⁽⁰⁾(x), …, f⁽ᵖ⁾(x)`
-  obtain ⟨j, k, hjk, heq⟩ : ∃ j k : Fin (p + 1), j ≠ k ∧ f^[j] x = f^[k] x := by
-    obtain ⟨j, k, hjk, h⟩ := Fintype.exists_ne_map_eq_of_card_lt
-      (fun i : Fin (p + 1) ↦ (⟨f^[i] x, hlt i⟩ : Fin p)) (by simp)
-    exact ⟨j, k, hjk, congrArg Fin.val h⟩
-  wlog hlt' : (j : ℕ) < k generalizing j k
-  · exact this k j hjk.symm heq.symm (by
-      have : (j : ℕ) ≠ k := fun h ↦ hjk (Fin.ext h)
-      omega)
-  obtain ⟨j, hj⟩ := j
-  obtain ⟨k, hk⟩ := k
-  simp only at heq hlt'
-  -- the sequence has period `l = k - j` from index `j` on
+Proof as in the book: with `l = k - j` the sequence has period `l` from index `j` on, and
+one takes for `i` the first multiple of `l` exceeding `j`. -/
+theorem floyd {α : Type*} (f : α → α) {x : α} {j k : ℕ} (hjk : j < k)
+    (heq : f^[j] x = f^[k] x) : ∃ i, 1 ≤ i ∧ i ≤ k ∧ f^[i] x = f^[2 * i] x := by
   obtain ⟨l, rfl⟩ : ∃ l, k = j + l := ⟨k - j, by omega⟩
   have hl : 0 < l := by omega
   have hper : ∀ c m, j ≤ m → f^[m + c * l] x = f^[m] x := by
@@ -122,7 +104,6 @@ theorem exists_iterate_eq_iterate_two_mul {p : ℕ} (f : ℕ → ℕ) (hf : ∀ 
         ← heq, ← Function.iterate_add_apply, ← ih (d + j) (by omega)]
       congr 1
       ring
-  -- `i` = the first multiple of `l` exceeding `j`
   refine ⟨l * (j / l + 1), Nat.mul_pos hl (Nat.succ_pos _), ?_, ?_⟩
   · have : l * (j / l) ≤ j := Nat.mul_div_le j l
     rw [mul_add, mul_one]
@@ -130,6 +111,25 @@ theorem exists_iterate_eq_iterate_two_mul {p : ℕ} (f : ℕ → ℕ) (hf : ∀ 
   · have hji : j ≤ l * (j / l + 1) := (Nat.lt_mul_div_succ j hl).le
     rw [show 2 * (l * (j / l + 1)) = l * (j / l + 1) + (j / l + 1) * l by ring]
     exact (hper _ _ hji).symm
+
+/-- By the pigeonhole principle a map into `{0, …, p - 1}` repeats within `p` steps, so
+Floyd's method finds `1 ≤ i ≤ p` with `f⁽ⁱ⁾(x) = f⁽²ⁱ⁾(x)`. -/
+theorem exists_iterate_eq_iterate_two_mul {p : ℕ} (f : ℕ → ℕ) (hf : ∀ x, f x < p) {x : ℕ}
+    (hx : x < p) : ∃ i, 1 ≤ i ∧ i ≤ p ∧ f^[i] x = f^[2 * i] x := by
+  have hlt : ∀ i, f^[i] x < p := fun i ↦ by
+    cases i with
+    | zero => simpa using hx
+    | succ i => rw [Function.iterate_succ_apply']; exact hf _
+  obtain ⟨j, k, hjk, heq⟩ : ∃ j k : Fin (p + 1), j ≠ k ∧ f^[j] x = f^[k] x := by
+    obtain ⟨j, k, hjk, h⟩ := Fintype.exists_ne_map_eq_of_card_lt
+      (fun i : Fin (p + 1) ↦ (⟨f^[i] x, hlt i⟩ : Fin p)) (by simp)
+    exact ⟨j, k, hjk, congrArg Fin.val h⟩
+  wlog hlt' : (j : ℕ) < k generalizing j k
+  · exact this k j hjk.symm heq.symm (by
+      have : (j : ℕ) ≠ k := fun h ↦ hjk (Fin.ext h)
+      omega)
+  obtain ⟨i, h₁, h₂, h₃⟩ := floyd f hlt' heq
+  exact ⟨i, h₁, by omega, h₃⟩
 
 /-- Modulo a divisor `p` of `n`, the iteration `F` is the iteration `f(x) = x² + a mod p`
 ("Clearly, `f(x) = F(x) mod p`"). -/
@@ -184,6 +184,44 @@ theorem pollardRhoLoop_isSome {n p : ℕ} (hp : 1 < p) (hpn : p ∣ n) (a s : �
     (hfuel : p ≤ fuel) : (pollardRhoLoop n a s s fuel).isSome := by
   obtain ⟨i, h₁, h₂, h₃⟩ := exists_iterate_eq_iterate_two_mul (rhoF p a)
     (fun x ↦ Nat.mod_lt _ (by omega)) (Nat.mod_lt s (by omega : 0 < p))
+  refine pollardRhoLoop_isSome_of s s fuel ⟨i, h₁, by omega, ?_⟩
+  exact euclid_absDiff_ne_one hp hpn (by rw [iterate_rhoF_mod hpn, iterate_rhoF_mod hpn, h₃])
+
+/-! ## The heuristic, as an explicit hypothesis -/
+
+/-- **The hypothesis behind the `O(√p)` running time.**  `RhoCollision p a s T` says that
+the sequence `s, f(s), f(f(s)), …` for `f(x) = x² + a mod p` repeats within `T` steps
+(its "tail plus cycle" has length at most `T`).
+
+For a *random* map on `p` points the expected length is `√(πp/2)`; the heuristic
+assumption of the Pollard rho method is that `f` behaves this way, i.e. that
+`RhoCollision p a s T` holds with `T` of order `√p` for most seeds.  This is not known to
+be true, and is not proved here: it is the hypothesis of the next theorem. -/
+def RhoCollision (p a s T : ℕ) : Prop :=
+  ∃ j k, j < k ∧ k ≤ T ∧ (rhoF p a)^[j] (s % p) = (rhoF p a)^[k] (s % p)
+
+/-- Unconditionally, the sequence repeats within `p` steps. -/
+theorem rhoCollision_self {p : ℕ} (hp : 0 < p) (a s : ℕ) : RhoCollision p a s p := by
+  have hlt : ∀ i, (rhoF p a)^[i] (s % p) < p := fun i ↦ by
+    cases i with
+    | zero => exact Nat.mod_lt _ hp
+    | succ i => rw [Function.iterate_succ_apply']; exact Nat.mod_lt _ hp
+  obtain ⟨j, k, hjk, h⟩ := Fintype.exists_ne_map_eq_of_card_lt
+    (fun i : Fin (p + 1) ↦ (⟨(rhoF p a)^[i] (s % p), hlt i⟩ : Fin p)) (by simp)
+  have h' := congrArg Fin.val h
+  have hne : (j : ℕ) ≠ k := fun h ↦ hjk (Fin.ext h)
+  rcases Nat.lt_or_ge j k with hlt' | hge
+  · exact ⟨j, k, hlt', by omega, h'⟩
+  · exact ⟨k, j, by omega, by omega, h'.symm⟩
+
+/-- **Pollard rho, conditionally on the heuristic.**  If `p > 1` divides `n` and the
+sequence modulo `p` repeats within `T` steps, then [Factor search] stops within `T`
+passes with a gcd `g ≠ 1`.  Under the random-map heuristic `T = O(√p)`. -/
+theorem pollardRhoLoop_isSome_of_collision {n p a s T : ℕ} (hp : 1 < p) (hpn : p ∣ n)
+    (hcol : RhoCollision p a s T) {fuel : ℕ} (hfuel : T ≤ fuel) :
+    (pollardRhoLoop n a s s fuel).isSome := by
+  obtain ⟨j, k, hjk, hkT, heq⟩ := hcol
+  obtain ⟨i, h₁, h₂, h₃⟩ := floyd (rhoF p a) hjk heq
   refine pollardRhoLoop_isSome_of s s fuel ⟨i, h₁, by omega, ?_⟩
   exact euclid_absDiff_ne_one hp hpn (by rw [iterate_rhoF_mod hpn, iterate_rhoF_mod hpn, h₃])
 
