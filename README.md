@@ -228,7 +228,7 @@ AKS (§4.5).
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
-| Alg 5.1.2 Lehman method | `lehman` | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 512`); `lehman_none_prime` (no answer ⇒ prime, **given** the existence statement `LehmanWitness` of the book's proof, which is not formalized); `lehmanPasses_le_closed` (≤ `r6·√c + 2c ≤ 3 n^{1/3}` passes) | `Lehman` |
+| Alg 5.1.2 Lehman method, Thm 5.1.3 | `lehman` (with `k` up to `⌊n^{1/3}⌋ + 1`, one further than printed) | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 576`); `theorem_5_1_3_complete` (no answer ⇒ `n` prime, via Dirichlet's approximation theorem); `lehmanPasses_le_cuberoot` (≤ `4 n^{1/3} + 2` passes) | `Lehman` |
 | Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
 | §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentLoop_isSome_of_collision`: stops within `4T` steps given `RhoCollision p a s T` (so within `4p` unconditionally); `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
@@ -255,11 +255,10 @@ For `p − 1`, the result can be `n` itself even when the smoothness condition h
 the examples).  Its primes up to `B` now come from the sieve; the sieve's own cost is not
 charged.
 
-Open in Chapter 5: the existence step of Theorem 5.1.3 for Lehman's method (from
-"`n` composite with no divisor up to `n^{1/3}`" to `LehmanWitness n`, via Dirichlet's
-approximation theorem); rho for discrete logarithms (§5.2.2); the second stage of
-`p − 1`; §5.5 (polynomial evaluation method) and §5.6 (binary quadratic forms:
-Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
+Open in Chapter 5: rho for discrete logarithms (§5.2.2); the second stage of `p − 1`;
+§5.5 (polynomial evaluation method) and §5.6 (binary quadratic forms: Algorithms 5.6.2,
+5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).  Lehman's method has a pass count but no
+bit-cost bound yet.
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 

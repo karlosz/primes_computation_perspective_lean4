@@ -6,17 +6,17 @@ import PrimeNumbers.Chapter5.Fermat
 Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Section 5.1.2.
 
 * `lehman`          — Algorithm 5.1.2 (Lehman method).
-* `lehman_sound`    — for `n ≥ 576`, a returned `d` is a nontrivial divisor of `n`.  This is
-                      the last paragraph of the book's proof of Theorem 5.1.3: the pair
-                      found satisfies `a + b < n`, and `n ∣ (a + b)(a - b)`.
-* `lehmanPasses_le` — the number of passes of the inner loop is at most
-                      `∑_{k=1}^{⌊n^{1/3}⌋} (⌊n^{1/6}⌋ / (4⌊√k⌋) + 2)`, the sum the book
-                      evaluates as `O(n^{1/3})`.
+* `lehman_sound`           — for `n ≥ 576`, a returned `d` is a nontrivial divisor of `n`.
+* `theorem_5_1_3_complete` — if the algorithm returns nothing, `n > 1` is prime.  The
+  proof follows the book: `n = p q` with `n^{1/3} < p ≤ q`, Dirichlet's approximation
+  theorem (`dirichlet_approximation`, from Mathlib) applied to `p/q` (`lehman_approx`),
+  and the resulting `a = u q + v p` lies in the scanned range
+  (`lehmanWitness_of_composite`).
+* `lehmanPasses_le_cuberoot` — step [Loop] makes at most `4 n^{1/3} + 2` passes.
 
-**Not proved:** the other half of Theorem 5.1.3, that the algorithm returning nothing
-implies `n` is prime.  That argument rests on Dirichlet's approximation theorem applied
-to `p/q` for `n = p q`; it is not formalized.  Soundness is proved for `n ≥ 576` rather
-than the book's `n > 21`, to keep the inequality `a + b < n` in integer arithmetic.
+Two deviations from the book, both noted where they occur: `k` runs to `⌊n^{1/3}⌋ + 1`
+(one further than printed; the book's own inequality gives only `k < n^{1/3} + 1`), and
+soundness is proved for `n ≥ 576` rather than `n > 21`.
 -/
 
 namespace PrimeNumbers.Chapter5
@@ -490,5 +490,207 @@ theorem lehman_approx {p q : ℕ} (hp : 0 < p) (hpq : p ≤ q) {t : ℝ} (ht0 : 
   refine ⟨j.toNat, v.toNat, by omega, by omega, ?_, ?_⟩
   · push_cast; rw [hjn, hvn]; exact hprod
   · rw [hjn, hvn, abs_sub_comm]; exact hdiff
+
+/-! ### `iroot` is the integer root -/
+
+theorem le_rootLoop (e n c fuel : ℕ) : c ≤ rootLoop e n c fuel := by
+  induction fuel generalizing c with
+  | zero => exact le_rfl
+  | succ fuel ih =>
+    rw [rootLoop]
+    split_ifs
+    · exact (Nat.le_succ c).trans (ih (c + 1))
+    · exact le_rfl
+
+theorem le_rootLoop_of_pow_le {e n c fuel m : ℕ} (hcm : c ≤ m) (hm : m ^ e ≤ n)
+    (hfuel : m ≤ c + fuel) : m ≤ rootLoop e n c fuel := by
+  induction fuel generalizing c with
+  | zero => exact hfuel.trans (by simp [rootLoop])
+  | succ fuel ih =>
+    rw [rootLoop]
+    split_ifs with h
+    · rcases Nat.eq_or_lt_of_le hcm with rfl | hlt
+      · exact (Nat.le_succ c).trans (le_rootLoop e n (c + 1) fuel)
+      · exact ih hlt (by omega)
+    · by_contra hlt
+      exact h ((Nat.pow_le_pow_left (by omega : c + 1 ≤ m) e).trans hm)
+
+/-- `iroot e n` is the largest `m` with `m^e ≤ n`. -/
+theorem le_iroot {e n m : ℕ} (he : e ≠ 0) (hm : m ^ e ≤ n) : m ≤ iroot e n :=
+  le_rootLoop_of_pow_le (Nat.zero_le m) hm (by
+    have := Nat.le_self_pow he m
+    omega)
+
+theorem lt_iroot_succ_pow {e : ℕ} (he : e ≠ 0) (n : ℕ) : n < (iroot e n + 1) ^ e := by
+  by_contra hle
+  have := le_iroot he (not_lt.mp hle)
+  omega
+
+/-! ### From a composite `n` to the witness -/
+
+/-- **The existence step of Theorem 5.1.3.**  If `n > 1` is composite and has no divisor
+in `[2, ⌊n^{1/3}⌋]`, then some `k ≤ ⌊n^{1/3}⌋ + 1` and some `a` in the range scanned for
+that `k` have `a² - 4kn` a perfect square.
+
+Following the book: `n = p q` with `n^{1/3} < p ≤ q`; `lehman_approx` gives `u, v` with
+`k = u v < n^{1/3} + 1` and `b = |u q - v p| < n^{1/3}`; then `a = u q + v p` has
+`a² - 4kn = b²`, and `a - ⌈2√(kn)⌉ ≤ b² / (4√(kn)) < n^{1/6} / (4√k)`. -/
+theorem lehmanWitness_of_composite {n : ℕ} (hn : 1 < n) (hnp : ¬n.Prime)
+    (hno : ∀ d, 2 ≤ d → d ≤ iroot 3 n → ¬d ∣ n) : LehmanWitness n := by
+  unfold LehmanWitness
+  have hc : n < (iroot 3 n + 1) ^ 3 := lt_iroot_succ_pow (by norm_num) n
+  have hr : n < (iroot 6 n + 1) ^ 6 := lt_iroot_succ_pow (by norm_num) n
+  generalize iroot 3 n = c at hno hc ⊢
+  generalize iroot 6 n = r6 at hr ⊢
+  -- `n = p q` with `c < p ≤ q`
+  have hpp := Nat.minFac_prime (by omega : n ≠ 1)
+  obtain ⟨q, hnpq⟩ := Nat.minFac_dvd n
+  set p := n.minFac with hp_def
+  have hcp : c < p := by
+    by_contra hle
+    exact hno p hpp.two_le (not_lt.mp hle) (Nat.minFac_dvd n)
+  have hpq : p ≤ q := by
+    have h₁ := Nat.minFac_sq_le_self (by omega) hnp
+    rw [sq, ← hp_def] at h₁
+    by_contra hlt
+    have : p * q < p * p := Nat.mul_lt_mul_of_pos_left (by omega) hpp.pos
+    omega
+  -- the real cube root `t` of `n`
+  set t : ℝ := (n : ℝ) ^ (((3 : ℕ) : ℝ)⁻¹) with ht_def
+  have ht3 : t ^ 3 = n := Real.rpow_inv_natCast_pow (Nat.cast_nonneg n) (by norm_num)
+  have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
+  have ht0 : 0 < t := Real.rpow_pos_of_pos hn0 _
+  have htc : t < (c : ℝ) + 1 := by
+    by_contra hle
+    have h₁ : ((c : ℝ) + 1) ^ 3 ≤ t ^ 3 := pow_le_pow_left₀ (by positivity) (not_lt.mp hle) 3
+    rw [ht3] at h₁
+    have : (c + 1) ^ 3 ≤ n := by exact_mod_cast h₁
+    omega
+  have htp : t < p := by
+    have : (c : ℝ) + 1 ≤ p := by exact_mod_cast hcp
+    linarith
+  obtain ⟨u, v, hu, hv, hprod, hdiff⟩ := lehman_approx hpp.pos hpq ht0
+    (by rw [ht3, hnpq]; push_cast; ring) htp
+  -- `k = u v ≤ c + 1`
+  have hk1 : 1 ≤ u * v := Nat.mul_pos hu hv
+  have hkc : u * v ≤ c + 1 := by
+    by_contra hgt
+    have : ((c + 2 : ℕ) : ℝ) ≤ ((u * v : ℕ) : ℝ) := by exact_mod_cast (by omega : c + 2 ≤ u * v)
+    push_cast at this hprod
+    linarith
+  -- `b = |u q - v p| < t`
+  set b := ((u : ℤ) * q - v * p).natAbs with hb_def
+  have hbR : (b : ℝ) = |(u : ℝ) * q - v * p| := by
+    have h := Int.natCast_natAbs ((u : ℤ) * q - v * p)
+    have h' : ((b : ℤ) : ℝ) = ((|(u : ℤ) * q - v * p| : ℤ) : ℝ) := by rw [← h]
+    push_cast at h'
+    exact h'
+  have hbt : (b : ℝ) < t := hbR ▸ hdiff
+  -- `a = u q + v p` has `a² = 4kn + b²`
+  have hid : (u * q + v * p) * (u * q + v * p) = 4 * (u * v) * n + b * b := by
+    have hb2 : ((b : ℤ) * b) = ((u : ℤ) * q - v * p) * ((u : ℤ) * q - v * p) :=
+      Int.natAbs_mul_self' _
+    zify
+    rw [hb2, hnpq]
+    push_cast
+    ring
+  set a := u * q + v * p with ha_def
+  set k := u * v with hk_def
+  have ha₀ : ceilSqrt (4 * k * n) ≤ a := ceilSqrt_le (by omega)
+  have hs1 : 1 ≤ Nat.sqrt k := Nat.le_sqrt.mpr (by omega)
+  have hs2 : Nat.sqrt k * Nat.sqrt k ≤ k := Nat.sqrt_le k
+  obtain ⟨E, hE⟩ : ∃ E, a = ceilSqrt (4 * k * n) + E := ⟨a - ceilSqrt (4 * k * n), by omega⟩
+  have hceil := le_ceilSqrt_mul_self (4 * k * n)
+  generalize ha₀def : ceilSqrt (4 * k * n) = a₀ at ha₀ hE hceil
+  -- `2 E a₀ ≤ b²`
+  have h2E : 2 * E * a₀ ≤ b * b := by
+    rw [hE] at hid
+    nlinarith
+  -- `(4 s E)² n ≤ b⁴`
+  have hnat : (4 * Nat.sqrt k * E) ^ 2 * n ≤ (b * b) ^ 2 := by
+    calc (4 * Nat.sqrt k * E) ^ 2 * n
+        = 4 * E ^ 2 * (4 * (Nat.sqrt k * Nat.sqrt k) * n) := by ring
+      _ ≤ 4 * E ^ 2 * (4 * k * n) :=
+          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs2))
+      _ ≤ 4 * E ^ 2 * (a₀ * a₀) := Nat.mul_le_mul_left _ hceil
+      _ = (2 * E * a₀) ^ 2 := by ring
+      _ ≤ (b * b) ^ 2 := Nat.pow_le_pow_left h2E 2
+  -- in the reals: `b⁴ < t⁴ = t n`, hence `(4 s E)² < t` and `(4 s E)⁶ < n`
+  have hlt6 : (4 * Nat.sqrt k * E) ^ 6 < n := by
+    have hb4 : ((b : ℝ) * b) ^ 2 < t * n := by
+      have h₁ : (b : ℝ) ^ 4 < t ^ 4 := pow_lt_pow_left₀ hbt (Nat.cast_nonneg b) (by norm_num)
+      have h₂ : t ^ 4 = t * n := by rw [← ht3]; ring
+      calc ((b : ℝ) * b) ^ 2 = (b : ℝ) ^ 4 := by ring
+        _ < t ^ 4 := h₁
+        _ = t * n := h₂
+    have hreal : ((4 * Nat.sqrt k * E : ℕ) : ℝ) ^ 2 * n ≤ ((b : ℝ) * b) ^ 2 := by
+      exact_mod_cast hnat
+    have hsq : ((4 * Nat.sqrt k * E : ℕ) : ℝ) ^ 2 < t := by
+      have := lt_of_le_of_lt hreal hb4
+      exact lt_of_mul_lt_mul_right this hn0.le
+    have h6 : (((4 * Nat.sqrt k * E : ℕ) : ℝ) ^ 2) ^ 3 < t ^ 3 :=
+      pow_lt_pow_left₀ hsq (by positivity) (by norm_num)
+    rw [ht3, ← pow_mul] at h6
+    exact_mod_cast h6
+  have hlt : 4 * Nat.sqrt k * E < r6 + 1 :=
+    lt_of_pow_lt_pow_left₀ 6 (Nat.zero_le _) (hlt6.trans hr)
+  have hEle : E ≤ r6 / (4 * Nat.sqrt k) := by
+    rw [Nat.le_div_iff_mul_le (by omega)]
+    rw [mul_comm]
+    omega
+  exact ⟨k, a, b, hk1, hkc, by rw [ha₀def]; exact ha₀, by rw [ha₀def]; omega,
+    by rw [hid, Nat.add_sub_cancel_left]⟩
+
+/-- **Theorem 5.1.3, completeness of the Lehman method**: if Algorithm 5.1.2 returns
+nothing then `n > 1` is prime.  (Unconditional; `k` runs to `⌊n^{1/3}⌋ + 1`, see `lehman`.) -/
+theorem theorem_5_1_3_complete {n : ℕ} (hn : 1 < n) (h : lehman n = none) : n.Prime :=
+  lehman_none_prime (fun hnp hno ↦ lehmanWitness_of_composite hn hnp hno) h
+
+/-- **Running time of Algorithm 5.1.2, in closed form**: step [Loop] makes at most
+`4 n^{1/3} + 2` passes — the book's `O(n^{1/3})`. -/
+theorem lehmanPasses_le_cuberoot {n : ℕ} (hn : 1 ≤ n) :
+    (lehmanPasses n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤ 4 * (n : ℝ) ^ (1 / 3 : ℝ) + 2 := by
+  have hc3 : iroot 3 n ^ 3 ≤ n := iroot_pow_le (by norm_num) n
+  have hr6 : iroot 6 n ^ 6 ≤ n := iroot_pow_le (by norm_num) n
+  have h := lehmanPasses_le_closed n (iroot 6 n) (iroot 3 n + 1)
+  generalize iroot 3 n = c at hc3 h
+  generalize iroot 6 n = r6 at hr6 h
+  rw [show (1 / 3 : ℝ) = (((3 : ℕ) : ℝ)⁻¹) by norm_num]
+  set x : ℝ := (n : ℝ) ^ (((3 : ℕ) : ℝ)⁻¹) with hx_def
+  have hx3 : x ^ 3 = n := Real.rpow_inv_natCast_pow (Nat.cast_nonneg n) (by norm_num)
+  have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
+  have hx0 : 0 < x := Real.rpow_pos_of_pos (by linarith) _
+  have hx1 : 1 ≤ x := by
+    by_contra hlt
+    have : x ^ 3 < 1 := pow_lt_one₀ hx0.le (by linarith) (by norm_num)
+    linarith
+  have hcR : (c : ℝ) ^ 3 ≤ x ^ 3 := by rw [hx3]; exact_mod_cast hc3
+  have hrR : (r6 : ℝ) ^ 6 ≤ x ^ 3 := by rw [hx3]; exact_mod_cast hr6
+  -- `c ≤ x`, `r6 ≤ x` and `r6 √c ≤ x`
+  have hc : (c : ℝ) ≤ x := le_of_pow_le_pow_left₀ (by norm_num) hx0.le hcR
+  have hr : (r6 : ℝ) ≤ x := by
+    refine le_of_pow_le_pow_left₀ (by norm_num : (6 : ℕ) ≠ 0) hx0.le (hrR.trans ?_)
+    calc x ^ 3 = x ^ 3 * 1 := by ring
+      _ ≤ x ^ 3 * x ^ 3 := mul_le_mul_of_nonneg_left (one_le_pow₀ hx1) (by positivity)
+      _ = x ^ 6 := by ring
+  have hsc : Real.sqrt c ^ 2 = c := Real.sq_sqrt (Nat.cast_nonneg c)
+  have hrc : (r6 : ℝ) * Real.sqrt c ≤ x := by
+    refine le_of_pow_le_pow_left₀ (by norm_num : (6 : ℕ) ≠ 0) hx0.le ?_
+    calc ((r6 : ℝ) * Real.sqrt c) ^ 6 = (r6 : ℝ) ^ 6 * (Real.sqrt c ^ 2) ^ 3 := by ring
+      _ = (r6 : ℝ) ^ 6 * (c : ℝ) ^ 3 := by rw [hsc]
+      _ ≤ x ^ 3 * x ^ 3 := mul_le_mul hrR hcR (by positivity) (by positivity)
+      _ = x ^ 6 := by ring
+  -- `√(c + 1) ≤ √c + 1`
+  have hsqrt : Real.sqrt ((c + 1 : ℕ) : ℝ) ≤ Real.sqrt c + 1 := by
+    rw [show Real.sqrt c + 1 = Real.sqrt ((Real.sqrt c + 1) ^ 2) from
+      (Real.sqrt_sq (by positivity)).symm]
+    refine Real.sqrt_le_sqrt ?_
+    push_cast
+    nlinarith [Real.sqrt_nonneg (c : ℝ)]
+  have hr0 : (0 : ℝ) ≤ r6 := Nat.cast_nonneg r6
+  have hmul : (r6 : ℝ) * Real.sqrt ((c + 1 : ℕ) : ℝ) ≤ r6 * (Real.sqrt c + 1) :=
+    mul_le_mul_of_nonneg_left hsqrt hr0
+  push_cast at h hmul ⊢
+  linarith
 
 end PrimeNumbers.Chapter5
