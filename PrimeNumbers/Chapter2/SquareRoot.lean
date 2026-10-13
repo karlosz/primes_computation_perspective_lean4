@@ -516,6 +516,55 @@ theorem tonelliMults_le {p : ℕ} (a d : ZMod p) :
       nlinarith
     omega
 
+/-! ### Bit operations of the modular square root -/
+
+/-- The bit operations of `tonelli a d`: each of its multiplications modulo `p` multiplies
+two residues and reduces, costing at most `C.mulMod (size p)` (`mul_add_divMod_le`). -/
+def tonelliCost (C : CostModel) {p : ℕ} (a d : ZMod p) : ℕ :=
+  tonelliMults a d * C.mulMod p.size
+
+/-- **Bit complexity of Tonelli's algorithm, grammar-school arithmetic**: with
+`p - 1 = 2^s t` and `k` the bit length of `p`, at most
+`(6 log₂ t + 4s² + 1)(2k² + k)` bit operations — `O(ln⁴ p)` in the worst case (`s ≈ k`)
+and `O(ln³ p)` when `s` is bounded, as the book states. -/
+theorem tonelliCost_school_le {p : ℕ} (a d : ZMod p) :
+    tonelliCost school a d ≤
+      (6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1) *
+        (2 * p.size ^ 2 + p.size) := by
+  rw [tonelliCost, school_mulMod]
+  exact Nat.mul_le_mul_right _ (tonelliMults_le a d)
+
+theorem oddPart_snd_le (n : ℕ) : (oddPart n).2 ≤ n := by
+  fun_induction oddPart n with
+  | case1 n h r ih => exact ih.trans (Nat.div_le_self _ _)
+  | case2 n h => exact le_rfl
+
+/-- The modular multiplications made by `sqrtMod p a` (Algorithm 2.3.8), not counting the
+search for a nonresidue in the case `p ≡ 1 (mod 8)`. -/
+def sqrtModMults (p : ℕ) (a : ZMod p) : ℕ :=
+  if p % 8 = 3 ∨ p % 8 = 7 then powCost ((p + 1) / 4)
+  else if p % 8 = 5 then powCost ((p + 3) / 8) + 1 + (powCost ((p - 1) / 4) + 1)
+  else tonelliMults a (findNonresidue p : ℕ)
+
+/-- **Complexity of Algorithm 2.3.8**: at most `6 log₂ p + 4s² + 2` multiplications modulo
+`p`, where `2^s` is the power of two in `p - 1`; so `O(ln p)` multiplications, i.e.
+`O(ln³ p)` bit operations, in the cases `p ≡ 3, 5, 7 (mod 8)`. -/
+theorem sqrtModMults_le (p : ℕ) (a : ZMod p) :
+    sqrtModMults p a ≤ 6 * Nat.log 2 p + 4 * (oddPart (p - 1)).1 ^ 2 + 2 := by
+  have hlog : ∀ m, m ≤ p → powCost m ≤ 2 * Nat.log 2 p := fun m hm ↦
+    (powCost_le m).trans (Nat.mul_le_mul_left 2 (Nat.log_mono_right hm))
+  unfold sqrtModMults
+  split_ifs with h₁ h₂
+  · have := hlog ((p + 1) / 4) (by omega)
+    omega
+  · have := hlog ((p + 3) / 8) (by omega)
+    have := hlog ((p - 1) / 4) (by omega)
+    omega
+  · have h := tonelliMults_le a (findNonresidue p : ℕ)
+    have ht : Nat.log 2 (oddPart (p - 1)).2 ≤ Nat.log 2 p :=
+      Nat.log_mono_right ((oddPart_snd_le _).trans (Nat.sub_le p 1))
+    omega
+
 end RunningTime
 
 end PrimeNumbers.Chapter2
