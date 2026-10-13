@@ -214,4 +214,124 @@ theorem mem_sievePrimes {N q : ℕ} : q ∈ sievePrimes N ↔ q.Prime ∧ q ≤ 
   · rintro ⟨-, h₁, h₂⟩; exact ⟨h₂, h₁⟩
   · rintro ⟨h₁, h₂⟩; exact ⟨by omega, h₂, h₁⟩
 
+/-! ## Running time
+
+The sieve performs no multiplications or divisions of big numbers: its work is the bit
+writes that strike out multiples.  We count those. -/
+
+/-- The number of bits written by `markMultiples p bits j`. -/
+def markCost (p : ℕ) (bits : Array Bool) (j : ℕ) : ℕ :=
+  if j < bits.size ∧ 0 < p then markCost p (bits.setIfInBounds j false) (j + p) + 1 else 0
+termination_by bits.size - j
+decreasing_by simp only [Array.size_setIfInBounds]; omega
+
+/-- The number of bits written by `sieveLoop N p bits`. -/
+def sieveCost (N p : ℕ) (bits : Array Bool) : ℕ :=
+  if p * p ≤ N ∧ 0 < p then
+    (if bit bits p then markCost p bits (p * p) else 0) +
+      sieveCost N (p + 1) (if bit bits p then markMultiples p bits (p * p) else bits)
+  else 0
+termination_by N + 1 - p
+decreasing_by
+  have : p ≤ p * p := Nat.le_mul_self p
+  omega
+
+/-- Striking out `j, j + p, …` below `size` writes at most `⌈(size - j)/p⌉` bits. -/
+theorem markCost_mul_le (p : ℕ) (bits : Array Bool) (j : ℕ) :
+    markCost p bits j * p ≤ bits.size - j + (p - 1) := by
+  fun_induction markCost p bits j with
+  | case1 bits j h ih =>
+    rw [Array.size_setIfInBounds] at ih
+    rw [add_mul, one_mul]
+    rcases Nat.lt_or_ge bits.size (j + p) with hlt | hge
+    · -- the next index is already out of range: no further writes
+      have h0 : markCost p (bits.setIfInBounds j false) (j + p) = 0 := by
+        by_contra hne
+        have := Nat.le_mul_of_pos_left p (Nat.pos_of_ne_zero hne)
+        omega
+      rw [h0]; omega
+    · omega
+  | case2 bits j h => omega
+
+/-- For a prime `p`, the sieve writes at most `N / p` bits. -/
+theorem markCost_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Array Bool}
+    (hsize : bits.size = N + 1) : markCost p bits (p * p) ≤ N / p := by
+  rw [Nat.le_div_iff_mul_le hp]
+  have h₁ := markCost_mul_le p bits (p * p)
+  rw [hsize] at h₁
+  have h₂ : p ≤ p * p := Nat.le_mul_self p
+  omega
+
+theorem sieveCost_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1) :
+    sieveCost N p bits ≤ ∑ i ∈ Finset.range (Nat.sqrt N + 1 - p), N / (p + i) := by
+  fun_induction sieveCost N p bits with
+  | case1 p bits hle ih =>
+    have hps : p ≤ Nat.sqrt N := Nat.le_sqrt.mpr hle.1
+    have hsize' : (if bit bits p = true then markMultiples p bits (p * p) else bits).size =
+        N + 1 := by
+      split_ifs
+      · rw [(markMultiples_spec p bits (p * p) hle.2).1, hsize]
+      · exact hsize
+    have ih := ih hsize'
+    have hmark : (if bit bits p = true then markCost p bits (p * p) else 0) ≤ N / p := by
+      split_ifs
+      · exact markCost_sq_le hle.2 hle.1 hsize
+      · exact Nat.zero_le _
+    rw [show Nat.sqrt N + 1 - p = (Nat.sqrt N + 1 - (p + 1)) + 1 by omega,
+      Finset.sum_range_succ', add_zero]
+    have hcongr : ∑ i ∈ Finset.range (Nat.sqrt N + 1 - (p + 1)), N / (p + (i + 1)) =
+        ∑ i ∈ Finset.range (Nat.sqrt N + 1 - (p + 1)), N / (p + 1 + i) :=
+      Finset.sum_congr rfl fun i _ ↦ by rw [add_right_comm, add_assoc]
+    rw [hcongr]
+    simp only [dite_eq_ite] at ih
+    omega
+  | case2 p bits hgt => exact Nat.zero_le _
+
+/-- The number of bit writes made by `sieve N` in its main loop. -/
+def sieveWrites (N : ℕ) : ℕ :=
+  sieveCost N 2 (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false)
+
+/-- **Running time of the sieve of Eratosthenes**: at most `∑_{p=2}^{⌊√N⌋} ⌊N/p⌋` bit
+writes (one term for each `p`, whether prime or not; the true count, over primes only, is
+`∼ N ln ln N`, which needs Mertens' theorem 1.4.2). -/
+theorem sieveWrites_le (N : ℕ) :
+    sieveWrites N ≤ ∑ i ∈ Finset.range (Nat.sqrt N - 1), N / (i + 2) := by
+  have := sieveCost_le N 2
+    (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false) (by simp)
+  rw [show Nat.sqrt N + 1 - 2 = Nat.sqrt N - 1 by omega] at this
+  simpa [sieveWrites, add_comm] using this
+
+/-- **Running time of the sieve, closed form**: at most `N ln √N = ½ N ln N` bit writes,
+by comparing with the harmonic series. -/
+theorem sieveWrites_le_log (N : ℕ) :
+    (sieveWrites N : ℝ) ≤ N * Real.log (Nat.sqrt N) := by
+  rcases Nat.eq_zero_or_pos (Nat.sqrt N) with h0 | hpos
+  · have := sieveWrites_le N
+    simp [h0] at this
+    simp [this, h0]
+  have h₁ : (sieveWrites N : ℝ) ≤ ∑ i ∈ Finset.range (Nat.sqrt N - 1), (N : ℝ) / (i + 2) := by
+    calc (sieveWrites N : ℝ)
+        ≤ ((∑ i ∈ Finset.range (Nat.sqrt N - 1), N / (i + 2) : ℕ) : ℝ) := by
+          exact_mod_cast sieveWrites_le N
+      _ ≤ _ := by
+          push_cast
+          exact Finset.sum_le_sum fun i _ ↦ by exact_mod_cast Nat.cast_div_le (α := ℝ)
+  -- `∑_{i < S-1} 1/(i+2) = H_S - 1 ≤ ln S`
+  have h₂ : (harmonic (Nat.sqrt N) : ℝ) =
+      1 + ∑ i ∈ Finset.range (Nat.sqrt N - 1), (1 : ℝ) / (i + 2) := by
+    obtain ⟨S, hS⟩ : ∃ S, Nat.sqrt N = S + 1 := ⟨Nat.sqrt N - 1, by omega⟩
+    rw [hS, harmonic, Finset.sum_range_succ', Nat.add_sub_cancel]
+    push_cast
+    rw [add_comm]
+    congr 1
+    · norm_num
+    · exact Finset.sum_congr rfl fun i _ ↦ by rw [one_div]; congr 1; ring
+  have h₃ := harmonic_le_one_add_log (Nat.sqrt N)
+  have h₄ : ∑ i ∈ Finset.range (Nat.sqrt N - 1), (N : ℝ) / (i + 2) =
+      N * ∑ i ∈ Finset.range (Nat.sqrt N - 1), (1 : ℝ) / (i + 2) := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_congr rfl fun i _ ↦ by ring
+  rw [h₄] at h₁
+  refine h₁.trans (mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg N))
+
 end PrimeNumbers.Chapter3

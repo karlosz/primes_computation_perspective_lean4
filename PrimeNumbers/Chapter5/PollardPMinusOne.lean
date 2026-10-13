@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter3.Sieve
@@ -136,5 +137,101 @@ theorem pollardPMinusOne_ne_one {n p B c : ℕ} (hp : p.Prime) (hpn : p ∣ n) (
   have := dvd_pollardPMinusOne hp hpn hn hpc (sub_one_dvd_pm1Exponent hsmooth)
   rw [h] at this
   exact hp.one_lt.ne' (Nat.dvd_one.mp this)
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Bit operations -/
+
+/-- The bit operations of `ladder n p c j`: `j` modular powers with exponent `p`. -/
+def ladderCost (C : CostModel) (n p : ℕ) (c : ℕ) : ℕ → ℕ
+  | 0 => 0
+  | j + 1 => powModCost C c p n + ladderCost C n p (powMod c p n) j
+
+/-- The bit operations of the power ladders over a list of primes. -/
+def laddersCost (C : CostModel) (n B : ℕ) : List ℕ → ℕ → ℕ
+  | [], _ => 0
+  | p :: L, c =>
+    ladderCost C n p c (Nat.log p B) + laddersCost C n B L (ladder n p c (Nat.log p B))
+
+/-- The bit operations of `pollardPMinusOne n B c` (steps 2 and 3). -/
+def pm1Cost (C : CostModel) (n B c : ℕ) : ℕ :=
+  laddersCost C n B (primesUpTo B) c + euclidBitCost C n ((ladders n B c + n - 1) % n)
+
+/-- The number of modular powers in step 2: `∑_{p ≤ B} a_p`. -/
+def pm1Steps (B : ℕ) : ℕ := ((primesUpTo B).map fun p ↦ Nat.log p B).sum
+
+/-- `pm1Steps B ≤ π(B) · log₂ B`. -/
+theorem pm1Steps_le (B : ℕ) : pm1Steps B ≤ (primesUpTo B).length * Nat.log 2 B := by
+  have := List.sum_le_length_nsmul ((primesUpTo B).map fun p ↦ Nat.log p B) (Nat.log 2 B)
+    (by
+      intro x hx
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+      exact Nat.log_anti_left (by norm_num) (mem_primesUpTo.mp hp).1.two_le)
+  simpa [pm1Steps] using this
+
+theorem ladder_lt {n p c : ℕ} (hc : c < n) (j : ℕ) : ladder n p c j < n := by
+  induction j generalizing c with
+  | zero => exact hc
+  | succ j ih => exact ih (powMod_lt _ _ (by omega))
+
+section
+
+variable (C : CostModel) {n B : ℕ}
+
+/-- The cost of one modular power with exponent at most `B`. -/
+def powBound (C : CostModel) (n B : ℕ) : ℕ :=
+  C.divMod n.size n.size + Nat.log 2 B * (2 * C.mulMod n.size)
+
+theorem ladderCost_le {p c : ℕ} (hp : p ≤ B) (hc : c < n) (j : ℕ) :
+    ladderCost C n p c j ≤ j * powBound C n B := by
+  induction j generalizing c with
+  | zero => simp [ladderCost]
+  | succ j ih =>
+    have h₁ : powModCost C c p n ≤ powBound C n B :=
+      (powModCost_le C hc p).trans (Nat.add_le_add_left
+        (Nat.mul_le_mul_right _ (Nat.log_mono_right hp)) _)
+    have ih := ih (c := powMod c p n) (powMod_lt _ _ (by omega))
+    simp only [ladderCost, add_mul, one_mul]
+    omega
+
+theorem laddersCost_le (L : List ℕ) (hL : ∀ p ∈ L, p ≤ B) {c : ℕ} (hc : c < n) :
+    laddersCost C n B L c ≤ (L.map fun p ↦ Nat.log p B).sum * powBound C n B := by
+  induction L generalizing c with
+  | nil => simp [laddersCost]
+  | cons p L ih =>
+    have h₁ := ladderCost_le C (hL p (by simp)) hc (Nat.log p B)
+    have ih := ih (fun q hq ↦ hL q (by simp [hq])) (ladder_lt (p := p) hc (Nat.log p B))
+    simp only [laddersCost, List.map_cons, List.sum_cons, add_mul]
+    omega
+
+/-- **Bit complexity of Pollard `p - 1`**, for any cost model: `pm1Steps B` modular powers
+with exponents at most `B`, and one gcd with `n` (bounded by `G`). -/
+theorem pm1Cost_le {G c : ℕ} (hG : ∀ d < n, euclidBitCost C n d ≤ G) (hc : c < n) :
+    pm1Cost C n B c ≤ pm1Steps B * powBound C n B + G := by
+  have h₁ := laddersCost_le C (primesUpTo B) (fun p hp ↦ (mem_primesUpTo.mp hp).2) hc
+  have h₂ := hG _ (Nat.mod_lt (ladders n B c + n - 1) (by omega : 0 < n))
+  simp only [pm1Cost, pm1Steps]
+  omega
+
+end
+
+/-- **Bit complexity of Pollard `p - 1`, grammar-school arithmetic**: at most
+`pm1Steps B · (4 log₂ B + 1)(k + 1)² + k(3k + 1)` bit operations. -/
+theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
+    pm1Cost school n B c ≤
+      pm1Steps B * ((4 * Nat.log 2 B + 1) * (n.size + 1) ^ 2) + n.size * (3 * n.size + 1) := by
+  refine (pm1Cost_le school (fun d hd ↦ euclidBitCost_school_le' hd le_rfl) hc).trans ?_
+  refine Nat.add_le_add_right (Nat.mul_le_mul_left _ ?_) _
+  rw [powBound, school_mulMod]
+  have : school.divMod n.size n.size = n.size := by simp [school]
+  rw [this]
+  nlinarith [Nat.zero_le (Nat.log 2 B), Nat.zero_le n.size,
+    Nat.zero_le (Nat.log 2 B * n.size)]
+
+end RunningTime
 
 end PrimeNumbers.Chapter5

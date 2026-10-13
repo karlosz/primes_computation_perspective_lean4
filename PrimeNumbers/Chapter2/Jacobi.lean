@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
 /-!
@@ -169,5 +170,139 @@ theorem jacobi_eq (a : ℤ) {m : ℕ} (hm : Odd m) : jacobi a m = J(a | m) := by
 theorem jacobi_eq_legendreSym (a : ℤ) (p : ℕ) [Fact p.Prime] (hp : p ≠ 2) :
     jacobi a p = legendreSym p a := by
   rw [jacobi_eq a ((Fact.out : p.Prime).odd_of_ne_two hp), jacobiSym.legendreSym.to_jacobiSym]
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Number of loop passes -/
+
+/-- The number of passes of the inner loop of Algorithm 2.3.5, following `jacobiHalve`. -/
+def jacobiHalveSteps (a : ℕ) : ℕ :=
+  if a ≠ 0 ∧ a % 2 = 0 then jacobiHalveSteps (a / 2) + 1 else 0
+termination_by a
+decreasing_by omega
+
+theorem jacobiHalveSteps_le (a : ℕ) : jacobiHalveSteps a ≤ Nat.log 2 a := by
+  fun_induction jacobiHalveSteps a with
+  | case1 a h ih =>
+    have h₁ : Nat.log 2 (a / 2) = Nat.log 2 a - 1 := Nat.log_div_base 2 a
+    have h₂ : 0 < Nat.log 2 a := Nat.log_pos (by norm_num) (by omega)
+    omega
+  | case2 a h => omega
+
+/-- The number of passes of the outer loop of Algorithm 2.3.5, following `jacobiLoop`. -/
+def jacobiSteps (a m : ℕ) (t : ℤ) : ℕ :=
+  if a = 0 then 0
+  else
+    let r := jacobiHalve a m t
+    jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) + 1
+termination_by a
+decreasing_by
+  have := jacobiHalve_fst_le a m t
+  have := Nat.mod_lt m (Nat.pos_of_ne_zero (jacobiHalve_fst_pos ‹a ≠ 0› m t))
+  omega
+
+/-- Algorithm 2.3.5 makes at most `log₂ (a m) + 1` passes of its outer loop when `a < m`
+(as is the case after the initial `a = a mod m`): the product `a m` at least halves in
+each pass. -/
+theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
+    jacobiSteps a m t ≤ if a = 0 then 0 else Nat.log 2 (a * m) + 1 := by
+  fun_induction jacobiSteps a m t with
+  | case1 m t => simp
+  | case2 a m t ha r ih =>
+    have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t
+    have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
+    have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
+    have ih' : jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) ≤
+        if m % r.1 = 0 then 0 else Nat.log 2 (m % r.1 * r.1) + 1 := by
+      simpa only [dite_eq_ite] using ih hlt
+    simp only [ha, ↓reduceIte]
+    by_cases h0 : m % r.1 = 0
+    · rw [ite_eq_left h0] at ih'
+      omega
+    · rw [ite_eq_right h0] at ih'
+      -- `m ≥ r + m mod r ≥ 2 (m mod r)`, so the new product is at most half the old one
+      have hdm : r.1 * (m / r.1) + m % r.1 = m := Nat.div_add_mod m r.1
+      have hq : r.1 ≤ r.1 * (m / r.1) :=
+        Nat.le_mul_of_pos_right _ (Nat.div_pos (by omega) hr_pos)
+      have h2 : m % r.1 * r.1 * 2 ≤ a * m :=
+        calc m % r.1 * r.1 * 2 = r.1 * (2 * (m % r.1)) := by ring
+          _ ≤ r.1 * m := Nat.mul_le_mul_left _ (by omega)
+          _ ≤ a * m := Nat.mul_le_mul_right _ hr_le
+      have hpos : m % r.1 * r.1 ≠ 0 := Nat.mul_ne_zero h0 hr_pos.ne'
+      have hlog : Nat.log 2 (m % r.1 * r.1) + 1 ≤ Nat.log 2 (a * m) := by
+        rw [← Nat.log_mul_base (by norm_num) hpos]
+        exact Nat.log_mono_right h2
+      omega
+
+/-! ### Bit operations -/
+
+/-- The bit operations spent by `jacobiLoop a m t`: one division `m mod a'` per pass of
+the outer loop.  (The halvings `a = a/2` and the tests modulo 4 and 8 are shifts and
+look-ups of the low bits.) -/
+def jacobiBitCost (C : CostModel) (a m : ℕ) (t : ℤ) : ℕ :=
+  if a = 0 then 0
+  else
+    let r := jacobiHalve a m t
+    C.divMod m.size r.1.size +
+      jacobiBitCost C (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)
+termination_by a
+decreasing_by
+  have := jacobiHalve_fst_le a m t
+  have := Nat.mod_lt m (Nat.pos_of_ne_zero (jacobiHalve_fst_pos ‹a ≠ 0› m t))
+  omega
+
+/-- As for Euclid, the quotient bits of all the divisions telescope: the total cost is at
+most `size a · (size m + passes)`. -/
+theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
+    jacobiBitCost school a m t ≤ a.size * (m.size + jacobiSteps a m t) := by
+  fun_induction jacobiBitCost school a m t with
+  | case1 m t => simp
+  | case2 a m t ha r ih =>
+    have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t
+    have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
+    have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
+    have ih := ih hlt
+    have hsteps : jacobiSteps a m t =
+        jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) + 1 := by
+      rw [jacobiSteps]; simp [ha, r]
+    simp only [dite_eq_ite] at ih
+    generalize jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) = s
+      at ih hsteps
+    generalize jacobiBitCost school (m % r.1) r.1
+      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) = c at ih
+    have h₁ : (m % r.1).size ≤ r.1.size := size_le_of_lt hlt
+    have h₂ : r.1.size ≤ a.size := Nat.size_le_size hr_le
+    have h₃ : r.1.size ≤ m.size := Nat.size_le_size (hr_le.trans ham.le)
+    have h₄ : school.divMod m.size r.1.size = (m.size - r.1.size + 1) * r.1.size := rfl
+    rw [hsteps, h₄]
+    calc (m.size - r.1.size + 1) * r.1.size + c
+        ≤ (m.size - r.1.size + 1) * r.1.size + r.1.size * (r.1.size + s) :=
+          Nat.add_le_add_left (ih.trans (Nat.mul_le_mul_right _ h₁)) _
+      _ = r.1.size * (m.size - r.1.size + 1 + r.1.size + s) := by ring
+      _ = r.1.size * (m.size + (s + 1)) := by
+          rw [show m.size - r.1.size + 1 + r.1.size = m.size + 1 by omega]; ring
+      _ ≤ a.size * (m.size + (s + 1)) := Nat.mul_le_mul_right _ h₂
+
+/-- **Bit complexity of the Jacobi symbol algorithm.**  For `a < m`, with `m` of `k` bits,
+Algorithm 2.3.5 spends at most `k (3k + 1)` bit operations on its divisions in the
+grammar-school model: `O(ln² m)`, "about as hard as taking a gcd". -/
+theorem jacobiBitCost_school_le' (a m : ℕ) (t : ℤ) (ham : a < m) :
+    jacobiBitCost school a m t ≤ m.size * (3 * m.size + 1) := by
+  refine (jacobiBitCost_school_le a m t ham).trans ?_
+  have h₁ : a.size ≤ m.size := size_le_of_lt ham
+  have h₂ := jacobiSteps_le a m t ham
+  have h₃ : jacobiSteps a m t ≤ 2 * m.size + 1 := by
+    split_ifs at h₂ with h0
+    · omega
+    · have := log_two_le_size (a * m)
+      have := size_mul_le a m
+      omega
+  exact Nat.mul_le_mul h₁ (by omega)
+
+end RunningTime
 
 end PrimeNumbers.Chapter2

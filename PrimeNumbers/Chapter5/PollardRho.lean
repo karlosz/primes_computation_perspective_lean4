@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
 
 /-!
@@ -224,5 +225,77 @@ theorem pollardRhoLoop_isSome_of_collision {n p a s T : ℕ} (hp : 1 < p) (hpn :
   obtain ⟨i, h₁, h₂, h₃⟩ := floyd (rhoF p a) hjk heq
   refine pollardRhoLoop_isSome_of s s fuel ⟨i, h₁, by omega, ?_⟩
   exact euclid_absDiff_ne_one hp hpn (by rw [iterate_rhoF_mod hpn, iterate_rhoF_mod hpn, h₃])
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Bit operations -/
+
+/-- The bit operations of one evaluation `F(x) = (x² + a) mod n`. -/
+def rhoFCost (C : CostModel) (n a x : ℕ) : ℕ :=
+  C.mul x.size x.size + C.divMod (x * x + a).size n.size
+
+/-- The bit operations of `pollardRhoLoop n a U V fuel`: three evaluations of `F` and one
+gcd per pass. -/
+def pollardRhoCost (C : CostModel) (n a : ℕ) (U V : ℕ) : ℕ → ℕ
+  | 0 => 0
+  | fuel + 1 =>
+    let U' := rhoF n a U
+    let V₁ := rhoF n a V
+    let V' := rhoF n a V₁
+    rhoFCost C n a U + rhoFCost C n a V + rhoFCost C n a V₁ +
+      euclidBitCost C n (absDiff U' V') +
+      if euclid n (absDiff U' V') = 1 then pollardRhoCost C n a U' V' fuel else 0
+
+/-- One evaluation of `F` on a residue costs at most one modular multiplication. -/
+theorem rhoFCost_le (C : CostModel) {n a x : ℕ} (ha : a < n) (hx : x < n) :
+    rhoFCost C n a x ≤ C.mulMod n.size := by
+  have hlt : x * x + a < n * n := by
+    obtain ⟨c, rfl⟩ : ∃ c, n = c + 1 := ⟨n - 1, by omega⟩
+    have h₁ : x * x ≤ c * c := Nat.mul_le_mul (by omega) (by omega)
+    have h₂ : (c + 1) * (c + 1) = c * c + 2 * c + 1 := by ring
+    omega
+  have hsize : (x * x + a).size ≤ 2 * n.size := by
+    have := size_le_of_lt hlt
+    have := size_mul_le n n
+    omega
+  exact Nat.add_le_add (C.mul_mono (size_le_of_lt hx) (size_le_of_lt hx))
+    (C.divMod_mono _ hsize)
+
+theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := by
+  unfold absDiff; split_ifs <;> omega
+
+/-- **Bit complexity of Pollard rho**, for any cost model: each pass costs at most three
+modular multiplications and one gcd with `n` (bounded by `G`). -/
+theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
+    (hG : ∀ d < n, euclidBitCost C n d ≤ G) {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
+    pollardRhoCost C n a U V fuel ≤ fuel * (3 * C.mulMod n.size + G) := by
+  have hn : 0 < n := by omega
+  induction fuel generalizing U V with
+  | zero => simp [pollardRhoCost]
+  | succ fuel ih =>
+    have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
+    have h₁ := rhoFCost_le C ha hU
+    have h₂ := rhoFCost_le C ha hV
+    have h₃ := rhoFCost_le C ha (hF V)
+    have h₄ := hG _ (absDiff_lt (hF U) (hF (rhoF n a V)))
+    have ih := ih (hF U) (hF (rhoF n a V))
+    simp only [pollardRhoCost, add_mul, one_mul]
+    split_ifs <;> omega
+
+/-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 4k` bit
+operations per pass of [Factor search]. -/
+theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV : V < n)
+    (fuel : ℕ) :
+    pollardRhoCost school n a U V fuel ≤ fuel * (9 * n.size ^ 2 + 4 * n.size) := by
+  refine (pollardRhoCost_le school ha
+    (fun d hd ↦ euclidBitCost_school_le' hd le_rfl) hU hV fuel).trans (le_of_eq ?_)
+  rw [school_mulMod]
+  ring
+
+end RunningTime
 
 end PrimeNumbers.Chapter5

@@ -6,7 +6,6 @@ import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter2.Hensel
 import PrimeNumbers.Chapter2.Cornacchia
 import PrimeNumbers.Chapter2.FiniteField
-import PrimeNumbers.Chapter2.Complexity
 import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne

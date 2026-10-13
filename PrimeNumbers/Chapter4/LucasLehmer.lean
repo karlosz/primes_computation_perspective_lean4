@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
 /-!
@@ -73,5 +74,54 @@ theorem lucasLehmer_iff {p : ℕ} (hp : 3 ≤ p) : lucasLehmer p = true ↔ (2 ^
     exact_mod_cast Iff.rfl
   rw [hres]
   exact ⟨lucas_lehmer_sufficiency p (by omega), lucas_lehmer_necessity p hp⟩
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Bit operations -/
+
+/-- The bit operations of `lucasLehmerLoop M v k`: a squaring and a reduction per pass. -/
+def lucasLehmerCost (C : CostModel) (M v : ℕ) : ℕ → ℕ
+  | 0 => 0
+  | k + 1 =>
+    C.mul v.size v.size + C.divMod (v * v + M - 2).size M.size +
+      lucasLehmerCost C M ((v * v + M - 2) % M) k
+
+theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
+    lucasLehmerCost C M v k ≤ k * C.mulMod M.size := by
+  induction k generalizing v with
+  | zero => simp [lucasLehmerCost]
+  | succ k ih =>
+    have ih := ih (v := (v * v + M - 2) % M) (Nat.mod_lt _ (by omega))
+    -- `v² + M - 2 < M²`, so it has at most `2 size M` bits
+    have hlt : v * v + M - 2 < M * M := by
+      obtain ⟨c, rfl⟩ : ∃ c, M = c + 1 := ⟨M - 1, by omega⟩
+      have h₁ : v * v ≤ c * c := Nat.mul_le_mul (by omega) (by omega)
+      have h₂ : (c + 1) * (c + 1) = c * c + 2 * c + 1 := by ring
+      omega
+    have hsize : (v * v + M - 2).size ≤ 2 * M.size := by
+      have := size_le_of_lt hlt
+      have := size_mul_le M M
+      omega
+    have h₁ : C.mul v.size v.size ≤ C.mul M.size M.size :=
+      C.mul_mono (size_le_of_lt hv) (size_le_of_lt hv)
+    have h₂ := C.divMod_mono M.size hsize
+    simp only [lucasLehmerCost, add_mul, one_mul, CostModel.mulMod] at ih ⊢
+    omega
+
+/-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
+primality of `2^p - 1` takes at most `(p - 2)(2p² + p)` bit operations, i.e. `O(p³)`. -/
+theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
+    lucasLehmerCost school (2 ^ p - 1) 4 (p - 2) ≤ (p - 2) * (2 * p ^ 2 + p) := by
+  have h8 : 2 ^ 3 ≤ 2 ^ p := Nat.pow_le_pow_right (by norm_num) hp
+  refine (lucasLehmerCost_le school (by omega) (p - 2)).trans (Nat.mul_le_mul_left _ ?_)
+  have hsize : (2 ^ p - 1).size ≤ p := Nat.size_le.mpr (by omega)
+  rw [school_mulMod]
+  nlinarith [Nat.pow_le_pow_left hsize 2]
+
+end RunningTime
 
 end PrimeNumbers.Chapter4

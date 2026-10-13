@@ -1,8 +1,8 @@
+import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter1.Primes
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.CRT
-import PrimeNumbers.Chapter2.Complexity
 import PrimeNumbers.Chapter2.Poly
 import PrimeNumbers.Chapter2.PolyGcd
 import PrimeNumbers.Chapter2.FiniteField
@@ -19,7 +19,4 @@ import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.BabyGiant
 import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
-import PrimeNumbers.Chapter9.BitCost
-import PrimeNumbers.Chapter9.Factoring
-import PrimeNumbers.Chapter9.Analyses
 import PrimeNumbers.Examples

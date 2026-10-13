@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.Jacobi
 
@@ -415,5 +416,106 @@ theorem cipollaSqrt_sq (hp : p ≠ 2) {a : ZMod p} (ha : IsSquare a) (ha0 : a �
   cipolla_sq hp ha (findCipolla_spec hp ha ha0)
 
 end Correctness
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Tonelli: number of modular multiplications -/
+
+/-- The modular multiplications made by `tonelliLoop A D s i m`: per pass, the power
+`D^m`, one product, and the power `(A D^m)^(2^(s-1-i))`. -/
+def tonelliLoopMults {p : ℕ} (A D : ZMod p) (s i m : ℕ) : ℕ :=
+  if i < s then
+    if power (A * power D m) (2 ^ (s - 1 - i)) = -1 then
+      tonelliLoopMults A D s (i + 1) (m + 2 ^ i) + (powCost m + 1 + powCost (2 ^ (s - 1 - i)))
+    else tonelliLoopMults A D s (i + 1) m + (powCost m + 1 + powCost (2 ^ (s - 1 - i)))
+  else 0
+termination_by s - i
+decreasing_by all_goals omega
+
+/-- The modular multiplications made by `tonelli a d`: the powers `a^t`, `d^t`, the loop,
+and the final `a^((t+1)/2) · D^(m/2)`. -/
+def tonelliMults {p : ℕ} (a d : ZMod p) : ℕ :=
+  let st := oddPart (p - 1)
+  let m := tonelliLoop (power a st.2) (power d st.2) st.1 1 0
+  2 * powCost st.2 + tonelliLoopMults (power a st.2) (power d st.2) st.1 1 0 +
+    (powCost ((st.2 + 1) / 2) + powCost (m / 2) + 1)
+
+/-- In the Tonelli loop the exponent `m` stays below `2^i`, hence below `2^s`. -/
+theorem tonelliLoop_lt {p : ℕ} (A D : ZMod p) (s i m : ℕ) (hm : m < 2 ^ i) (his : i ≤ s) :
+    tonelliLoop A D s i m < 2 ^ s := by
+  fun_induction tonelliLoop A D s i m with
+  | case1 i m hlt hz ih => exact ih (by rw [pow_succ]; omega) (by omega)
+  | case2 i m hlt hz ih => exact ih (by rw [pow_succ]; omega) (by omega)
+  | case3 i m hlt => exact hm.trans_le (Nat.pow_le_pow_right (by norm_num) his)
+
+theorem powCost_le_of_lt_two_pow {m i : ℕ} (hm : m < 2 ^ i) : powCost m ≤ 2 * i := by
+  have h₁ := powCost_le m
+  have h₂ : Nat.log 2 m ≤ Nat.log 2 (2 ^ i) := Nat.log_mono_right hm.le
+  rw [Nat.log_pow (by norm_num)] at h₂
+  omega
+
+theorem tonelliLoopMults_le {p : ℕ} (A D : ZMod p) (s i m : ℕ) (hm : m < 2 ^ i)
+    (his : i ≤ s) : tonelliLoopMults A D s i m ≤ (s - i) * (4 * s + 1) := by
+  have hpass : ∀ i m : ℕ, i < s → m < 2 ^ i →
+      powCost m + 1 + powCost (2 ^ (s - 1 - i)) ≤ 4 * s + 1 := by
+    intro i m hi hm
+    have h₁ := powCost_le_of_lt_two_pow hm
+    have h₂ := powCost_le (2 ^ (s - 1 - i))
+    rw [Nat.log_pow (by norm_num)] at h₂
+    omega
+  fun_induction tonelliLoopMults A D s i m with
+  | case1 i m hlt hz ih =>
+    have ih := ih (by rw [pow_succ]; omega) (by omega)
+    have := hpass i m hlt hm
+    rw [show s - i = s - (i + 1) + 1 by omega, add_mul, one_mul]
+    omega
+  | case2 i m hlt hz ih =>
+    have ih := ih (by rw [pow_succ]; omega) (by omega)
+    have := hpass i m hlt hm
+    rw [show s - i = s - (i + 1) + 1 by omega, add_mul, one_mul]
+    omega
+  | case3 i m hlt => omega
+
+/-- **Complexity of Tonelli's algorithm 2.3.8.**  With `p - 1 = 2^s t`, the algorithm makes
+at most `6 log₂ t + 4s² + 1` multiplications modulo `p` — the book's
+"`O(s² + ln t)` modular operations".  Each costs at most `C.mulMod (size p)` bit
+operations (`mul_add_divMod_le`), so with grammar-school arithmetic the worst case
+(`s` large) is `O(ln⁴ p)` and the typical case (`s` small) is `O(ln³ p)`. -/
+theorem tonelliMults_le {p : ℕ} (a d : ZMod p) :
+    tonelliMults a d ≤
+      6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1 := by
+  simp only [tonelliMults]
+  generalize (oddPart (p - 1)).1 = s
+  generalize (oddPart (p - 1)).2 = t
+  generalize power a t = A
+  generalize power d t = D
+  have h₁ := powCost_le t
+  have h₂ := powCost_le ((t + 1) / 2)
+  have h₃ : Nat.log 2 ((t + 1) / 2) ≤ Nat.log 2 t := by
+    rcases Nat.eq_zero_or_pos t with rfl | ht
+    · simp
+    · exact Nat.log_mono_right (by omega)
+  rcases Nat.eq_zero_or_pos s with rfl | hs
+  · -- `s = 0`: the loop does not run and `m = 0`
+    have h₄ : tonelliLoopMults A D 0 1 0 = 0 := by rw [tonelliLoopMults]; simp
+    have h₅ : tonelliLoop A D 0 1 0 = 0 := by rw [tonelliLoop]; simp
+    have h₆ : powCost (0 / 2) = 0 := by rw [powCost]; simp
+    rw [h₄, h₅, h₆, show (0 : ℕ) ^ 2 = 0 by norm_num]
+    omega
+  · have h₄ := tonelliLoopMults_le A D s 1 0 (by norm_num) hs
+    have h₅ : powCost (tonelliLoop A D s 1 0 / 2) ≤ 2 * s :=
+      powCost_le_of_lt_two_pow ((Nat.div_le_self _ _).trans_lt
+        (tonelliLoop_lt A D s 1 0 (by norm_num) hs))
+    have h₆ : (s - 1) * (4 * s + 1) + 2 * s ≤ 4 * s ^ 2 := by
+      obtain ⟨c, rfl⟩ : ∃ c, s = c + 1 := ⟨s - 1, by omega⟩
+      simp only [Nat.add_sub_cancel]
+      nlinarith
+    omega
+
+end RunningTime
 
 end PrimeNumbers.Chapter2

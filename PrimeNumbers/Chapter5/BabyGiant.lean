@@ -101,4 +101,77 @@ theorem bsgs_sound {p g t n l : ℕ} (hg : Nat.Coprime g p) (h : bsgs p g t n = 
   rw [pow_add, hy', pow_mul', mul_assoc, ← mul_pow, ← mul_pow, mul_comm (modInv g p : ZMod p),
     hinv, one_pow, one_pow, mul_one]
 
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-- The bit operations of `babyTable`: one modular multiplication per baby step. -/
+def babyCost (C : CostModel) (p g : ℕ) : (cur count : ℕ) → ℕ
+  | _, 0 => 0
+  | cur, count + 1 =>
+    C.mul cur.size g.size + C.divMod (cur * g).size p.size + babyCost C p g (cur * g % p) count
+
+/-- The bit operations of `giantLoop`: one modular multiplication per giant step taken. -/
+def giantCost (C : CostModel) (p h : ℕ) (m : Std.HashMap ℕ ℕ) : (y count : ℕ) → ℕ
+  | _, 0 => 0
+  | y, count + 1 =>
+    match m[y]? with
+    | some _ => 0
+    | none => C.mul y.size h.size + C.divMod (y * h).size p.size +
+        giantCost C p h m (y * h % p) count
+
+/-- The bit operations of `bsgs p g t n`.  `I` is the cost of the modular inverse
+`g⁻¹ mod p` (extended Euclid, whose coefficient arithmetic is not yet analysed).  Hash
+table operations (linear in the bit length of a key) are not charged. -/
+def bsgsCost (C : CostModel) (I p g t n : ℕ) : ℕ :=
+  let b := Nat.sqrt n + 1
+  let h := powMod (modInv g p) b p
+  let m := babyTable p g 0 (1 % p) b ∅
+  I + powModCost C (modInv g p) b p + C.divMod t.size p.size +
+    babyCost C p g (1 % p) b + giantCost C p h m (t % p) b
+
+theorem babyCost_le (C : CostModel) {p g cur : ℕ} (hg : g < p) (hcur : cur < p) (count : ℕ) :
+    babyCost C p g cur count ≤ count * C.mulMod p.size := by
+  induction count generalizing cur with
+  | zero => simp [babyCost]
+  | succ count ih =>
+    have := mul_add_divMod_le C hcur hg
+    have ih := ih (cur := cur * g % p) (Nat.mod_lt _ (by omega))
+    simp only [babyCost, add_mul, one_mul]
+    omega
+
+theorem giantCost_le (C : CostModel) {p h y : ℕ} (m : Std.HashMap ℕ ℕ) (hh : h < p)
+    (hy : y < p) (count : ℕ) : giantCost C p h m y count ≤ count * C.mulMod p.size := by
+  induction count generalizing y with
+  | zero => simp [giantCost]
+  | succ count ih =>
+    have := mul_add_divMod_le C hy hh
+    have ih := ih (y := y * h % p) (Nat.mod_lt _ (by omega))
+    simp only [giantCost, add_mul, one_mul]
+    split <;> omega
+
+/-- **Bit complexity of baby-steps, giant-steps**, for any cost model: with
+`b = ⌊√n⌋ + 1`, at most `2b + 2 log₂ b` modular multiplications (the book's "`O(√n)` group
+operations"), two reductions, and one modular inverse. -/
+theorem bsgsCost_le (C : CostModel) (I : ℕ) {p g t : ℕ} (hg : g < p) (ht : t < p) (n : ℕ) :
+    bsgsCost C I p g t n ≤
+      I + 2 * C.divMod p.size p.size +
+        (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size := by
+  have hp : 0 < p := by omega
+  have h₁ := powModCost_le C (modInv_lt g hp) (Nat.sqrt n + 1)
+  have h₂ := babyCost_le C hg (Nat.mod_lt 1 hp) (Nat.sqrt n + 1)
+  have h₃ := giantCost_le C (babyTable p g 0 (1 % p) (Nat.sqrt n + 1) ∅)
+    (powMod_lt (modInv g p) (Nat.sqrt n + 1) hp) (Nat.mod_lt t hp) (Nat.sqrt n + 1)
+  have h₄ : C.divMod t.size p.size ≤ C.divMod p.size p.size :=
+    C.divMod_mono _ (size_le_of_lt ht)
+  have h₅ : (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size =
+      Nat.log 2 (Nat.sqrt n + 1) * (2 * C.mulMod p.size) +
+        (Nat.sqrt n + 1) * C.mulMod p.size + (Nat.sqrt n + 1) * C.mulMod p.size := by ring
+  simp only [bsgsCost]
+  omega
+
+end RunningTime
+
 end PrimeNumbers.Chapter5

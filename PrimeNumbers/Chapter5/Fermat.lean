@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
 /-!
@@ -153,5 +154,63 @@ theorem fermat_none_prime {n : ℕ} (hn : 1 < n) (hodd : n % 2 = 1) (h : fermat 
     · rw [mul_comm]; exact fermat_isSome_mul hv3 hv2 hu2 hvu
   rw [h] at hsome
   exact absurd hsome (by simp)
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-- The bit operations of `fermatLoop n a fuel`: per pass the squaring `a²`, an integer
+square root, and the check `b² = a² - n`.  The cost model does not include square roots,
+so the cost `sq` of an integer square root (as a function of the bit length of the
+argument; Algorithm 9.2.11) is a parameter. -/
+def fermatCost (C : CostModel) (sq : ℕ → ℕ) (n a : ℕ) : ℕ → ℕ
+  | 0 => 0
+  | fuel + 1 =>
+    let t := a * a - n
+    let b := Nat.sqrt t
+    C.mul a.size a.size + sq t.size + C.mul b.size b.size +
+      if b * b = t then 0 else fermatCost C sq n (a + 1) fuel
+
+theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n a A : ℕ} (fuel : ℕ)
+    (h : a + fuel ≤ A + 1) :
+    fermatCost C sq n a fuel ≤ fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+  induction fuel generalizing a with
+  | zero => simp [fermatCost]
+  | succ fuel ih =>
+    have haA : a ≤ A := by omega
+    have ih := ih (a := a + 1) (by omega)
+    have hb : Nat.sqrt (a * a - n) ≤ a := by
+      have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) n)
+      rwa [Nat.sqrt_eq] at this
+    have h₁ : C.mul a.size a.size ≤ C.mul A.size A.size :=
+      C.mul_mono (Nat.size_le_size haA) (Nat.size_le_size haA)
+    have h₂ : C.mul (Nat.sqrt (a * a - n)).size (Nat.sqrt (a * a - n)).size ≤
+        C.mul A.size A.size :=
+      C.mul_mono (Nat.size_le_size (hb.trans haA)) (Nat.size_le_size (hb.trans haA))
+    have h₃ : sq (a * a - n).size ≤ sq (2 * A.size) := hsq (by
+      have := Nat.size_le_size (Nat.sub_le (a * a) n)
+      have := size_mul_le a a
+      have := Nat.size_le_size haA
+      omega)
+    simp only [fermatCost, add_mul, one_mul]
+    split_ifs <;> omega
+
+/-- **Bit complexity of the Fermat method.**  Algorithm 5.1.1 makes at most
+`(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications and one integer square
+root of numbers no longer than `n` squared: `O(n)` passes in the worst case — "much more
+tedious than trial division", as the book says. -/
+theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n : ℕ} (hn : 2 ≤ n) :
+    fermatCost C sq n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
+      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sq (2 * n.size)) := by
+  rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
+  · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]; simp [fermatCost]
+  · refine (fermatCost_le C hsq (A := (n + 9) / 6) _ (by omega)).trans
+      (Nat.mul_le_mul_left _ ?_)
+    have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
+    exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (hsq (by omega))
+
+end RunningTime
 
 end PrimeNumbers.Chapter5

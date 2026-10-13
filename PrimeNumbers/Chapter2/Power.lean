@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
 /-!
@@ -135,5 +136,100 @@ theorem inverse_2_3 {a m : ℕ} (hm : 0 < m) (h : a.Coprime m) :
         rw [powMod_eq]; exact (Nat.mod_modEq _ _).mul_left _
     _ = a ^ m.totient := by rw [← pow_succ', Nat.sub_add_cancel hφ]
     _ ≡ 1 [MOD m] := euler_2_2 h
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Number of multiplications -/
+
+/-- The number of multiplications performed by `pow x n` (and of multiply-and-reduce
+steps performed by `powMod x n m`): one squaring in the even branch, a squaring and a
+multiplication in the odd branch. -/
+def powCost (n : ℕ) : ℕ :=
+  if n ≤ 1 then 0
+  else if n % 2 = 0 then powCost (n / 2) + 1
+  else powCost ((n - 1) / 2) + 2
+termination_by n
+decreasing_by all_goals omega
+
+/-- Algorithm 2.1.5 uses at most `2 log₂ n` multiplications. -/
+theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
+  fun_induction powCost n with
+  | case1 n h => omega
+  | case2 n h heven ih =>
+    have h₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
+    have h₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
+    omega
+  | case3 n h hodd ih =>
+    have h₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
+    have h₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
+    rw [show (n - 1) / 2 = n / 2 by omega] at ih ⊢
+    omega
+
+/-! ### Bit operations -/
+
+/-- The bit operations spent by `powMod x n m`, following its recursion: each
+"multiply, then reduce mod `m`" is charged at the bit lengths of its operands. -/
+def powModCost (C : CostModel) (x n m : ℕ) : ℕ :=
+  if n = 0 then 0
+  else if n = 1 then C.divMod x.size m.size
+  else if n % 2 = 0 then
+    let y := powMod x (n / 2) m
+    powModCost C x (n / 2) m + (C.mul y.size y.size + C.divMod (y * y).size m.size)
+  else
+    let y := powMod x ((n - 1) / 2) m
+    let z := y * y % m
+    powModCost C x ((n - 1) / 2) m + (C.mul y.size y.size + C.divMod (y * y).size m.size) +
+      (C.mul x.size z.size + C.divMod (x * z).size m.size)
+termination_by n
+decreasing_by all_goals omega
+
+/-- **Bit complexity of Algorithm 2.1.5.**  For `x < m`, computing `xⁿ mod m` costs at
+most `2 ⌊log₂ n⌋` modular multiplications (plus the initial reduction of `x`). -/
+theorem powModCost_le (C : CostModel) {x m : ℕ} (hx : x < m) (n : ℕ) :
+    powModCost C x n m ≤
+      C.divMod m.size m.size + Nat.log 2 n * (2 * C.mulMod m.size) := by
+  have hm : 0 < m := by omega
+  fun_induction powModCost C x n m with
+  | case1 => omega
+  | case2 => simpa using C.divMod_mono _ (size_le_of_lt hx)
+  | case3 n h0 h1 heven y ih =>
+    have hy : y < m := powMod_lt _ _ hm
+    have hstep := mul_add_divMod_le C hy hy
+    have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
+      have := Nat.log_div_base 2 n
+      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+      omega
+    rw [hlog, add_mul]
+    omega
+  | case4 n h0 h1 hodd y z ih =>
+    have hy : y < m := powMod_lt _ _ hm
+    have hz : z < m := Nat.mod_lt _ hm
+    have hstep₁ := mul_add_divMod_le C hy hy
+    have hstep₂ := mul_add_divMod_le C hx hz
+    have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
+      have := Nat.log_div_base 2 n
+      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+      rw [show (n - 1) / 2 = n / 2 by omega]
+      omega
+    rw [hlog, add_mul]
+    omega
+
+/-- **Exercise 2.17.**  With grammar-school arithmetic, `xⁿ mod m` costs at most
+`(4 log₂ n + 1)(k + 1)²` bit operations, `k` the bit length of `m`: that is
+`O(ln n · ln² m)`, cubic in the number of bits when `n` is of the size of `m`. -/
+theorem powModCost_school_le {x m : ℕ} (hx : x < m) (n : ℕ) :
+    powModCost school x n m ≤ (4 * Nat.log 2 n + 1) * (m.size + 1) ^ 2 := by
+  refine (powModCost_le school hx n).trans ?_
+  rw [school_mulMod]
+  have : school.divMod m.size m.size = m.size := by simp [school]
+  rw [this]
+  nlinarith [Nat.zero_le (Nat.log 2 n), Nat.zero_le m.size,
+    Nat.zero_le (Nat.log 2 n * m.size)]
+
+end RunningTime
 
 end PrimeNumbers.Chapter2

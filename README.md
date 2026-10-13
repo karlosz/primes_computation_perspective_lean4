@@ -141,7 +141,7 @@ Open items in Chapter 2:
 * Thm 2.1.3 average case.
 * Thm 2.3.7 (Gauss sums).
 
-### Bit complexity — `PrimeNumbers/Chapter9/`
+### Running times — the cost model in `PrimeNumbers/Chapter9/BitCost.lean`
 
 Running times are stated in **bit operations**, the book's measure, using the groundwork
 of §9.1.  All future complexity analyses in this project use this layer.
@@ -169,10 +169,16 @@ With `k` the bit length of the modulus / input:
 | 3.5.2 strong probable prime test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` per base | `strongProbablePrimeCost_school_le` (any model: `strongProbablePrimeCost_le`) |
 | 4.1.2 Pepin test | ≤ `(4 log₂ F + 1)(k + 1)²` | `pepinCost_school_le` |
 | 4.2.7 Lucas–Lehmer | ≤ `(p − 2)(2p² + p)` — `O(p³)` | `lucasLehmerCost_school_le` (any model: `lucasLehmerCost_le`) |
+| §3.2 sieve of Eratosthenes | ≤ `∑_{p ≤ √N} ⌊N/p⌋ ≤ N ln √N` bit writes (no multiplications or divisions) | `sieveWrites_le`, `sieveWrites_le_log` |
+| 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root (any model; the square-root cost is a parameter) | `fermatCost_le'` |
+| 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse (a parameter) (any model) | `bsgsCost_le` |
 
-The step counts these rest on (Lamé's bound `euclidSteps_le`, `powCost_le`,
-`jacobiSteps_le`, `two_mul_trialSteps_le`) are in `Chapter2/Complexity.lean` and
-`Chapter3/TrialDivision.lean`.
+**Where things are.**  `Chapter9/BitCost.lean` contains only the cost model and imports
+nothing else from the project.  Each algorithm's file imports it and ends with a section
+*Running time* holding, next to the correctness theorems: the plain operation count
+(e.g. `euclidSteps_le`, `powCost_le`, `jacobiSteps_le`, `two_mul_trialSteps_le`,
+`tonelliMults_le`), the bit-cost function `fCost`, its bound for an arbitrary cost model,
+and the grammar-school corollary.
 
 No bit-complexity bound yet for: extended Euclid's coefficient updates (2.1.4), Garner
 (2.1.7), the polynomial algorithms (2.2.x), Cipolla (2.3.9), Hensel
@@ -223,7 +229,7 @@ AKS (§4.5).
 | Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
 
-Bit complexity (`Chapter9/Factoring.lean`), `k` the bit length of `n`:
+Bit complexity (in the same files), `k` the bit length of `n`:
 
 | Algorithm | Bound | Theorem |
 |---|---|---|
@@ -246,8 +252,7 @@ charged.
 Open in Chapter 5: Lehman's method (5.1.2, Thm 5.1.3); the gcd-accumulation and Brent
 variants of rho; rho for discrete logarithms (§5.2.2); completeness and the `O(√n)` count
 for baby-steps giant-steps; the second stage of `p − 1`; §5.5 and §5.6 (polynomial
-evaluation, binary quadratic forms).  No bit-cost bound yet for the sieve, the Fermat
-method or baby-steps giant-steps.
+evaluation, binary quadratic forms).
 
 `PrimeNumbers/Examples.lean` runs every algorithm, on the book's worked examples and on
 inputs of 58–157 digits.

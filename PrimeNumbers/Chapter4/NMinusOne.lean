@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter3.TrialDivision
@@ -199,5 +200,32 @@ theorem prime_of_pocklingtonCheck {n F a : ℕ} (hn : 1 < n) (hF : F ∣ n - 1) 
       (a : ℤ) ^ ((n - 1) / q) := by exact_mod_cast Nat.mod_add_div (a ^ ((n - 1) / q)) n
   rw [← hdm, add_sub_right_comm]
   exact hcop.add_mul_left_left _
+
+/-! ## Running time -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-! ### Pepin test: bit operations -/
+
+/-- The bit operations of `pepin k`: one modular power modulo `F_k`. -/
+def pepinCost (C : CostModel) (k : ℕ) : ℕ :=
+  let F := 2 ^ 2 ^ k + 1
+  powModCost C 3 ((F - 1) / 2) F
+
+/-- **Bit complexity of the Pepin test, grammar-school arithmetic**: cubic in the bit
+length of `F_k`. -/
+theorem pepinCost_school_le {k : ℕ} (hk : 1 ≤ k) :
+    pepinCost school k ≤
+      (4 * Nat.log 2 (2 ^ 2 ^ k + 1) + 1) * ((2 ^ 2 ^ k + 1).size + 1) ^ 2 := by
+  have h4 : 2 ^ 2 ≤ 2 ^ 2 ^ k :=
+    Nat.pow_le_pow_right (by norm_num) (Nat.one_lt_two_pow (by omega))
+  refine (powModCost_school_le (by omega) _).trans (Nat.mul_le_mul_right _ ?_)
+  have := Nat.log_mono_right (b := 2) (Nat.div_le_self (2 ^ 2 ^ k + 1 - 1) 2)
+  have := Nat.log_mono_right (b := 2) (Nat.sub_le (2 ^ 2 ^ k + 1) 1)
+  omega
+
+end RunningTime
 
 end PrimeNumbers.Chapter4
