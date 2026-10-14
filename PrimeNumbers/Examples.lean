@@ -14,6 +14,7 @@ import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter9.FastMul
+import PrimeNumbers.Chapter9.Newton
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
@@ -318,5 +319,12 @@ open PrimeNumbers.Chapter9 in
     ((List.range 300).map fun i ↦ ((i * i + 7 : ℕ) : ZMod 8051)) =
   Chapter2.Poly.mul ((List.range 300).map ((↑) : ℕ → ZMod 8051))
     ((List.range 300).map fun i ↦ ((i * i + 7 : ℕ) : ZMod 8051))
+
+/-! ## §9.6.2 Newton inversion modulo `t^64` in `Z_8051[t]` -/
+
+open PrimeNumbers.Chapter9 in
+#guard (mulMod 8051 ((List.range 100).map fun i ↦ ((i * i + 1 : ℕ) : ZMod 8051))
+    (invNewton (mulMod 8051) ((List.range 100).map fun i ↦ ((i * i + 1 : ℕ) : ZMod 8051)) 1 6)).take 64 =
+  1 :: List.replicate 63 0
 
 end PrimeNumbers.Examples
