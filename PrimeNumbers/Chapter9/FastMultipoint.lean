@@ -144,28 +144,9 @@ theorem multipointEvalFast_eq {n : ℕ} [NeZero n] [Nontrivial (ZMod n)] (δ : �
 /-! ## Running time of Algorithm 9.6.7: the recursion has `⌈log₂ D⌉ + 1` levels
 
 The cost of Algorithm 9.6.7 is that of its nodes: at a node with `d` points, two
-half-products and two remainders (or, at a leaf, direct evaluation).  We count it with
-cost functions `costProd`, `costMod`, `costLeaf` for those routines (measured in whatever
-unit — ring operations or bit operations), following the recursion exactly. -/
+half-products and two remainders (charged through the charge functions `pc`, `mc` of the
+routines passed for them), or, at a leaf, direct evaluation by Horner's rule. -/
 
-/-- The cost of `multipointEvalWith`, node by node. -/
-def multipointCost (prodF : List R → Chapter2.Poly R)
-    (modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
-    (costProd : List R → ℕ) (costMod : Chapter2.Poly R → Chapter2.Poly R → ℕ)
-    (costLeaf : Chapter2.Poly R → List R → ℕ) (δ : ℕ) (x : Chapter2.Poly R) (T : List R) : ℕ :=
-  if T.length ≤ max δ 1 then costLeaf x T
-  else
-    let u := T.take (T.length / 2)
-    let v := T.drop (T.length / 2)
-    costProd u + costProd v + costMod x (prodF u) + costMod x (prodF v) +
-      multipointCost prodF modF costProd costMod costLeaf δ (modF x (prodF u)) u +
-      multipointCost prodF modF costProd costMod costLeaf δ (modF x (prodF v)) v
-termination_by T.length
-decreasing_by
-  · simp only [List.length_take]; omega
-  · simp only [List.length_drop]; omega
-
-omit [CommRing R] in
 /-- **The level count of Algorithm 9.6.7.**  Suppose the work at a node with `d` points
 (two products, two remainders, or the direct evaluation at a leaf) is at most `S d`,
 whenever the polynomial being evaluated has at most `d + 1` coefficients — which the
@@ -173,29 +154,31 @@ remainders guarantee below the root (`hmodLen`).  If `S` is monotone and superad
 (`S a + S b ≤ S (a + b)`, true for `S d = M(d) log d` and the like), then the whole
 algorithm costs at most `(⌈log₂ D⌉ + 1) · S D` for `D` points.  With `S d = O(M(d) log d)`
 for the fast routines this is the book's `O(M(D) log² D)`. -/
-theorem multipointCost_le {prodF : List R → Chapter2.Poly R}
+theorem multipointEval_cost_le [MulCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
     {modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
-    {costProd : List R → ℕ} {costMod : Chapter2.Poly R → Chapter2.Poly R → ℕ}
-    {costLeaf : Chapter2.Poly R → List R → ℕ} {S : ℕ → ℕ} (hS : Monotone S)
-    (hsup : ∀ a b, S a + S b ≤ S (a + b))
+    (pc : List R → CostM C Unit) (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit)
+    {S : ℕ → ℕ} (hS : Monotone S) (hsup : ∀ a b, S a + S b ≤ S (a + b))
     (hmodLen : ∀ x us, (modF x (prodF us)).length ≤ us.length + 1)
     (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length →
-      costProd (T.take (T.length / 2)) + costProd (T.drop (T.length / 2)) +
-        costMod x (prodF (T.take (T.length / 2))) + costMod x (prodF (T.drop (T.length / 2)))
-        ≤ S T.length)
-    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 → costLeaf x T ≤ S T.length)
+      CostM.cost C (pc (T.take (T.length / 2))) + CostM.cost C (pc (T.drop (T.length / 2))) +
+        CostM.cost C (mc x (prodF (T.take (T.length / 2)))) +
+        CostM.cost C (mc x (prodF (T.drop (T.length / 2)))) ≤ S T.length)
+    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 →
+      (T.map fun (t : R) ↦ costOf C (Poly.eval x t)).sum ≤ S T.length)
     (δ : ℕ) (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) :
-    multipointCost prodF modF costProd costMod costLeaf δ x T ≤
+    CostM.cost C (multipointEvalWith.counted prodF modF δ x T pc mc) ≤
       (Nat.clog 2 T.length + 1) * S T.length := by
-  fun_induction multipointCost prodF modF costProd costMod costLeaf δ x T with
-  | case1 x T h => have := hleaf x T hx; nlinarith
+  fun_induction multipointEvalWith prodF modF δ x T with
+  | case1 x T h =>
+    have := hleaf x T hx
+    cost_unfold multipointEvalWith.counted
+    nlinarith
   | case2 x T h u v ih₁ ih₂ =>
     have hu : u.length = T.length / 2 := by simp [u]; omega
     have hv : v.length = T.length - T.length / 2 := by simp [v]
     have ih₁ := ih₁ (by have := hmodLen x u; omega)
     have ih₂ := ih₂ (by have := hmodLen x v; omega)
-    have hn : costProd u + costProd v + costMod x (prodF u) + costMod x (prodF v) ≤
-        S T.length := hnode x T hx (by omega)
+    have hn := hnode x T hx (by omega)
     -- each half has at most `⌈D/2⌉` points, hence one level fewer
     have hclog : ∀ m, m ≤ (T.length + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 T.length := by
       intro m hm
@@ -206,13 +189,13 @@ theorem multipointCost_le {prodF : List R → Chapter2.Poly R}
       omega
     have hcu := hclog u.length (by omega)
     have hcv := hclog v.length (by omega)
-    have hSu : S u.length ≤ S T.length := hS (by omega)
-    have hSv : S v.length ≤ S T.length := hS (by omega)
     have hsplit : S u.length + S v.length ≤ S T.length := by
       have := hsup u.length v.length
       exact this.trans (hS (by omega))
+    cost_unfold multipointEvalWith.counted
+    simp only [u, v] at *
     calc _ ≤ S T.length + (Nat.clog 2 u.length + 1) * S u.length +
-          (Nat.clog 2 v.length + 1) * S v.length := by omega
+          (Nat.clog 2 v.length + 1) * S v.length := by simp only [u, v]; omega
       _ ≤ S T.length + Nat.clog 2 T.length * S u.length + Nat.clog 2 T.length * S v.length := by
           gcongr
       _ = S T.length + Nat.clog 2 T.length * (S u.length + S v.length) := by ring

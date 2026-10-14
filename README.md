@@ -111,7 +111,7 @@ Not formalized (not in Mathlib, stated without proof in the book): 1.1.4 (PNT), 
 |---|---|---|---|
 | Thm 2.1.1 | — | `theorem_2_1_1` | `Euclid` |
 | Alg 2.1.2 Euclid | `euclid` | `euclid_eq_gcd` | `Euclid` |
-| Thm 2.1.3 Lamé (worst case) | `euclidSteps` | `lame` | `Euclid` |
+| Thm 2.1.3 Lamé (worst case) | `costOf divCount (euclid x y)` (the number of divisions) | `lame` | `Euclid` |
 | Alg 2.1.4 extended Euclid | `extEuclid`, `modInv` | `extEuclid_spec`, `mul_modInv_modEq` | `Euclid` |
 | Alg 2.1.5 powering | `pow`, `power`, `powMod` | `pow_eq`, `powMod_eq` | `Power` |
 | (2.2), (2.3) | — | `euler_2_2`, `inverse_2_3` | `Power` |
@@ -189,6 +189,15 @@ algorithm's own code, so the two cannot drift apart.
   expensive library function without a counted version in scope, a function of this
   project that is neither counted nor marked `@[cost_free]`, an inverse, or chargeable
   work under a binder it cannot follow.
+* **Operation counts are costs too.**  The counting models `mulCount`, `divCount`,
+  `opCount`, `writeCount` charge `1` for the operations counted and `0` for the rest, so
+  the number of multiplications, divisions or writes is `costOf mulCount (f …)` etc.,
+  derived from the code like the bit complexity: Lamé's theorem is about
+  `costOf divCount (euclid x y)`, the passes of trial division are its multiplications
+  `d · d`, Tonelli's `O(s² + ln t)` is `costOf mulCount (tonelli a d)`, and the sieve's
+  writes are `costOf writeCount`.  Bounds take hypotheses on the cost of primitive
+  operations (a multiplication `≤ M`, a square root `≤ S`, …), never a hand-written list
+  of the operations an algorithm performs.
 * **Proofs.**  `cost_unfold f.counted` unfolds one step of a counted algorithm and selects
   the branches its hypotheses decide; `cost_simp` does the bookkeeping.  Bounds are proved
   for an arbitrary cost model where that makes sense, then specialized to `school`.
@@ -199,18 +208,18 @@ With `k` the bit length of the modulus / input:
 |---|---|---|
 | 2.1.2 Euclid | ≤ `k(3k + 1)` — `O(ln² N)`, Exercise 2.6; ≤ `k(3k + 2)` in either argument order | `euclidBitCost_school_le'`, `euclidBitCost_school_le_of_le` |
 | 2.1.5 `xⁿ mod m` | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln n · ln² m)`, Exercise 2.17 | `powModCost_school_le` (any model: `powModCost_le`) |
-| 2.1.5 in any structure | `powMults n · K` when every product costs `K` | `pow_cost`, `power_cost` |
+| 2.1.5 in any structure | at most `2 log₂ n` multiplications (`costOf mulCount`); bit cost = multiplications × `K` when every product costs `K` | `pow_mults_le`, `pow_cost`, `power_cost` |
 | 2.3.5 Jacobi symbol | ≤ `k(3k + 1)` — `O(ln² m)` | `jacobiBitCost_school_le'` |
 | 2.1.4 extended Euclid, modular inverse | ≤ `4k(3k + 2)` and `4k(3k + 2) + k` — `O(ln² N)` | `extEuclidCost_school_le'`, `modInvCost_school_le` |
-| 2.3.8 Tonelli (`p − 1 = 2^s t`) | exactly `tonelliMults` multiplications mod `p`, ≤ `6 log₂ t + 4s² + 1` — the book's `O(s² + ln t)`; ≤ `(6 log₂ t + 4s² + 1)(2k² + k)` bit operations | `tonelli_cost`, `tonelliMults_le`, `tonelliCost_school_le` |
-| 2.3.8 full algorithm | ≤ `6 log₂ p + 4s² + 2` multiplications mod `p`, plus the nonresidue search | `sqrtMod_cost_le`, `sqrtModMults_le` |
+| 2.3.8 Tonelli (`p − 1 = 2^s t`) | ≤ `6 log₂ t + 4s² + 1` multiplications mod `p` (`costOf mulCount`) — the book's `O(s² + ln t)`; bit cost = multiplications × `C.mulMod`; ≤ `(6 log₂ t + 4s² + 1)(2k² + k)` bit operations | `tonelli_mults_le`, `tonelli_cost`, `tonelliCost_school_le` |
+| 2.3.8 full algorithm | ≤ `6 log₂ p + 4s² + 2` multiplications mod `p`, plus the nonresidue search | `sqrtMod_cost_le` |
 | 3.1.1 trial division | ≤ `(2 log₂ n + √n + 2)·k(k + 1)` — `O(√n ln² n)` (divisions and the tests `d² ≤ N`) | `trialDivisionCost_school_le` (any model: `trialDivisionCost_le`) |
 | 3.4.3 Fermat test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` | `probablePrimeCost_school_le` |
 | 3.5.2 strong probable prime test | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln³ n)` per base | `strongProbablePrimeCost_school_le` (any model: `strongProbablePrimeCost_le`) |
 | 4.1.2 Pepin test | ≤ `(4 log₂ F + 1)(k + 1)²` | `pepinCost_school_le` |
 | 4.2.7 Lucas–Lehmer | ≤ `(p − 2)(2p² + p)` — `O(p³)` | `lucasLehmerCost_school_le` (any model: `lucasLehmerCost_le`) |
-| §3.2 sieve of Eratosthenes | ≤ `N ln √N` bit writes unconditionally; ≤ `N (ln ln √N + c)` **assuming Mertens' theorem** (`Assumed.Mertens c`); the whole sieve: `N + 3` + writes + `2N + 1` products | `sieveWrites_le_log`, `sieveWrites_le_of_mertens`, `sieve_cost_le` |
-| 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps; ≤ `((k+1)/2 + 2)(k+1)²` bit operations | `isqrt_eq` (correctness), `isqrtSteps_le`, `isqrtCost_school_le`, `sqrt_counted_cost_school_le` |
+| §3.2 sieve of Eratosthenes | ≤ `N ln √N` writes in the main loop (`costOf writeCount`) unconditionally; ≤ `N (ln ln √N + c)` **assuming Mertens' theorem** (`Assumed.Mertens c`); the whole sieve: `N + 3` + writes + `2N + 1` products | `sieveWrites_le_log`, `sieveWrites_le_of_mertens`, `sieve_cost_le` |
+| 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps (`⌈k/2⌉ + 2` divisions, `costOf divCount`); ≤ `((k+1)/2 + 2)(k+1)²` bit operations | `isqrt_eq` (correctness), `isqrt_divs_le`, `isqrtCost_school_le`, `sqrt_counted_cost_school_le` |
 | 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
 | 5.3.1 baby-steps giant-steps | the square root, 1 modular inverse, ≤ `2b + 2 log₂ b` modular multiplications (`b = ⌊√n⌋ + 1`), 3 reductions and `j·b`; grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
 
@@ -218,10 +227,10 @@ With `k` the bit length of the modulus / input:
 `Counted.lean` the counting monad and the counted library combinators; `CountedDef.lean`
 the `counted_def` command, `costOf` and the tactics; `CountedLib.lean` counted versions of
 library functions (`Nat.log`).  Each algorithm's file ends with a section *Running time*
-holding, next to the correctness theorems: the plain operation counts (e.g.
-`euclidSteps_le`, `powMults_le`, `jacobiSteps_le`, `two_mul_trialSteps_le`,
-`tonelliMults_le`), the bound on `costOf` for an arbitrary cost model, and the
-grammar-school corollary.
+holding, next to the correctness theorems: the operation counts (e.g.
+`euclidSteps_le`, `pow_mults_le`, `jacobiSteps_le`, `trialLoop_mults_le`,
+`tonelli_mults_le`, all about `costOf` under a counting model), the bound on `costOf` for an
+arbitrary cost model, and the grammar-school corollary.
 
 No bit-complexity bound yet (the algorithms are counted, the bounds are not proved) for:
 Garner (2.1.7), Cipolla (2.3.9), Hensel (2.3.11), Cornacchia (2.3.12), the
@@ -266,7 +275,7 @@ AKS (§4.5).
 | Book | Lean function | Theorems | File |
 |---|---|---|---|
 | Alg 5.1.1 Fermat method | `fermat` | `fermat_sound` (a returned `d` is a nontrivial divisor, `n > 3`), `fermat_none_prime` (no answer ⇒ odd `n` is prime) | `Fermat` |
-| Alg 5.1.2 Lehman method, Thm 5.1.3 | `lehman` (with `k` up to `⌊n^{1/3}⌋ + 1`, one further than printed) | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 576`); `theorem_5_1_3_complete` (no answer ⇒ `n` prime, via Dirichlet's approximation theorem); `lehmanPasses_le_cuberoot` (≤ `4 n^{1/3} + 2` passes) | `Lehman` |
+| Alg 5.1.2 Lehman method, Thm 5.1.3 | `lehman` (with `k` up to `⌊n^{1/3}⌋ + 1`, one further than printed) | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 576`); `theorem_5_1_3_complete` (no answer ⇒ `n` prime, via Dirichlet's approximation theorem); `lehmanPassBound_le_cuberoot` (≤ `4 n^{1/3} + 2` passes) | `Lehman` |
 | §5.4 second stage of `p − 1` | `pollardStage2`, `stage2Primes` | `pollardStage2_dvd`; `dvd_pollardStage2`: a prime `p ∣ n` with `p − 1 ∣ Q·M(B)` for a prime `Q ∈ (B, B']` divides the result | `PollardPMinusOne` |
 | §5.2.2 rho for discrete logarithms (in `Z_p^*`) | `rhoLog` | `rhoLog_sound`; `iterate_rhoLogStep_inv` (the walk keeps `x = g^a t^b`); `pow_rhoLogSolve` (at a collision with `gcd(b − B, N) = 1` the candidate is the logarithm); `exists_rhoLog_collision` (a collision within `p` steps); assembled: `rhoLog_isSome` (within `p` passes it returns a logarithm, provided `b − B` is invertible mod `N` at every collision); `rhoLogLoop_cost_le` (per pass three steps: a modular multiplication and two reductions modulo `N`; plus the final solve and check) | `RhoLog` |
 | §5.5 polynomial evaluation method (Pollard–Strassen) | `pollardStrassenFast` (fast multipoint evaluation), `pollardStrassen` (block by block) | `pollardStrassenFast_eq_minFac`: for composite `n` it returns the least prime factor; `pollardStrassenFast_eq` (both versions agree) | `PolyEval` |
@@ -315,12 +324,12 @@ Over any commutative ring (so over `Z_n` for composite `n`):
 | Alg 9.6.1 fast multiplication (binary segmentation), with GMP integer multiplication | `mulNat`, `mulNatAuto`, `mulMod` (in `Z_n[t]`), `pack`, `unpack` | `mulNat_eq` (= schoolbook product when coefficients fit), `coeff_mul_le`, `toPolynomial_mulMod`, `mulNatCost_le` (one `bD`-bit integer multiplication) |
 | Alg 9.6.2 fast inversion (Newton iteration) | `invNewton` (any proved-correct multiplication `mulF`, e.g. `mulMod`) | `invNewton_spec`: `a h ≡ 1 (mod t^(2^k))` |
 | Alg 9.6.4 fast remainder (via reversal and Newton inversion) | `fastModMonic` (any proved-correct `mulF`) | `toPolynomial_fastModMonic`: computes `%ₘ` (proof via Mathlib's `reflect_mul`) |
-| Alg 9.6.7 running time | `multipointCost` | `multipointCost_le`: at most `(⌈log₂ D⌉ + 1) · S(D)` for any superadditive per-node bound `S` (the `log D` levels of the recursion); `length_fastModMonic_prodTree_le` discharges its length hypothesis for the fast routines |
+| Alg 9.6.7 running time | `multipointEvalWith.counted` | `multipointEval_cost_le`: the derived cost is at most `(⌈log₂ D⌉ + 1) · S(D)` for any superadditive per-node bound `S` (the `log D` levels of the recursion); `length_fastModMonic_prodTree_le` discharges its length hypothesis for the fast routines |
 | Alg 9.6.7 evaluation at arbitrary points | `multipointEval`; `multipointEvalWith` (any correct product/remainder routines); `multipointEvalFast` (over `Z_n` with `mulMod` and `fastModMonic`, product tree `prodTree`) | `multipointEval_eq`, `multipointEvalWith_eq`, `multipointEvalFast_eq` |
 
 Still to do for §9.6: per-node bounds `S(d) = O(M(d) log d)` for the fast product tree and
 fast remainder in terms of an abstract polynomial-multiplication cost `M`, to instantiate
-`multipointCost_le` and obtain the `O(n^{1/4} ln² n)` bound for §5.5; a quasi-linear `M`
+`multipointEval_cost_le` and obtain the `O(n^{1/4} ln² n)` bound for §5.5; a quasi-linear `M`
 (Nussbaumer, Algorithm 9.5.25); using fast multiplication
 and remainder inside Algorithm 9.6.7; evaluation on arithmetic and geometric
 progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
