@@ -15,6 +15,7 @@ import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter9.FastMul
 import PrimeNumbers.Chapter9.Newton
+import PrimeNumbers.Chapter9.FastMod
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
@@ -324,7 +325,16 @@ open PrimeNumbers.Chapter9 in
 
 open PrimeNumbers.Chapter9 in
 #guard (mulMod 8051 ((List.range 100).map fun i ↦ ((i * i + 1 : ℕ) : ZMod 8051))
-    (invNewton (mulMod 8051) ((List.range 100).map fun i ↦ ((i * i + 1 : ℕ) : ZMod 8051)) 1 6)).take 64 =
-  1 :: List.replicate 63 0
+    (invNewton (mulMod 8051) ((List.range 100).map fun i ↦ ((i * i + 1 : ℕ) : ZMod 8051))
+      1 6)).take 64 = 1 :: List.replicate 63 0
+
+/-! ## §9.6.4 Fast remainder agrees with long division (as polynomials) -/
+
+open PrimeNumbers.Chapter9 in
+#guard Chapter2.Poly.trim (fastModMonic (mulMod 8051)
+    ((List.range 200).map fun i ↦ ((i * i * i + 5 : ℕ) : ZMod 8051))
+    (prodLinear ((List.range 40).map ((↑) : ℕ → ZMod 8051)))) =
+  Chapter2.Poly.trim (Poly.modMonic ((List.range 200).map fun i ↦ ((i * i * i + 5 : ℕ) : ZMod 8051))
+    (prodLinear ((List.range 40).map ((↑) : ℕ → ZMod 8051))))
 
 end PrimeNumbers.Examples

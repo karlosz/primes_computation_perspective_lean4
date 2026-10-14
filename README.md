@@ -274,9 +274,10 @@ Over any commutative ring (so over `Z_n` for composite `n`):
 | products `∏ (t − u)` | `prodLinear` | `lead_prodLinear`, `eval_prodLinear` |
 | Alg 9.6.1 fast multiplication (binary segmentation), with GMP integer multiplication | `mulNat`, `mulNatAuto`, `mulMod` (in `Z_n[t]`), `pack`, `unpack` | `mulNat_eq` (= schoolbook product when coefficients fit), `coeff_mul_le`, `toPolynomial_mulMod`, `mulNatCost_le` (one `bD`-bit integer multiplication) |
 | Alg 9.6.2 fast inversion (Newton iteration) | `invNewton` (any proved-correct multiplication `mulF`, e.g. `mulMod`) | `invNewton_spec`: `a h ≡ 1 (mod t^(2^k))` |
+| Alg 9.6.4 fast remainder (via reversal and Newton inversion) | `fastModMonic` (any proved-correct `mulF`) | `toPolynomial_fastModMonic`: computes `%ₘ` (proof via Mathlib's `reflect_mul`) |
 | Alg 9.6.7 evaluation at arbitrary points | `multipointEval` | `multipointEval_eq`: returns exactly the values `x(t)` |
 
-Still to do for §9.6: fast remainder (9.6.4) from Newton inversion; using fast multiplication
+Still to do for §9.6: using fast multiplication
 and remainder inside Algorithm 9.6.7; evaluation on arithmetic and geometric
 progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
 multiplication; then plugging Algorithm 9.6.7 into §5.5.

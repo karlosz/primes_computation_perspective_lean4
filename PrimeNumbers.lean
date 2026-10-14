@@ -4,6 +4,7 @@ import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter9.FastMul
 import PrimeNumbers.Chapter9.Newton
+import PrimeNumbers.Chapter9.FastMod
 import PrimeNumbers.Chapter1.Primes
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
