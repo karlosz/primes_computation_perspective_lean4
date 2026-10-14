@@ -281,10 +281,13 @@ Over any commutative ring (so over `Z_n` for composite `n`):
 | Alg 9.6.1 fast multiplication (binary segmentation), with GMP integer multiplication | `mulNat`, `mulNatAuto`, `mulMod` (in `Z_n[t]`), `pack`, `unpack` | `mulNat_eq` (= schoolbook product when coefficients fit), `coeff_mul_le`, `toPolynomial_mulMod`, `mulNatCost_le` (one `bD`-bit integer multiplication) |
 | Alg 9.6.2 fast inversion (Newton iteration) | `invNewton` (any proved-correct multiplication `mulF`, e.g. `mulMod`) | `invNewton_spec`: `a h ≡ 1 (mod t^(2^k))` |
 | Alg 9.6.4 fast remainder (via reversal and Newton inversion) | `fastModMonic` (any proved-correct `mulF`) | `toPolynomial_fastModMonic`: computes `%ₘ` (proof via Mathlib's `reflect_mul`) |
+| Alg 9.6.7 running time | `multipointCost` | `multipointCost_le`: at most `(⌈log₂ D⌉ + 1) · S(D)` for any superadditive per-node bound `S` (the `log D` levels of the recursion); `length_fastModMonic_prodTree_le` discharges its length hypothesis for the fast routines |
 | Alg 9.6.7 evaluation at arbitrary points | `multipointEval`; `multipointEvalWith` (any correct product/remainder routines); `multipointEvalFast` (over `Z_n` with `mulMod` and `fastModMonic`, product tree `prodTree`) | `multipointEval_eq`, `multipointEvalWith_eq`, `multipointEvalFast_eq` |
 
-Still to do for §9.6: a fast-multiplication cost model and the `O(D ln² D)` running-time analysis
-of the fast Algorithm 9.6.7, hence the `O(n^{1/4} ln² n)` bound for §5.5; using fast multiplication
+Still to do for §9.6: per-node bounds `S(d) = O(M(d) log d)` for the fast product tree and
+fast remainder in terms of an abstract polynomial-multiplication cost `M`, to instantiate
+`multipointCost_le` and obtain the `O(n^{1/4} ln² n)` bound for §5.5; a quasi-linear `M`
+(Nussbaumer, Algorithm 9.5.25); using fast multiplication
 and remainder inside Algorithm 9.6.7; evaluation on arithmetic and geometric
 progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
 multiplication; then plugging Algorithm 9.6.7 into §5.5.
