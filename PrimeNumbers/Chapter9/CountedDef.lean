@@ -15,22 +15,38 @@ termination_by n
 
 From this one body the command produces
 
-* `powMod` — the plain definition, exactly as written (so existing proofs are unaffected);
-* `powMod.counted` — the same body run in the counting monad: before each operation is
-  used, a charge is recorded for every `a * b` and `a % b` (on its plain operands, in
-  evaluation order — including inside `if` conditions and `let` values), and every
-  recursive call is charged by running `powMod.counted` on the same arguments.  All values,
-  conditions and termination measures are the original plain expressions;
+* `powMod` — the plain definition, exactly as written (all correctness proofs are about it);
+* `powMod.counted` — the same computation in a counting monad: before each value is used,
+  the cost of computing it is recorded.  Values, conditions and termination measures are
+  the original plain expressions; only charges are added;
 * `powMod.counted_val : CostM.val C (powMod.counted …) = powMod …`, proved automatically.
 
-Multiplication or remainder by a numeric literal (`n % 2`, `2 * k`) is a shift or mask and
-is not charged; `/` is allowed only by a literal.  Arithmetic or recursive calls inside a
-nested binding form (`fun`, `match`, an `if` inside an expression, …) cannot be charged in
-place and are rejected with an error asking to lift them to the top level of a branch — so
-nothing can be silently left out of the count.
+`costOf C (powMod x n m)` is the number of bit operations of the call under the cost model
+`C`.
 
-Running-time theorems are proved about `CostM.cost C (f.counted …)`; `cost_simp` unfolds
-the bookkeeping.
+**What is charged** (in evaluation order, on the operands *as elaborated*):
+* `a * b`, `a / b`, `a % b`, `a ∣ b`, `a ^ e` — unless by a numeric literal (a shift or
+  mask) — at the cost the type assigns (`MulCost`, `DivCost`, `PowCost`: bit lengths for
+  `ℕ` and `ℤ`, a modular multiplication for `ZMod n`, …);
+* a call of a function with a counted version (another `counted_def`, or a library function
+  given one: `Nat.gcd`, `Nat.sqrt`, `Nat.log`, `List.prod`, the list combinators, array
+  writes);
+* a call of a function parameter `P` through its charge function `P_charge` (a counted
+  version takes one per function parameter); a `fun`, a section `(· < B)`, a function or a
+  partial application passed as an argument is charged wherever it is applied.
+
+Conditions, `match` discriminants and `let` values are charged before the branch; an `if`,
+`match` or `let` inside an expression is charged with the same branching as its value;
+`&&`, `||`, `∧`, `∨` short-circuit.
+
+**What is rejected** — so that nothing can silently be left out of the count: a call of
+an expensive library function (`notFree`) without a counted version in scope; a call of a
+function of this project that is neither counted nor `@[cost_free]`; an inverse; and
+chargeable work under a binder that cannot be followed (e.g. inside a `fun` passed to a
+function without a counted version).
+
+Running-time theorems are proved about `costOf C (f …)`: `cost_unfold f.counted` unfolds
+one step and takes the branches the hypotheses decide, `cost_simp` unfolds the bookkeeping.
 -/
 
 namespace PrimeNumbers.Chapter9

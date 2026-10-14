@@ -2,24 +2,18 @@ import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter9.CostAttr
 
 /-!
-# Costs derived from the code: algorithms written once, run plain or counted
+# Costs derived from the code: the counting monad
 
-Instead of writing a separate cost function next to each algorithm (which has to be kept in
-sync by hand), an algorithm is written **once**, generically over a monad `m` that supplies
-the big-number primitives (`NatArith`):
+An algorithm is written once, as plain code, with `counted_def` (`CountedDef.lean`), which
+also produces a *counted* version of it: the same computation, run in a monad with the
+primitives of `NatArith` — charges for a multiplication, a division with remainder, a power
+and a number of plain bit operations.  Run in `CostM C`, the counted version accumulates the
+bit operations of the algorithm under the cost model `C`; its value is the plain value.
 
-* run in `Id`, it is the ordinary executable algorithm (no overhead);
-* run in `CostM C`, the very same code returns its result *and* the number of bit
-  operations it performed under the cost model `C` — every primitive call is charged at
-  the bit lengths of its actual operands.
-
-So a running-time theorem is a statement about `(alg (m := CostM C) …).cost`, and the cost
-cannot drift away from the algorithm.  A per-algorithm lemma `(alg (m := CostM C) …).val =
-alg (m := Id) …` (proved once, by unfolding) says counting does not change the answer.
-
-This file is the framework; it depends only on the cost model.  Algorithms are not written
-against it by hand: the `counted_def` command (`CountedDef.lean`) generates the counted
-version from plain code.
+This file holds the monad, the cost classes (`MulCost`, `DivCost`, `PowCost`) saying what
+an operation costs on each type, the bookkeeping lemmas (simp set `cost_simps`, tactics
+`cost_simp` and `cost_unfold`), and counted versions of library functions that algorithms
+use: `List.prod`, the list combinators, array writes.
 -/
 
 namespace PrimeNumbers.Chapter9
