@@ -241,18 +241,14 @@ open PrimeNumbers.Chapter9
 /-- **Algorithm 2.1.5 for `xⁿ mod m`**, written once over any monad with `NatArith`.  This
 is the same algorithm as `Chapter2.powMod`. -/
 def powModG {m : Type → Type} [Monad m] [NatArith m] (x n M : ℕ) : m ℕ :=
-  if n = 0 then NatArith.mod 1 M
-  else if n = 1 then NatArith.mod x M
+  if n = 0 then arith%(1 % M)
+  else if n = 1 then arith%(x % M)
   else if n % 2 = 0 then do
     let y ← powModG x (n / 2) M
-    let yy ← NatArith.mul y y
-    NatArith.mod yy M
+    arith%(y * y % M)                     -- Even branch.
   else do
     let y ← powModG x ((n - 1) / 2) M
-    let yy ← NatArith.mul y y
-    let z ← NatArith.mod yy M
-    let xz ← NatArith.mul x z
-    NatArith.mod xz M
+    arith%(x * (y * y % M) % M)           -- Odd branch.
 termination_by n
 decreasing_by all_goals omega
 
@@ -264,7 +260,7 @@ theorem powModG_id (x n M : ℕ) : powModG (m := Id) x n M = Chapter2.powMod x n
     split_ifs with h0 h1 h2
     · rfl
     · rfl
-    · show Id.run (powModG (m := Id) x (n / 2) M) *
+    · change Id.run (powModG (m := Id) x (n / 2) M) *
         Id.run (powModG (m := Id) x (n / 2) M) % M = _
       rw [ih _ (by omega)]; rfl
     · show x * (Id.run (powModG (m := Id) x ((n - 1) / 2) M) *
@@ -294,14 +290,15 @@ theorem powModG_cost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
   | _ n ih =>
     rw [powModG]
     split_ifs with h0 h1 h2
-    · simp only [CostM.mod_cost]
+    · cost_simp
       have : C.divMod (1 : ℕ).size M.size ≤ C.divMod M.size M.size :=
         C.divMod_mono _ (Nat.size_le_size (by omega))
       omega
-    · simp only [CostM.mod_cost]
+    · cost_simp
       have := C.divMod_mono M.size (size_le_of_lt hx)
       omega
-    · simp only [CostM.bind_cost, CostM.mul_cost, CostM.mul_val, CostM.mod_cost, powModG_val]
+    · cost_simp
+      rw [powModG_val] at *
       have ih := ih (n / 2) (by omega)
       have hy : Chapter2.powMod x (n / 2) M < M := Chapter2.powMod_lt _ _ hM
       have hstep := mul_add_divMod_le C hy hy
@@ -311,8 +308,8 @@ theorem powModG_cost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
         omega
       rw [hlog, add_mul]
       omega
-    · simp only [CostM.bind_cost, CostM.mul_cost, CostM.mul_val, CostM.mod_cost, CostM.mod_val,
-        powModG_val]
+    · cost_simp
+      rw [powModG_val] at *
       have ih := ih ((n - 1) / 2) (by omega)
       have hy : Chapter2.powMod x ((n - 1) / 2) M < M := Chapter2.powMod_lt _ _ hM
       have hz := Nat.mod_lt (Chapter2.powMod x ((n - 1) / 2) M * Chapter2.powMod x ((n - 1) / 2) M) hM

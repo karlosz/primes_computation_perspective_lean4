@@ -180,7 +180,9 @@ With `k` the bit length of the modulus / input:
 lets an algorithm be written once, generically over a monad with the big-number
 primitives (`NatArith`): run in `Id` it is the plain executable algorithm, run in
 `CostM C` the same code returns its result and its exact bit-operation count under the
-cost model `C`.  Running-time theorems are then statements about that count, so no
+cost model `C`.  Arithmetic is written naturally inside `arith%( … )`, e.g.
+`arith%(x * (y * y % M) % M)`, where each `*` and `%` is one charged primitive.
+Running-time theorems are then statements about that count, so no
 separate cost function has to be kept in sync with the algorithm.  First example:
 `Chapter2.powModG` (Algorithm 2.1.5) with `powModG_id` (it *is* `powMod`), `powModG_val`
 and `powModG_cost_le`.  The older hand-written cost functions (`powModCost`,

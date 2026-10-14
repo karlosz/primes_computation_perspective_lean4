@@ -87,4 +87,43 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
 
 end
 
+/-! ## Natural notation: `arith%( … )`
+
+Inside `arith%( e )` the operators `*` and `%` in `e` are the counted primitives; every
+other subterm (variables, literals, `n / 2`, …) is an ordinary value.  So
+
+    arith%(x * (y * y % M) % M)
+
+expands to `do let a ← NatArith.mul y y; let b ← NatArith.mod a M; …`, with exactly one
+charged call per `*` and `%`, just as many as plain evaluation of the expression performs.
+In `Id` it is literally the expression. -/
+
+/-- Counted arithmetic expression: `*` and `%` are charged primitives. -/
+syntax "arith%(" term ")" : term
+
+macro_rules
+  | `(arith%($e)) => `(pure $e)
+
+macro_rules
+  | `(arith%(($e))) => `(arith%($e))
+
+macro_rules
+  | `(arith%($a * $b)) => `(do
+      let x ← arith%($a)
+      let y ← arith%($b)
+      NatArith.mul x y)
+
+macro_rules
+  | `(arith%($a % $b)) => `(do
+      let x ← arith%($a)
+      let y ← arith%($b)
+      NatArith.mod x y)
+
+/-- Unfold the bookkeeping of a counted computation: what is left is its result and the
+sum of the charges of its primitive calls. -/
+macro "cost_simp" : tactic => `(tactic|
+  (set_option linter.unusedSimpArgs false in
+    simp only [CostM.bind_cost, CostM.bind_val, CostM.pure_cost, CostM.pure_val, CostM.mul_cost,
+      CostM.mul_val, CostM.mod_cost, CostM.mod_val, zero_add, add_zero] at *))
+
 end PrimeNumbers.Chapter9
