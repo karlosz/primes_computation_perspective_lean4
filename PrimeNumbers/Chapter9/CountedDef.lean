@@ -37,15 +37,35 @@ namespace PrimeNumbers.Chapter9
 
 open Lean Elab Command Term Meta
 
+/-- Library functions that are not free: a call of one of them in a `counted_def` must be
+charged through its counted version (e.g. `Nat.gcd.counted`, by Algorithm 2.1.2). -/
+private def notFree : List Name :=
+  [``Nat.gcd, ``Nat.lcm, ``Nat.sqrt, ``Int.gcd, ``Int.lcm, ``Nat.xgcd, ``Nat.gcdA, ``Nat.gcdB,
+   ``Int.sqrt, ``Nat.minFac, ``Nat.primeFactorsList, ``Nat.primeFactors, ``Nat.factorization,
+   ``Nat.divisors, ``Nat.factorial, ``Nat.choose, ``Nat.totient, ``Nat.Prime, ``Prime,
+   ``Squarefree, ``IsSquare, ``Nat.Coprime, ``Inv.inv, ``ZMod.inv, ``HDiv.hDiv, ``Nat.find,
+   ``legendreSym, ``jacobiSym, ``orderOf]
+
 /-- Elaborate a call `g a₁ … aₖ`; if its head is a constant `g` with a counted version,
-return `g.counted` and the elaborated arguments. -/
+return `g.counted` and the elaborated arguments.  A call that cannot be charged — of a
+library function that is not free (`notFree`) or of a function of this project that is
+neither counted nor `@[cost_free]` — is an error. -/
 private def countedCallee? (call : Syntax) : TermElabM (Expr × Option (Name × Array Expr)) := do
   let e ← elabTerm call none
   synthesizeSyntheticMVarsNoPostponing
   let e ← instantiateMVars e
   let some c := e.getAppFn.constName? | return (e, none)
+  let env ← getEnv
   let cc := c ++ `counted
-  return (e, if (← getEnv).contains cc then some (cc, e.getAppArgs) else none)
+  if env.contains cc then return (e, some (cc, e.getAppArgs))
+  if notFree.contains c then
+    throwErrorAt call[0] "counted_def: `{c}` is not free, and no `{cc}` is in scope to charge it \
+      (import the file that defines it)"
+  if (`PrimeNumbers).isPrefixOf c && !costFreeAttr.hasTag env c &&
+      !(env.find? c).any (fun i => i.isCtor) && (env.getProjectionFnInfo? c).isNone then
+    throwErrorAt call[0] "counted_def: `{c}` has no counted version; define it with \
+      `counted_def`, or mark it `@[cost_free]` if it does no big-number arithmetic"
+  return (e, none)
 
 /-- `counted_call% (g a₁ … aₖ)`: the cost of a call — `g.counted a₁ … aₖ` when `g` has a
 counted version, otherwise nothing (`pure ()`). -/
@@ -151,6 +171,9 @@ private partial def hoist (self : Name) (e : Syntax) :
             Macro.throwErrorAt e "counted_def: a power with a variable exponent is not a \
               primitive operation; compute it with a counted function such as `powMod`"
       `($(⟨ra⟩) ^ $(⟨rk⟩))
+  | `($_⁻¹) =>
+      Macro.throwErrorAt e "counted_def: an inverse is not a primitive operation; compute it \
+        with a counted function such as `modInv`"
   | `($a ∣ $b) =>
       -- a divisibility test computes `b mod a`
       let ra ← hoist self a; let rb ← hoist self b

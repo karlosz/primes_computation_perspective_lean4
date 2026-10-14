@@ -258,6 +258,39 @@ theorem euclidBitCost_school_le' {x y N : ℕ} (hxy : y < x) (hN : x ≤ N) :
   have h₄ := log_two_le_size N
   exact Nat.mul_le_mul h₁ (by omega)
 
+/-- The cost charged for a call of `Nat.gcd` in a counted algorithm. -/
+theorem gcd_counted_cost (C : CostModel) (x y : ℕ) :
+    CostM.cost C (Nat.gcd.counted x y) = euclidBitCost C x y := rfl
+
+/-- **Bit complexity of the Euclid algorithm**, in either order of the arguments: for
+`x, y ≤ N`, with `N` of `k` bits, at most `k (3k + 2)` bit operations (grammar-school). -/
+theorem euclidBitCost_school_le_of_le {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N) :
+    euclidBitCost school x y ≤ N.size * (3 * N.size + 2) := by
+  have hs : ∀ a b : ℕ, a ≤ b → b ≤ N → school.divMod a.size b.size ≤ N.size := by
+    intro a b hab hb
+    have := Nat.size_le_size hab
+    have := Nat.size_le_size hb
+    change (a.size - b.size + 1) * b.size ≤ N.size
+    rw [show a.size - b.size + 1 = 1 by omega, one_mul]; exact this
+  rcases Nat.lt_trichotomy y x with h | rfl | h
+  · have := euclidBitCost_school_le' h hx
+    nlinarith
+  · unfold euclidBitCost
+    rcases Nat.eq_zero_or_pos y with rfl | hy0
+    · cost_unfold euclid.counted; simp
+    · cost_unfold euclid.counted
+      rw [Nat.mod_self]
+      cost_unfold euclid.counted
+      have := hs y y le_rfl hy
+      nlinarith
+  · unfold euclidBitCost
+    cost_unfold euclid.counted
+    rw [Nat.mod_eq_of_lt h]
+    have h₁ := hs x y h.le hy
+    have h₂ := euclidBitCost_school_le' h hy
+    unfold euclidBitCost at h₂
+    nlinarith
+
 /-! ### Extended Euclid and the modular inverse: bit operations -/
 
 /-- The quotient of an `a`-bit by a `b`-bit number has at most `a - b + 1` bits. -/

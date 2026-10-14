@@ -149,11 +149,13 @@ theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
   induction x using Nat.strong_induction_on with | _ x ih =>
   have := hB x.size (Nat.size_le_size hx)
   simp only [isqrtCost] at ih ⊢
-  rw [isqrtLoop.counted, isqrtSteps]; cost_simp
-  split_ifs with hlt
+  rw [isqrtSteps]
+  by_cases hlt : (x + N / x) / 2 < x
   · have ih := ih _ hlt (by omega)
-    cost_simp; rw [add_mul, one_mul]; omega
-  · cost_simp; omega
+    cost_unfold isqrtLoop.counted
+    simp only [hlt, ↓reduceIte, add_mul, one_mul] at ih ⊢; omega
+  · cost_unfold isqrtLoop.counted
+    simp only [hlt, ↓reduceIte] at *; omega
 
 /-- **Bit complexity of Algorithm 9.2.11, grammar-school division**: at most
 `((k + 1)/2 + 2)(k + 1)²` bit operations for a `k`-bit `N`. -/
@@ -169,11 +171,22 @@ theorem isqrtCost_school_le (N : ℕ) :
   rw [sq]
   exact Nat.mul_le_mul (by omega) (by omega)
 
+/-- The cost charged for a call of `Nat.sqrt` in a counted algorithm. -/
+theorem sqrt_counted_cost (C : CostModel) (N : ℕ) :
+    CostM.cost C (Nat.sqrt.counted N) = isqrtCost C N (2 ^ ((N.size + 1) / 2)) := by
+  simp only [Nat.sqrt.counted, isqrt.counted]; cost_simp
+
 /-- The bound of `isqrtCost_school_le` as a function of the bit length `k`: a valid
 "square root cost" for analyses that use integer square roots. -/
 def schoolSqrt (k : ℕ) : ℕ := ((k + 1) / 2 + 2) * (k + 1) ^ 2
 
 theorem schoolSqrt_mono : Monotone schoolSqrt := fun a b h ↦
   Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)
+
+/-- In the grammar-school model a call of `Nat.sqrt` on a `k`-bit number costs at most
+`schoolSqrt k`. -/
+theorem sqrt_counted_cost_school_le (N : ℕ) :
+    CostM.cost school (Nat.sqrt.counted N) ≤ schoolSqrt N.size := by
+  rw [sqrt_counted_cost]; exact isqrtCost_school_le N
 
 end PrimeNumbers.Chapter9

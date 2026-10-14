@@ -18,11 +18,12 @@ proves `n` prime".  (For `n = 3` the loop as printed returns the trivial divisor
 namespace PrimeNumbers.Chapter5
 
 /-- `⌈√n⌉`. -/
-def ceilSqrt (n : ℕ) : ℕ :=
-  if Nat.sqrt n * Nat.sqrt n = n then Nat.sqrt n else Nat.sqrt n + 1
+counted_def ceilSqrt (n : ℕ) : ℕ :=
+  let s := Nat.sqrt n
+  if s * s = n then s else s + 1
 
 theorem le_ceilSqrt_mul_self (n : ℕ) : n ≤ ceilSqrt n * ceilSqrt n := by
-  unfold ceilSqrt
+  unfold ceilSqrt; dsimp only
   split_ifs with h
   · exact h.ge
   · exact (Nat.lt_succ_sqrt n).le
@@ -31,7 +32,7 @@ theorem ceilSqrt_le {n a : ℕ} (h : n ≤ a * a) : ceilSqrt n ≤ a := by
   have h₁ : Nat.sqrt n ≤ a := by
     have := Nat.sqrt_le_sqrt h
     rwa [Nat.sqrt_eq] at this
-  unfold ceilSqrt
+  unfold ceilSqrt; dsimp only
   split_ifs with hsq
   · exact h₁
   · rcases Nat.lt_or_ge (Nat.sqrt n) a with hlt | hge
@@ -58,8 +59,9 @@ for (⌈√n⌉ ≤ a ≤ (n + 9)/6) { if b = √(a² - n) is an integer return 
 return "n is prime";
 ```
 -/
-def fermat (n : ℕ) : Option ℕ :=
-  fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)
+counted_def fermat (n : ℕ) : Option ℕ :=
+  let a := ceilSqrt n
+  fermatLoop n a ((n + 9) / 6 + 1 - a)
 
 theorem fermatLoop_some {n a fuel d : ℕ} (h : fermatLoop n a fuel = some d) :
     ∃ a' b, a ≤ a' ∧ a' < a + fuel ∧ a' * a' - n = b * b ∧ d = a' - b := by
@@ -163,22 +165,18 @@ section RunningTime
 open PrimeNumbers.Chapter9
 
 /-- The bit operations of `fermatLoop n a fuel`: per pass the squaring `a²`, an integer
-square root, and the check `b² = a² - n`.  The cost model does not include square roots,
-so the cost `sq` of an integer square root (as a function of the bit length of the
-argument; Algorithm 9.2.11) is a parameter. -/
-def fermatCost (C : CostModel) (sq : ℕ → ℕ) (n a : ℕ) : ℕ → ℕ
-  | 0 => 0
-  | fuel + 1 =>
-    let t := a * a - n
-    let b := Nat.sqrt t
-    C.mul a.size a.size + sq t.size + C.mul b.size b.size +
-      if b * b = t then 0 else fermatCost C sq n (a + 1) fuel
+square root (Algorithm 9.2.11), and the check `b² = a² - n`. -/
+abbrev fermatCost (C : CostModel) (n a fuel : ℕ) : ℕ := CostM.cost C (fermatLoop.counted n a fuel)
 
-theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n a A : ℕ} (fuel : ℕ)
+/-- Each pass costs two multiplications of numbers `≤ A` and a square root of a number of at
+most `2 size A` bits; the cost of a square root of a `k`-bit number is bounded by `sq k`. -/
+theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
+    (hS : ∀ t, CostM.cost C (Nat.sqrt.counted t) ≤ sq t.size) {n a A : ℕ} (fuel : ℕ)
     (h : a + fuel ≤ A + 1) :
-    fermatCost C sq n a fuel ≤ fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+    fermatCost C n a fuel ≤ fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+  unfold fermatCost
   induction fuel generalizing a with
-  | zero => simp [fermatCost]
+  | zero => cost_unfold fermatLoop.counted; simp
   | succ fuel ih =>
     have haA : a ≤ A := by omega
     have ih := ih (a := a + 1) (by omega)
@@ -195,19 +193,23 @@ theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n 
       have := size_mul_le a a
       have := Nat.size_le_size haA
       omega)
-    simp only [fermatCost, add_mul, one_mul]
+    have h₄ := hS (a * a - n)
+    cost_unfold fermatLoop.counted
+    simp only [add_mul, one_mul]
     split_ifs <;> omega
 
 /-- **Bit complexity of the Fermat method.**  Algorithm 5.1.1 makes at most
 `(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications and one integer square
 root of numbers no longer than `n` squared: `O(n)` passes in the worst case — "much more
 tedious than trial division", as the book says. -/
-theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n : ℕ} (hn : 2 ≤ n) :
-    fermatCost C sq n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
+theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
+    (hS : ∀ t, CostM.cost C (Nat.sqrt.counted t) ≤ sq t.size) {n : ℕ} (hn : 2 ≤ n) :
+    fermatCost C n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
       ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sq (2 * n.size)) := by
   rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
-  · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]; simp [fermatCost]
-  · refine (fermatCost_le C hsq (A := (n + 9) / 6) _ (by omega)).trans
+  · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]
+    unfold fermatCost; cost_unfold fermatLoop.counted; simp
+  · refine (fermatCost_le C hsq hS (A := (n + 9) / 6) _ (by omega)).trans
       (Nat.mul_le_mul_left _ ?_)
     have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
     exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (hsq (by omega))
@@ -217,9 +219,9 @@ square roots computed by Algorithm 9.2.11 (`isqrtCost_school_le`): at most
 `((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k))` bit operations, `k` the bit length of
 `n` — that is `O(n ln³ n)` in the worst case. -/
 theorem fermatCost_school_le {n : ℕ} (hn : 2 ≤ n) :
-    fermatCost school schoolSqrt n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
+    fermatCost school n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n) ≤
       ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * (n.size * n.size) + schoolSqrt (2 * n.size)) :=
-  fermatCost_le' school schoolSqrt_mono hn
+  fermatCost_le' school schoolSqrt_mono sqrt_counted_cost_school_le hn
 
 end RunningTime
 

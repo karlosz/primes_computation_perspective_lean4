@@ -1,4 +1,5 @@
 import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.CostAttr
 
 /-!
 # Costs derived from the code: algorithms written once, run plain or counted
@@ -93,34 +94,38 @@ def CostM.val {α} (x : CostM C α) : α := Counted.val x
 /-- Run a counted computation: its cost. -/
 def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
 
-@[simp] theorem CostM.pure_val {α} (a : α) : CostM.val C (pure a) = a := rfl
-@[simp] theorem CostM.pure_cost {α} (a : α) : CostM.cost C (pure a) = 0 := rfl
-@[simp] theorem CostM.bind_val {α β} (x : CostM C α) (f : α → CostM C β) :
+@[simp, cost_simps] theorem CostM.pure_val {α} (a : α) : CostM.val C (pure a) = a := rfl
+@[simp, cost_simps] theorem CostM.pure_cost {α} (a : α) : CostM.cost C (pure a) = 0 := rfl
+@[simp, cost_simps] theorem CostM.bind_val {α β} (x : CostM C α) (f : α → CostM C β) :
     CostM.val C (x >>= f) = CostM.val C (f (CostM.val C x)) := rfl
-@[simp] theorem CostM.bind_cost {α β} (x : CostM C α) (f : α → CostM C β) :
+@[simp, cost_simps] theorem CostM.bind_cost {α β} (x : CostM C α) (f : α → CostM C β) :
     CostM.cost C (x >>= f) = CostM.cost C x + CostM.cost C (f (CostM.val C x)) := rfl
-@[simp] theorem CostM.chargeMul_cost {α} [MulCost α] (a b : α) :
+@[cost_simps] theorem CostM.ite_cost {α} (c : Prop) [Decidable c] (x y : CostM C α) :
+    CostM.cost C (if c then x else y) = if c then CostM.cost C x else CostM.cost C y := by
+  split_ifs <;> rfl
+@[cost_simps] theorem CostM.ite_val {α} (c : Prop) [Decidable c] (x y : CostM C α) :
+    CostM.val C (if c then x else y) = if c then CostM.val C x else CostM.val C y := by
+  split_ifs <;> rfl
+@[simp, cost_simps] theorem CostM.chargeMul_cost {α} [MulCost α] (a b : α) :
     CostM.cost C (NatArith.chargeMul a b) = MulCost.mulCost C a b := rfl
-@[simp] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
+@[simp, cost_simps] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
     CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
-@[simp] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
-@[simp] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
-@[simp] theorem mulCost_int (a b : ℤ) :
+@[simp, cost_simps] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
+@[simp, cost_simps] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
+@[simp, cost_simps] theorem mulCost_int (a b : ℤ) :
     MulCost.mulCost C a b = C.mul a.natAbs.size b.natAbs.size := rfl
-@[simp] theorem divCost_int (a b : ℤ) :
+@[simp, cost_simps] theorem divCost_int (a b : ℤ) :
     DivCost.divCost C a b = C.divMod a.natAbs.size b.natAbs.size := rfl
-@[simp] theorem mulCost_zmod {n : ℕ} (a b : ZMod n) : MulCost.mulCost C a b = C.mulMod n.size :=
+@[simp, cost_simps] theorem mulCost_zmod {n : ℕ} (a b : ZMod n) : MulCost.mulCost C a b = C.mulMod n.size :=
   rfl
 
 end
 
+attribute [cost_simps] zero_add add_zero ite_self
+
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
-sum of the charges of its primitive calls. -/
-macro "cost_simp" : tactic => `(tactic|
-  (set_option linter.unusedSimpArgs false in
-    simp only [CostM.bind_cost, CostM.bind_val, CostM.pure_cost, CostM.pure_val,
-      CostM.chargeMul_cost, CostM.chargeMod_cost, mulCost_nat, divCost_nat, mulCost_int,
-      divCost_int, mulCost_zmod, zero_add, add_zero] at *))
+sum of the charges of its primitive calls (simp set `cost_simps`). -/
+macro "cost_simp" : tactic => `(tactic| simp only [cost_simps, ↓reduceIte] at *)
 
 theorem ite_of_pos {α} {c : Prop} [Decidable c] (h : c) (a b : α) :
     (if c then a else b) = a := by simp [h]
@@ -132,10 +137,6 @@ conditions select (decided from the hypotheses, by `assumption` or `omega`), and
 bookkeeping. -/
 macro "cost_unfold " ids:ident,+ : tactic => `(tactic|
   (rw [$[$ids:ident],*]
-   try (set_option linter.unusedSimpArgs false in
-    simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, CostM.bind_cost,
-      CostM.bind_val, CostM.pure_cost, CostM.pure_val, CostM.chargeMul_cost,
-      CostM.chargeMod_cost, mulCost_nat, divCost_nat, mulCost_int, divCost_int, mulCost_zmod,
-      zero_add, add_zero])))
+   try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps, ↓reduceIte]))
 
 end PrimeNumbers.Chapter9

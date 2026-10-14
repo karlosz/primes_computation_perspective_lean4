@@ -26,10 +26,10 @@ namespace PrimeNumbers.Chapter5
 open PrimeNumbers.Chapter2
 
 /-- The iteration function of Algorithm 5.2.1: `F(x) = (x² + a) mod n`. -/
-def rhoF (n a x : ℕ) : ℕ := (x * x + a) % n
+counted_def rhoF (n a x : ℕ) : ℕ := (x * x + a) % n
 
 /-- `|u - v|` on naturals. -/
-def absDiff (u v : ℕ) : ℕ := if v ≤ u then u - v else v - u
+@[cost_free] def absDiff (u v : ℕ) : ℕ := if v ≤ u then u - v else v - u
 
 /-- **Algorithm 5.2.1, step 2 [Factor search]**, at most `fuel` passes:
 ```

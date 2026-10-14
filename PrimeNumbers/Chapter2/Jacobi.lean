@@ -142,7 +142,7 @@ decreasing_by
 
 /-- **Algorithm 2.3.5.**  Given a positive odd integer `m` and an integer `a`, returns
 the Jacobi symbol `(a/m)`, which for `m` an odd prime is also the Legendre symbol. -/
-def jacobi (a : ℤ) (m : ℕ) : ℤ :=
+counted_def jacobi (a : ℤ) (m : ℕ) : ℤ :=
   jacobiLoop (a % m).toNat m 1
 
 /-- Loop invariant of Algorithm 2.3.5: `t · (a/m)` is preserved by each pass.  The swap
@@ -241,28 +241,28 @@ theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
 
 /-! ### Bit operations -/
 
+/-- The inner loop is free: halvings and tests of the low bits are shifts and look-ups. -/
+@[cost_simps] theorem jacobiHalve_cost (C : CostModel) (a m : ℕ) (t : ℤ) :
+    CostM.cost C (jacobiHalve.counted a m t) = 0 := by
+  fun_induction jacobiHalve a m t with
+  | case1 a t h ih => cost_unfold jacobiHalve.counted; exact ih
+  | case2 a t h => cost_unfold jacobiHalve.counted
+
 /-- The bit operations spent by `jacobiLoop a m t`: one division `m mod a'` per pass of
-the outer loop.  (The halvings `a = a/2` and the tests modulo 4 and 8 are shifts and
-look-ups of the low bits.) -/
-def jacobiBitCost (C : CostModel) (a m : ℕ) (t : ℤ) : ℕ :=
-  if a = 0 then 0
-  else
-    let r := jacobiHalve a m t
-    C.divMod m.size r.1.size +
-      jacobiBitCost C (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)
-termination_by a
-decreasing_by
-  have := jacobiHalve_fst_le a m t
-  have := Nat.mod_lt m (Nat.pos_of_ne_zero (jacobiHalve_fst_pos ‹a ≠ 0› m t))
-  omega
+the outer loop. -/
+abbrev jacobiBitCost (C : CostModel) (a m : ℕ) (t : ℤ) : ℕ :=
+  CostM.cost C (jacobiLoop.counted a m t)
 
 /-- As for Euclid, the quotient bits of all the divisions telescope: the total cost is at
 most `size a · (size m + passes)`. -/
 theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
     jacobiBitCost school a m t ≤ a.size * (m.size + jacobiSteps a m t) := by
-  fun_induction jacobiBitCost school a m t with
-  | case1 m t => simp
-  | case2 a m t ha r ih =>
+  unfold jacobiBitCost
+  fun_induction jacobiLoop a m t with
+  | case1 t => cost_unfold jacobiLoop.counted; simp
+  | case2 m t => cost_unfold jacobiLoop.counted; simp
+  | case3 a m t ha r ih =>
+    cost_unfold jacobiLoop.counted
     have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t
     have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
     have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
@@ -273,8 +273,8 @@ theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
     simp only [dite_eq_ite] at ih
     generalize jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) = s
       at ih hsteps
-    generalize jacobiBitCost school (m % r.1) r.1
-      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) = c at ih
+    generalize CostM.cost school (jacobiLoop.counted (m % r.1) r.1
+      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = c at ih ⊢
     have h₁ : (m % r.1).size ≤ r.1.size := size_le_of_lt hlt
     have h₂ : r.1.size ≤ a.size := Nat.size_le_size hr_le
     have h₃ : r.1.size ≤ m.size := Nat.size_le_size (hr_le.trans ham.le)

@@ -39,7 +39,7 @@ if (v == 0) return YES;
 return NO;
 ```
 -/
-def lucasLehmer (p : ℕ) : Bool :=
+counted_def lucasLehmer (p : ℕ) : Bool :=
   lucasLehmerLoop (2 ^ p - 1) 4 (p - 2) = 0
 
 /-- The loop computes Mathlib's Lucas–Lehmer sequence `sMod p`. -/
@@ -85,16 +85,14 @@ open PrimeNumbers.Chapter9
 /-! ### Bit operations -/
 
 /-- The bit operations of `lucasLehmerLoop M v k`: a squaring and a reduction per pass. -/
-def lucasLehmerCost (C : CostModel) (M v : ℕ) : ℕ → ℕ
-  | 0 => 0
-  | k + 1 =>
-    C.mul v.size v.size + C.divMod (v * v + M - 2).size M.size +
-      lucasLehmerCost C M ((v * v + M - 2) % M) k
+abbrev lucasLehmerCost (C : CostModel) (M v k : ℕ) : ℕ :=
+  CostM.cost C (lucasLehmerLoop.counted M v k)
 
 theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
     lucasLehmerCost C M v k ≤ k * C.mulMod M.size := by
+  unfold lucasLehmerCost
   induction k generalizing v with
-  | zero => simp [lucasLehmerCost]
+  | zero => cost_unfold lucasLehmerLoop.counted; simp
   | succ k ih =>
     have ih := ih (v := (v * v + M - 2) % M) (Nat.mod_lt _ (by omega))
     -- `v² + M - 2 < M²`, so it has at most `2 size M` bits
@@ -110,7 +108,8 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
     have h₁ : C.mul v.size v.size ≤ C.mul M.size M.size :=
       C.mul_mono (size_le_of_lt hv) (size_le_of_lt hv)
     have h₂ := C.divMod_mono M.size hsize
-    simp only [lucasLehmerCost, add_mul, one_mul, CostModel.mulMod] at ih ⊢
+    cost_unfold lucasLehmerLoop.counted
+    simp only [add_mul, one_mul, CostModel.mulMod] at ih ⊢
     omega
 
 /-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
