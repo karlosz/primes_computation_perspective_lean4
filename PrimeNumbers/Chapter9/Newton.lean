@@ -19,7 +19,7 @@ namespace PrimeNumbers.Chapter9
 
 open Polynomial PrimeNumbers.Chapter2 PrimeNumbers.Chapter2.Poly
 
-variable {R : Type*} [CommRing R]
+variable {R : Type} [CommRing R]
 
 /-- A multiplication routine on coefficient lists that computes the polynomial product. -/
 def MulCorrect (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) : Prop :=

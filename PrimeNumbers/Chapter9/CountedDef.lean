@@ -195,13 +195,18 @@ private def mkCountedCall (cc : Name) (m : Expr) (args : Array Expr) (charges : 
     (ref : Syntax) : TermElabM Expr := do
   let fn ← mkConstWithFreshMVarLevels cc
   let (xs, bis, _) ← forallMetaTelescopeReducing (← inferType fn)
-  unless ← isDefEq xs[0]! m do throwErrorAt ref "counted_def: monad mismatch"
+  let monadTy := mkForall `_ .default (mkSort levelOne) (mkSort levelOne)
+  let mut monadDone := false
   let mut i := 0          -- next plain argument
   let mut j := 0          -- next charge function
-  for h : k in [1:xs.size] do
+  for h : k in [0:xs.size] do
     let x := xs[k]
     let ty ← instantiateMVars (← inferType x)
-    if bis[k]! == .instImplicit && isCostInst ty then
+    if !monadDone && bis[k]! == .implicit && ty == monadTy then
+      -- the counting monad (it follows any section variables of the plain function)
+      unless ← isDefEq x m do throwErrorAt ref "counted_def: monad mismatch"
+      monadDone := true
+    else if bis[k]! == .instImplicit && isCostInst ty then
       x.mvarId!.assign (← synthInstance ty)
     else if i < args.size then
       unless ← isDefEq x args[i]! do
@@ -284,17 +289,28 @@ private def mkCountedCall (cc : Name) (m : Expr) (args : Array Expr) (charges : 
             cannot be charged (`{c}` has no counted version)"
       elabTerm (← `(pure ())) ety?
 
-/-- `charge_of% g`, for a function `g` (possibly a partial application): the charge function
-`fun x₁ … xⱼ ↦ cost of g x₁ … xⱼ`, at the expected function type. -/
-syntax (name := chargeOf) "charge_of% " term:max : term
+/-- `charge_of% (g a₁ … aₖ) [c₁, …, cₖ]`, for a function `g a₁ … aₖ` (possibly a partial
+application, whose arguments have the charge functions `cᵢ`): the charge function
+`fun x₁ … xⱼ ↦ cost of g a₁ … aₖ x₁ … xⱼ`, at the expected function type. -/
+syntax (name := chargeOf) "charge_of% " term:max " [" term,* "]" : term
 
 @[term_elab chargeOf] private def elabChargeOf : TermElab := fun stx ety? => do
   let some ety := ety? | throwErrorAt stx "charge_of%: expected type unknown"
+  let fn := stx[1]
+  let charges : Array Term := stx[3].getSepArgs.map (⟨·⟩)
+  -- the head and the arguments given (tagged with the positions of their charges)
+  let (head, given) : Syntax × Array Syntax := match fn with
+    | `($g $as*) => (g, as.map (·.raw))
+    | _ => (fn, #[])
+  let given ← given.mapIdxM fun i a =>
+    return (← `(charge_tag% $(Syntax.mkNumLit (toString i)) $(⟨a⟩))).raw
   forallTelescopeReducing ety fun xs res => do
     let xsStx ← xs.mapM fun x => exprToSyntax x
+    let holes ← xs.mapM fun _ => `(_)
     let site := mkIdent (← mkFreshUserName `site)
+    let call := Syntax.mkApp ⟨head⟩ ((given.map (⟨·⟩)) ++ xsStx)
     let body ← elabTermEnsuringType
-      (← `(bind (counted_call% $site ($(⟨stx[1]⟩) $xsStx*) []) fun _ => pure ())) res
+      (← `(bind (counted_call% $site $call [$(charges ++ holes),*]) fun _ => pure ())) res
     mkLambdaFVars xs body
 
 /-- `costOf C (f a₁ … aₖ)`: the number of bit operations that the call `f a₁ … aₖ` of an
@@ -332,8 +348,13 @@ private def delabCostOf : Delab := do
   let some callStx ← liftM (m := MetaM) (observing? (PrettyPrinter.delab call)) | failure
   `(costOf $C $callStx)
 
-/-- Is `t` a numeric literal? -/
-private def isNumLit (t : Term) : Bool := t.raw.isNatLit?.isSome
+/-- Is `t` a numeric literal or a power of two `2 ^ e`?  Multiplying, dividing or reducing by
+one is a shift or a mask, which is not charged. -/
+private def isNumLit (t : Term) : Bool :=
+  let t := match t with | `(($e)) => e | e => e
+  t.raw.isNatLit?.isSome || match t with
+    | `(2 ^ $_) => true
+    | _ => false
 
 /-- Does the syntax contain a charged operator (`*`, `%`, `/`, `∣` or `^` not by a literal)? -/
 private partial def hasCharged (stx : Syntax) : Bool :=
@@ -561,13 +582,14 @@ private partial def chargeOfArg (ctx : Ctx) (a : Syntax) : MacroM (Option Term) 
   let a := stripParens a
   if a.isIdent then
     if let some (_, c) := ctx.funs.find? (·.1 == a.getId) then return some c
-    return some (← `(charge_of% $(⟨a⟩)))
+    return some (← `(charge_of% $(⟨a⟩) []))
   if let some body := funBody? a then
     let (_, c) ← (hoist ctx body).run #[]
     return some ⟨a.setArg 1 (a[1].setArg 3 (← wrap c (← `(pure ()))))⟩
-  if let `($g:ident $_*) := a then
+  if let `($g:ident $as*) := a then
     unless g.getId == ctx.self || ctx.funs.any (·.1 == g.getId) do
-      return some (← `(charge_of% ($(⟨a⟩))))
+      let cs ← as.mapM fun b => do return (← chargeOfArg ctx b).getD (← `(_))
+      return some (← `(charge_of% ($(⟨a⟩)) [$cs,*]))
   return none
 
 private partial def hoistApp (ctx : Ctx) (f : Term) (args : Array Term) : HoistM Syntax := do

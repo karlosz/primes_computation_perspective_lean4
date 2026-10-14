@@ -24,7 +24,7 @@ namespace PrimeNumbers.Chapter9
 
 open Polynomial PrimeNumbers.Chapter2 PrimeNumbers.Chapter2.Poly
 
-variable {R : Type*} [CommRing R]
+variable {R : Type} [CommRing R]
 
 theorem natDegree_toPolynomial_le (L : Chapter2.Poly R) :
     (toPolynomial L).natDegree ≤ L.length - 1 := by

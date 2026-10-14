@@ -19,7 +19,7 @@ open Polynomial
 
 namespace Poly
 
-variable {F : Type*} [Field F] [DecidableEq F]
+variable {F : Type} [Field F] [DecidableEq F]
 
 /-- A coefficient list is *trimmed* if it is empty or its top coefficient is nonzero. -/
 def Trimmed (f : Poly F) : Prop := f = [] ∨ lead f ≠ 0

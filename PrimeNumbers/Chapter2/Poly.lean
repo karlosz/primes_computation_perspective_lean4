@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedLib
 import Mathlib
 
 /-!
@@ -28,7 +29,7 @@ namespace Poly
 
 section Semiring
 
-variable {F : Type*} [CommSemiring F]
+variable {F : Type} [CommSemiring F]
 
 /-- The Mathlib polynomial denoted by a coefficient list. -/
 noncomputable def toPolynomial : Poly F → F[X]
@@ -53,19 +54,19 @@ theorem degree_toPolynomial_lt (f : Poly F) : (toPolynomial f).degree < f.length
   rw [coeff_toPolynomial, List.getD_eq_default _ _ hm]
 
 /-- The top coefficient of the list (which is the leading coefficient once trimmed). -/
-def lead (f : Poly F) : F := f.getD (f.length - 1) 0
+@[cost_free] def lead (f : Poly F) : F := f.getD (f.length - 1) 0
 
 /-- Addition, coefficientwise. -/
-def add : Poly F → Poly F → Poly F
+@[cost_free] def add : Poly F → Poly F → Poly F
   | [], g => g
   | f, [] => f
   | a :: f, b :: g => (a + b) :: add f g
 
 /-- Multiplication by a scalar. -/
-def smul (c : F) (f : Poly F) : Poly F := f.map (c * ·)
+counted_def smul [Chapter9.MulCost F] (c : F) (f : Poly F) : Poly F := f.map (c * ·)
 
 /-- Multiplication (schoolbook): `(a + x f) g = a g + x (f g)`. -/
-def mul : Poly F → Poly F → Poly F
+counted_def mul [Chapter9.MulCost F] : Poly F → Poly F → Poly F
   | [], _ => []
   | a :: f, g => add (smul a g) (0 :: mul f g)
 
@@ -122,7 +123,7 @@ theorem toPolynomial_dropLast_add (f : Poly F) :
 variable [DecidableEq F]
 
 /-- Remove trailing zero coefficients. -/
-def trim : Poly F → Poly F
+@[cost_free] def trim : Poly F → Poly F
   | [] => []
   | a :: f =>
     let t := trim f
@@ -173,10 +174,10 @@ end Semiring
 
 section Ring
 
-variable {F : Type*} [CommRing F]
+variable {F : Type} [CommRing F]
 
 /-- Subtraction. -/
-def sub (f g : Poly F) : Poly F := add f (smul (-1) g)
+counted_def sub [Chapter9.MulCost F] (f g : Poly F) : Poly F := add f (smul (-1) g)
 
 @[simp] theorem toPolynomial_sub (f g : Poly F) :
     toPolynomial (sub f g) = toPolynomial f - toPolynomial g := by
@@ -189,7 +190,7 @@ end Ring
 
 section Field
 
-variable {F : Type*} [Field F]
+variable {F : Type} [Field F]
 
 /-- **Divide with remainder, relation (2.4).**  For `g` with nonzero top coefficient,
 returns `(q, r)` with `f = q g + r` and `r` shorter than `g`.

@@ -21,7 +21,7 @@ namespace PrimeNumbers.Chapter9
 
 open Polynomial PrimeNumbers.Chapter2 PrimeNumbers.Chapter2.Poly
 
-variable {R : Type*} [CommRing R]
+variable {R : Type} [CommRing R]
 
 /-- Force the coefficient list of a polynomial known to be monic of degree `d` into the
 shape `[c₀, …, c_{d-1}, 1]`, so that its last entry is visibly `1`. -/

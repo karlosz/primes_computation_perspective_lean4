@@ -176,7 +176,7 @@ theorem mulNatAuto_eq (f g : List ℕ) : mulNatAuto f g = mul f g := by
 
 /-! ## Multiplication in `Z_n[t]` -/
 
-theorem toPolynomial_map_natCast {R : Type*} [CommSemiring R] (L : List ℕ) :
+theorem toPolynomial_map_natCast {R : Type} [CommSemiring R] (L : List ℕ) :
     toPolynomial (L.map (Nat.cast : ℕ → R)) = (toPolynomial L).map (Nat.castRingHom R) := by
   induction L with
   | nil => simp

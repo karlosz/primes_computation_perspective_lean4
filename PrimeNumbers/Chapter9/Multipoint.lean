@@ -31,7 +31,7 @@ open Polynomial PrimeNumbers.Chapter2 PrimeNumbers.Chapter2.Poly
 
 namespace Poly
 
-variable {R : Type*} [CommRing R]
+variable {R : Type} [CommRing R]
 
 /-- Horner's rule: `f(x) = c₀ + x (c₁ + x (c₂ + ⋯))`. -/
 def eval : Chapter2.Poly R → R → R
@@ -160,7 +160,7 @@ end Poly
 
 section Multipoint
 
-variable {R : Type*} [CommRing R]
+variable {R : Type} [CommRing R]
 
 /-- `∏_{u ∈ us} (t - u)`, as a coefficient list (step [Assemble half-polynomials]). -/
 def prodLinear : List R → Chapter2.Poly R
