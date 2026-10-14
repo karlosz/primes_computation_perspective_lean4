@@ -264,6 +264,21 @@ Further bit-cost bounds: Lehman's method, `lehmanCost_school_le` — at most
 `stage2Cost_school_le` — at most `(4 log₂ B' + 5)(k + 1)²` per prime `Q`; §5.5 with
 block-by-block evaluation, `findBlockCost_le` — `B² ≈ √n` multiplications plus `B` gcds.
 
+### §9.6 Polynomial arithmetic — `PrimeNumbers/Chapter9/Multipoint.lean` (started)
+
+Over any commutative ring (so over `Z_n` for composite `n`):
+
+| Book | Lean function | Theorem |
+|---|---|---|
+| division by a monic polynomial | `Poly.divModMonic`, `Poly.modMonic` | `divModMonic_spec`, `toPolynomial_modMonic` (Mathlib's `%ₘ`) |
+| products `∏ (t − u)` | `prodLinear` | `lead_prodLinear`, `eval_prodLinear` |
+| Alg 9.6.7 evaluation at arbitrary points | `multipointEval` | `multipointEval_eq`: returns exactly the values `x(t)` |
+
+Still to do for §9.6: fast multiplication (Alg 9.6.1), fast inversion and remainder
+(9.6.2, 9.6.4) to use inside Algorithm 9.6.7, evaluation on arithmetic and geometric
+progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
+multiplication; then plugging Algorithm 9.6.7 into §5.5.
+
 Open in Chapter 5: Algorithm 9.6.7 (fast polynomial multiplication and multipoint
 evaluation), which is what brings §5.5 down to `O(n^{1/4} ln² n)` operations — the current
 bound for §5.5 is the `√n` of block-by-block evaluation; §5.6 (binary quadratic forms:

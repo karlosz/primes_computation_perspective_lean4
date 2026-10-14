@@ -1,6 +1,7 @@
 import PrimeNumbers.Assumed
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter9.IntSqrt
+import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter1.Primes
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power

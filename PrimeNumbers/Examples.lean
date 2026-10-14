@@ -12,6 +12,7 @@ import PrimeNumbers.Chapter4.NMinusOne
 import PrimeNumbers.Chapter4.LucasLehmer
 import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter9.IntSqrt
+import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
@@ -289,5 +290,20 @@ second stage with `B' = 150` finds it. -/
 #guard pollardStrassen 1000001 = some 101
 #guard pollardStrassen (1000003 * 1000033) = some 1000003
 #guard pollardStrassen 1000003 = none              -- a prime
+
+/-! ## §9.6 Algorithm 9.6.7: evaluation at many points
+
+Over `ℤ`, and over `Z_n` for the composite `n = 8051`, the recursive algorithm agrees with
+direct evaluation at every point. -/
+
+open PrimeNumbers.Chapter9 in
+#guard multipointEval 2 ([3, -1, 4, 1, -5, 9] : Chapter2.Poly ℤ) [0, 1, 2, 3, 4, 5, 6, 7, 8] =
+  [0, 1, 2, 3, 4, 5, 6, 7, 8].map (Poly.eval [3, -1, 4, 1, -5, 9])
+
+open PrimeNumbers.Chapter9 in
+#guard multipointEval 4 (prodLinear ((List.range 30).map ((↑) : ℕ → ZMod 8051)))
+    ((List.range 30).map fun j ↦ ((30 * j : ℕ) : ZMod 8051)) =
+  (List.range 30).map fun j ↦ Poly.eval (prodLinear ((List.range 30).map ((↑) : ℕ → ZMod 8051)))
+    ((30 * j : ℕ) : ZMod 8051)
 
 end PrimeNumbers.Examples
