@@ -211,7 +211,7 @@ is still grammar-school.
 **Where things are.**  `Chapter9/BitCost.lean` contains only the cost model and imports
 nothing else from the project.  Each algorithm's file imports it and ends with a section
 *Running time* holding, next to the correctness theorems: the plain operation count
-(e.g. `euclidSteps_le`, `powCost_le`, `jacobiSteps_le`, `two_mul_trialSteps_le`,
+(e.g. `euclidSteps_le`, `powMults_le`, `jacobiSteps_le`, `two_mul_trialSteps_le`,
 `tonelliMults_le`), the bit-cost function `fCost`, its bound for an arbitrary cost model,
 and the grammar-school corollary.
 

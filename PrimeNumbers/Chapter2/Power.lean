@@ -148,16 +148,16 @@ open PrimeNumbers.Chapter9
 /-- The number of multiplications performed by `pow x n` (and of multiply-and-reduce
 steps performed by `powMod x n m`): one squaring in the even branch, a squaring and a
 multiplication in the odd branch. -/
-def powCost (n : ℕ) : ℕ :=
+def powMults (n : ℕ) : ℕ :=
   if n ≤ 1 then 0
-  else if n % 2 = 0 then powCost (n / 2) + 1
-  else powCost ((n - 1) / 2) + 2
+  else if n % 2 = 0 then powMults (n / 2) + 1
+  else powMults ((n - 1) / 2) + 2
 termination_by n
 decreasing_by all_goals omega
 
 /-- Algorithm 2.1.5 uses at most `2 log₂ n` multiplications. -/
-theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
-  fun_induction powCost n with
+theorem powMults_le (n : ℕ) : powMults n ≤ 2 * Nat.log 2 n := by
+  fun_induction powMults n with
   | case1 n h => omega
   | case2 n h heven ih =>
     have h₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
@@ -170,25 +170,25 @@ theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
     omega
 
 /-- In a structure where every product costs `K` bit operations (e.g. `ZMod p`, with
-`K = C.mulMod (size p)`), Algorithm 2.1.5 costs `powCost n · K`. -/
+`K = C.mulMod (size p)`), Algorithm 2.1.5 costs `powMults n · K`. -/
 theorem pow_cost (C : CostModel) {M : Type} [Mul M] [MulCost M] {K : ℕ}
     (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
-    costOf C (pow x n) = powCost n * K := by
+    costOf C (pow x n) = powMults n * K := by
   fun_induction pow x n with
-  | case1 n h => cost_unfold pow.counted; rw [powCost, if_pos h, zero_mul]
+  | case1 n h => cost_unfold pow.counted; rw [powMults, if_pos h, zero_mul]
   | case2 n h heven y ih =>
     cost_unfold pow.counted
-    rw [powCost, if_neg h, if_pos heven, ih, hK, add_mul, one_mul]
+    rw [powMults, if_neg h, if_pos heven, ih, hK, add_mul, one_mul]
   | case3 n h hodd y ih =>
     cost_unfold pow.counted
-    rw [powCost, if_neg h, if_neg hodd, ih, hK, hK]; ring
+    rw [powMults, if_neg h, if_neg hodd, ih, hK, hK]; ring
 
 theorem power_cost (C : CostModel) {M : Type} [Mul M] [One M] [MulCost M] {K : ℕ}
     (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
-    costOf C (power x n) = powCost n * K := by
+    costOf C (power x n) = powMults n * K := by
   cost_unfold power.counted
   split_ifs with h
-  · subst h; rw [powCost, if_pos (by omega), zero_mul]
+  · subst h; rw [powMults, if_pos (by omega), zero_mul]
   · exact pow_cost C hK x n
 
 /-! ### Bit operations -/

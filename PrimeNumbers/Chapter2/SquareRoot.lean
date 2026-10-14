@@ -443,8 +443,8 @@ open PrimeNumbers.Chapter9
 def tonelliLoopMults {p : ℕ} (A D : ZMod p) (s i m : ℕ) : ℕ :=
   if i < s then
     if power (A * power D m) (2 ^ (s - 1 - i)) = -1 then
-      tonelliLoopMults A D s (i + 1) (m + 2 ^ i) + (powCost m + 1 + powCost (2 ^ (s - 1 - i)))
-    else tonelliLoopMults A D s (i + 1) m + (powCost m + 1 + powCost (2 ^ (s - 1 - i)))
+      tonelliLoopMults A D s (i + 1) (m + 2 ^ i) + (powMults m + 1 + powMults (2 ^ (s - 1 - i)))
+    else tonelliLoopMults A D s (i + 1) m + (powMults m + 1 + powMults (2 ^ (s - 1 - i)))
   else 0
 termination_by s - i
 decreasing_by all_goals omega
@@ -454,8 +454,8 @@ and the final `a^((t+1)/2) · D^(m/2)`. -/
 def tonelliMults {p : ℕ} (a d : ZMod p) : ℕ :=
   let st := oddPart (p - 1)
   let m := tonelliLoop (power a st.2) (power d st.2) st.1 1 0
-  2 * powCost st.2 + tonelliLoopMults (power a st.2) (power d st.2) st.1 1 0 +
-    (powCost ((st.2 + 1) / 2) + powCost (m / 2) + 1)
+  2 * powMults st.2 + tonelliLoopMults (power a st.2) (power d st.2) st.1 1 0 +
+    (powMults ((st.2 + 1) / 2) + powMults (m / 2) + 1)
 
 /-- In the Tonelli loop the exponent `m` stays below `2^i`, hence below `2^s`. -/
 theorem tonelliLoop_lt {p : ℕ} (A D : ZMod p) (s i m : ℕ) (hm : m < 2 ^ i) (his : i ≤ s) :
@@ -465,8 +465,8 @@ theorem tonelliLoop_lt {p : ℕ} (A D : ZMod p) (s i m : ℕ) (hm : m < 2 ^ i) (
   | case2 i m hlt hz ih => exact ih (by rw [pow_succ]; omega) (by omega)
   | case3 i m hlt => exact hm.trans_le (Nat.pow_le_pow_right (by norm_num) his)
 
-theorem powCost_le_of_lt_two_pow {m i : ℕ} (hm : m < 2 ^ i) : powCost m ≤ 2 * i := by
-  have h₁ := powCost_le m
+theorem powMults_le_of_lt_two_pow {m i : ℕ} (hm : m < 2 ^ i) : powMults m ≤ 2 * i := by
+  have h₁ := powMults_le m
   have h₂ : Nat.log 2 m ≤ Nat.log 2 (2 ^ i) := Nat.log_mono_right hm.le
   rw [Nat.log_pow (by norm_num)] at h₂
   omega
@@ -474,10 +474,10 @@ theorem powCost_le_of_lt_two_pow {m i : ℕ} (hm : m < 2 ^ i) : powCost m ≤ 2 
 theorem tonelliLoopMults_le {p : ℕ} (A D : ZMod p) (s i m : ℕ) (hm : m < 2 ^ i)
     (his : i ≤ s) : tonelliLoopMults A D s i m ≤ (s - i) * (4 * s + 1) := by
   have hpass : ∀ i m : ℕ, i < s → m < 2 ^ i →
-      powCost m + 1 + powCost (2 ^ (s - 1 - i)) ≤ 4 * s + 1 := by
+      powMults m + 1 + powMults (2 ^ (s - 1 - i)) ≤ 4 * s + 1 := by
     intro i m hi hm
-    have h₁ := powCost_le_of_lt_two_pow hm
-    have h₂ := powCost_le (2 ^ (s - 1 - i))
+    have h₁ := powMults_le_of_lt_two_pow hm
+    have h₂ := powMults_le (2 ^ (s - 1 - i))
     rw [Nat.log_pow (by norm_num)] at h₂
     omega
   fun_induction tonelliLoopMults A D s i m with
@@ -506,8 +506,8 @@ theorem tonelliMults_le {p : ℕ} (a d : ZMod p) :
   generalize (oddPart (p - 1)).2 = t
   generalize power a t = A
   generalize power d t = D
-  have h₁ := powCost_le t
-  have h₂ := powCost_le ((t + 1) / 2)
+  have h₁ := powMults_le t
+  have h₂ := powMults_le ((t + 1) / 2)
   have h₃ : Nat.log 2 ((t + 1) / 2) ≤ Nat.log 2 t := by
     rcases Nat.eq_zero_or_pos t with rfl | ht
     · simp
@@ -516,12 +516,12 @@ theorem tonelliMults_le {p : ℕ} (a d : ZMod p) :
   · -- `s = 0`: the loop does not run and `m = 0`
     have h₄ : tonelliLoopMults A D 0 1 0 = 0 := by rw [tonelliLoopMults]; simp
     have h₅ : tonelliLoop A D 0 1 0 = 0 := by rw [tonelliLoop]; simp
-    have h₆ : powCost (0 / 2) = 0 := by rw [powCost]; simp
+    have h₆ : powMults (0 / 2) = 0 := by rw [powMults]; simp
     rw [h₄, h₅, h₆, show (0 : ℕ) ^ 2 = 0 by norm_num]
     omega
   · have h₄ := tonelliLoopMults_le A D s 1 0 (by norm_num) hs
-    have h₅ : powCost (tonelliLoop A D s 1 0 / 2) ≤ 2 * s :=
-      powCost_le_of_lt_two_pow ((Nat.div_le_self _ _).trans_lt
+    have h₅ : powMults (tonelliLoop A D s 1 0 / 2) ≤ 2 * s :=
+      powMults_le_of_lt_two_pow ((Nat.div_le_self _ _).trans_lt
         (tonelliLoop_lt A D s 1 0 (by norm_num) hs))
     have h₆ : (s - 1) * (4 * s + 1) + 2 * s ≤ 4 * s ^ 2 := by
       obtain ⟨c, rfl⟩ : ∃ c, s = c + 1 := ⟨s - 1, by omega⟩
@@ -577,8 +577,8 @@ theorem oddPart_snd_le (n : ℕ) : (oddPart n).2 ≤ n := by
 /-- The modular multiplications made by `sqrtMod p a` (Algorithm 2.3.8), not counting the
 search for a nonresidue in the case `p ≡ 1 (mod 8)`. -/
 def sqrtModMults (p : ℕ) (a : ZMod p) : ℕ :=
-  if p % 8 = 3 ∨ p % 8 = 7 then powCost ((p + 1) / 4)
-  else if p % 8 = 5 then powCost ((p + 3) / 8) + 1 + (powCost ((p - 1) / 4) + 1)
+  if p % 8 = 3 ∨ p % 8 = 7 then powMults ((p + 1) / 4)
+  else if p % 8 = 5 then powMults ((p + 3) / 8) + 1 + (powMults ((p - 1) / 4) + 1)
   else tonelliMults a (findNonresidue p : ℕ)
 
 /-- **The bit operations of Algorithm 2.3.8** are its multiplications modulo `p`, and in the
@@ -596,8 +596,8 @@ theorem sqrtMod_cost_le (C : CostModel) (p : ℕ) (a : ZMod p) :
 `O(ln³ p)` bit operations, in the cases `p ≡ 3, 5, 7 (mod 8)`. -/
 theorem sqrtModMults_le (p : ℕ) (a : ZMod p) :
     sqrtModMults p a ≤ 6 * Nat.log 2 p + 4 * (oddPart (p - 1)).1 ^ 2 + 2 := by
-  have hlog : ∀ m, m ≤ p → powCost m ≤ 2 * Nat.log 2 p := fun m hm ↦
-    (powCost_le m).trans (Nat.mul_le_mul_left 2 (Nat.log_mono_right hm))
+  have hlog : ∀ m, m ≤ p → powMults m ≤ 2 * Nat.log 2 p := fun m hm ↦
+    (powMults_le m).trans (Nat.mul_le_mul_left 2 (Nat.log_mono_right hm))
   unfold sqrtModMults
   split_ifs with h₁ h₂
   · have := hlog ((p + 1) / 4) (by omega)

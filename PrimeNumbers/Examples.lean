@@ -88,7 +88,7 @@ def exG (R : Type) [Ring R] : Chapter2.Poly R := [1, 0, 7, 0, 0, -1, 0, -7]
 
 /-! ## Operation counts -/
 
-#guard powCost 1000000 = 25 ∧ 2 * Nat.log 2 1000000 = 38
+#guard powMults 1000000 = 25 ∧ 2 * Nat.log 2 1000000 = 38
 #guard euclidSteps 832040 514229 = 28              -- F₃₀, F₂₉
 
 /-! ## §2.3.1 Jacobi symbol — the book's example `(2/15) = 1` -/

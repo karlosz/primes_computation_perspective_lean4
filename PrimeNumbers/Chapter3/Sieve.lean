@@ -234,16 +234,16 @@ The sieve performs no multiplications or divisions of big numbers: its work is t
 writes that strike out multiples.  We count those. -/
 
 /-- The number of bits written by `markMultiples p bits j`. -/
-def markCost (p : ℕ) (bits : Array Bool) (j : ℕ) : ℕ :=
-  if j < bits.size ∧ 0 < p then markCost p (bits.setIfInBounds j false) (j + p) + 1 else 0
+def markWrites (p : ℕ) (bits : Array Bool) (j : ℕ) : ℕ :=
+  if j < bits.size ∧ 0 < p then markWrites p (bits.setIfInBounds j false) (j + p) + 1 else 0
 termination_by bits.size - j
 decreasing_by simp only [Array.size_setIfInBounds]; omega
 
 /-- The number of bits written by `sieveLoop N p bits`. -/
-def sieveCost (N p : ℕ) (bits : Array Bool) : ℕ :=
+def sieveLoopWrites (N p : ℕ) (bits : Array Bool) : ℕ :=
   if p * p ≤ N ∧ 0 < p then
-    (if bit bits p then markCost p bits (p * p) else 0) +
-      sieveCost N (p + 1) (if bit bits p then markMultiples p bits (p * p) else bits)
+    (if bit bits p then markWrites p bits (p * p) else 0) +
+      sieveLoopWrites N (p + 1) (if bit bits p then markMultiples p bits (p * p) else bits)
   else 0
 termination_by N + 1 - p
 decreasing_by
@@ -251,15 +251,15 @@ decreasing_by
   omega
 
 /-- Striking out `j, j + p, …` below `size` writes at most `⌈(size - j)/p⌉` bits. -/
-theorem markCost_mul_le (p : ℕ) (bits : Array Bool) (j : ℕ) :
-    markCost p bits j * p ≤ bits.size - j + (p - 1) := by
-  fun_induction markCost p bits j with
+theorem markWrites_mul_le (p : ℕ) (bits : Array Bool) (j : ℕ) :
+    markWrites p bits j * p ≤ bits.size - j + (p - 1) := by
+  fun_induction markWrites p bits j with
   | case1 bits j h ih =>
     rw [Array.size_setIfInBounds] at ih
     rw [add_mul, one_mul]
     rcases Nat.lt_or_ge bits.size (j + p) with hlt | hge
     · -- the next index is already out of range: no further writes
-      have h0 : markCost p (bits.setIfInBounds j false) (j + p) = 0 := by
+      have h0 : markWrites p (bits.setIfInBounds j false) (j + p) = 0 := by
         by_contra hne
         have := Nat.le_mul_of_pos_left p (Nat.pos_of_ne_zero hne)
         omega
@@ -268,17 +268,17 @@ theorem markCost_mul_le (p : ℕ) (bits : Array Bool) (j : ℕ) :
   | case2 bits j h => omega
 
 /-- For a prime `p`, the sieve writes at most `N / p` bits. -/
-theorem markCost_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Array Bool}
-    (hsize : bits.size = N + 1) : markCost p bits (p * p) ≤ N / p := by
+theorem markWrites_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Array Bool}
+    (hsize : bits.size = N + 1) : markWrites p bits (p * p) ≤ N / p := by
   rw [Nat.le_div_iff_mul_le hp]
-  have h₁ := markCost_mul_le p bits (p * p)
+  have h₁ := markWrites_mul_le p bits (p * p)
   rw [hsize] at h₁
   have h₂ : p ≤ p * p := Nat.le_mul_self p
   omega
 
-theorem sieveCost_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1) :
-    sieveCost N p bits ≤ ∑ i ∈ Finset.range (Nat.sqrt N + 1 - p), N / (p + i) := by
-  fun_induction sieveCost N p bits with
+theorem sieveLoopWrites_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1) :
+    sieveLoopWrites N p bits ≤ ∑ i ∈ Finset.range (Nat.sqrt N + 1 - p), N / (p + i) := by
+  fun_induction sieveLoopWrites N p bits with
   | case1 p bits hle ih =>
     have hps : p ≤ Nat.sqrt N := Nat.le_sqrt.mpr hle.1
     have hsize' : (if bit bits p = true then markMultiples p bits (p * p) else bits).size =
@@ -287,9 +287,9 @@ theorem sieveCost_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
       · rw [(markMultiples_spec p bits (p * p) hle.2).1, hsize]
       · exact hsize
     have ih := ih hsize'
-    have hmark : (if bit bits p = true then markCost p bits (p * p) else 0) ≤ N / p := by
+    have hmark : (if bit bits p = true then markWrites p bits (p * p) else 0) ≤ N / p := by
       split_ifs
-      · exact markCost_sq_le hle.2 hle.1 hsize
+      · exact markWrites_sq_le hle.2 hle.1 hsize
       · exact Nat.zero_le _
     rw [show Nat.sqrt N + 1 - p = (Nat.sqrt N + 1 - (p + 1)) + 1 by omega,
       Finset.sum_range_succ', add_zero]
@@ -304,21 +304,21 @@ theorem sieveCost_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
 open PrimeNumbers.Chapter9 in
 /-- The bit operations of `markMultiples` are its writes. -/
 theorem markMultiples_cost (C : CostModel) (p : ℕ) (bits : Array Bool) (j : ℕ) :
-    costOf C (markMultiples p bits j) = markCost p bits j := by
+    costOf C (markMultiples p bits j) = markWrites p bits j := by
   fun_induction markMultiples p bits j with
   | case1 bits j h ih =>
     cost_unfold markMultiples.counted
-    rw [markCost, if_pos h, ih]; omega
+    rw [markWrites, if_pos h, ih]; omega
   | case2 bits j h =>
     cost_unfold markMultiples.counted
-    rw [markCost, if_neg h]
+    rw [markWrites, if_neg h]
 
 open PrimeNumbers.Chapter9 in
 /-- The bit operations of the main loop: its writes, and the products `p · p` (the test
 `p² ≤ N` and the start `p²` of the multiples), with `p ≤ N + 2`. -/
 theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : p ≤ N + 2) :
     costOf C (sieveLoop N p bits) ≤
-      sieveCost N p bits + (2 * (N + 2 - p) + 1) * C.mul (N + 2).size (N + 2).size := by
+      sieveLoopWrites N p bits + (2 * (N + 2 - p) + 1) * C.mul (N + 2).size (N + 2).size := by
   fun_induction sieveLoop N p bits with
   | case1 p bits h ih =>
     have hpp : p ≤ N := (Nat.le_mul_self p).trans h.1
@@ -326,7 +326,7 @@ theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : 
     have hM : C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size :=
       C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
     cost_unfold sieveLoop.counted
-    rw [sieveCost, if_pos h]
+    rw [sieveLoopWrites, if_pos h]
     simp only [dite_eq_ite] at ih
     split_ifs with hb
     · rw [markMultiples_cost]
@@ -340,12 +340,12 @@ theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : 
     have hM : C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size :=
       C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
     cost_unfold sieveLoop.counted
-    rw [sieveCost, if_neg h]
+    rw [sieveLoopWrites, if_neg h]
     nlinarith
 
 /-- The number of bit writes made by `sieve N` in its main loop. -/
 def sieveWrites (N : ℕ) : ℕ :=
-  sieveCost N 2 (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false)
+  sieveLoopWrites N 2 (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false)
 
 open PrimeNumbers.Chapter9 in
 /-- **Bit operations of the sieve**: filling the array (`N + 1` writes, and `2` more), the
@@ -371,7 +371,7 @@ writes (one term for each `p`, whether prime or not; the true count, over primes
 `∼ N ln ln N`, which needs Mertens' theorem 1.4.2). -/
 theorem sieveWrites_le (N : ℕ) :
     sieveWrites N ≤ ∑ i ∈ Finset.range (Nat.sqrt N - 1), N / (i + 2) := by
-  have := sieveCost_le N 2
+  have := sieveLoopWrites_le N 2
     (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false) (by simp)
   rw [show Nat.sqrt N + 1 - 2 = Nat.sqrt N - 1 by omega] at this
   simpa [sieveWrites, add_comm] using this
@@ -412,11 +412,11 @@ theorem sieveWrites_le_log (N : ℕ) :
 /-! ### Counting only the primes: the `N ln ln N` bound -/
 
 /-- Only primes strike out: the sieve writes at most `∑_{p ≤ √N, p prime} ⌊N/p⌋` bits. -/
-theorem sieveCost_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
+theorem sieveLoopWrites_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
     (hp : 2 ≤ p) (hinv : SieveInv N p bits) :
-    sieveCost N p bits ≤
+    sieveLoopWrites N p bits ≤
       ∑ q ∈ Finset.Ico p (Nat.sqrt N + 1), if q.Prime then N / q else 0 := by
-  fun_induction sieveCost N p bits with
+  fun_induction sieveLoopWrites N p bits with
   | case1 p bits hle ih =>
     have hps : p ≤ Nat.sqrt N := Nat.le_sqrt.mpr hle.1
     have hpN : p ≤ N := (Nat.le_mul_self p).trans hle.1
@@ -427,10 +427,10 @@ theorem sieveCost_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size =
       · rw [(markMultiples_spec p bits (p * p) hle.2).1, hsize]
       · exact hsize
     have ih := ih hsize' (by omega) (hinv.step hp hle.1)
-    have hmark : (if bit bits p = true then markCost p bits (p * p) else 0) ≤
+    have hmark : (if bit bits p = true then markWrites p bits (p * p) else 0) ≤
         if p.Prime then N / p else 0 := by
       split_ifs with h₁ h₂ h₂
-      · exact markCost_sq_le hle.2 hle.1 hsize
+      · exact markWrites_sq_le hle.2 hle.1 hsize
       · exact absurd (hbit.mp h₁) h₂
       · exact Nat.zero_le _
       · exact le_rfl
@@ -445,7 +445,7 @@ sieve up to `N ≥ 4` makes at most `N (ln ln √N + c)` bit writes — the book
 theorem sieveWrites_le_of_mertens {c : ℝ} (hM : Assumed.Mertens c) {N : ℕ} (hN : 4 ≤ N) :
     (sieveWrites N : ℝ) ≤ N * (Real.log (Real.log (Nat.sqrt N)) + c) := by
   have hS : 2 ≤ Nat.sqrt N := Nat.le_sqrt.mpr (by omega)
-  have h₁ := sieveCost_le_primes N 2 _ (by simp) le_rfl (sieveInv_init N)
+  have h₁ := sieveLoopWrites_le_primes N 2 _ (by simp) le_rfl (sieveInv_init N)
   -- pass to a sum over the primes below `√N + 1`
   have h₂ : (∑ q ∈ Finset.Ico 2 (Nat.sqrt N + 1), if q.Prime then N / q else 0) ≤
       ∑ q ∈ Nat.primesBelow (Nat.sqrt N + 1), N / q := by
