@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 
@@ -21,13 +22,13 @@ namespace PrimeNumbers.Chapter5
 open PrimeNumbers.Chapter2
 
 /-- Step 2, list `A`: insert `gⁱ ↦ i` for `count` consecutive `i`, where `cur = gⁱ mod p`. -/
-def babyTable (p g : ℕ) : (i cur count : ℕ) → Std.HashMap ℕ ℕ → Std.HashMap ℕ ℕ
+counted_def babyTable (p g : ℕ) : (i cur count : ℕ) → Std.HashMap ℕ ℕ → Std.HashMap ℕ ℕ
   | _, _, 0, m => m
   | i, cur, count + 1, m => babyTable p g (i + 1) (cur * g % p) count (m.insert cur i)
 
 /-- Step 2–3, list `B`: for `count` consecutive `j`, with `y = t hʲ mod p`, look `y` up
 among the baby steps; a hit `y = gⁱ` gives `l = i + j b`. -/
-def giantLoop (p b h : ℕ) (m : Std.HashMap ℕ ℕ) : (j y count : ℕ) → Option ℕ
+counted_def giantLoop (p b h : ℕ) (m : Std.HashMap ℕ ℕ) : (j y count : ℕ) → Option ℕ
   | _, _, 0 => none
   | j, y, count + 1 =>
     match m[y]? with

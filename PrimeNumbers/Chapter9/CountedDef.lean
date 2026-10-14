@@ -37,6 +37,59 @@ namespace PrimeNumbers.Chapter9
 
 open Lean Elab Command Term Meta
 
+/-- Elaborate a call `g a₁ … aₖ`; if its head is a constant `g` with a counted version,
+return `g.counted` and the elaborated arguments. -/
+private def countedCallee? (call : Syntax) : TermElabM (Expr × Option (Name × Array Expr)) := do
+  let e ← elabTerm call none
+  synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  let some c := e.getAppFn.constName? | return (e, none)
+  let cc := c ++ `counted
+  return (e, if (← getEnv).contains cc then some (cc, e.getAppArgs) else none)
+
+/-- `counted_call% (g a₁ … aₖ)`: the cost of a call — `g.counted a₁ … aₖ` when `g` has a
+counted version, otherwise nothing (`pure ()`). -/
+syntax (name := countedCall) "counted_call% " term:max : term
+
+@[term_elab countedCall] private def elabCountedCall : TermElab := fun stx ety? => do
+  match (← countedCallee? stx[1]).2 with
+  | some (cc, args) =>
+      let args ← args.mapM fun a => exprToSyntax a
+      elabTerm (← `($(mkCIdent cc) $args*)) ety?
+  | none => elabTerm (← `(pure ())) ety?
+
+/-- `no_counted% (g a₁ … aₖ)`: the call itself, but an error if `g` has a counted version —
+used for calls under a binder, whose cost cannot be charged in place. -/
+syntax (name := noCounted) "no_counted% " term:max : term
+
+@[term_elab noCounted] private def elabNoCounted : TermElab := fun stx ety? => do
+  let call := stx[1]
+  let (e, cc?) ← countedCallee? call
+  if let some (cc, _) := cc? then
+    throwErrorAt call "counted_def: the call of `{cc.getPrefix}` inside a nested binding \
+      form (`fun`, `match`, `if` inside an expression, …) cannot be counted in place; lift \
+      it to the top level of a branch"
+  if let some ety := ety? then discard <| isDefEq (← inferType e) ety
+  return e
+
+/-- `charge% (a ∘ b)`: the charge for one primitive operation, on its operands *as
+elaborated* (so with any coercions inserted): `chargeMul a b` for `a * b`, `chargeMod a b`
+for `a % b` and `a / b`, `chargeMod b a` for `a ∣ b`. -/
+syntax (name := chargeOp) "charge% " term:max : term
+
+@[term_elab chargeOp] private def elabChargeOp : TermElab := fun stx ety? => do
+  let e ← elabTerm stx[1] none
+  synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  let args := e.getAppArgs
+  let (prim, x, y) ← match e.getAppFn.constName?, args.size with
+    | some ``HMul.hMul, 6 => pure (``NatArith.chargeMul, args[4]!, args[5]!)
+    | some ``HMod.hMod, 6 => pure (``NatArith.chargeMod, args[4]!, args[5]!)
+    | some ``HDiv.hDiv, 6 => pure (``NatArith.chargeMod, args[4]!, args[5]!)
+    | some ``Dvd.dvd, 4 => pure (``NatArith.chargeMod, args[3]!, args[2]!)
+    | _, _ => throwErrorAt stx[1] "counted_def: cannot charge {e}"
+  elabTerm (← `($(mkCIdent prim) $(← exprToSyntax x) $(← exprToSyntax y))) ety?
+
 /-- Is `t` a numeric literal? -/
 private def isNumLit (t : Term) : Bool := t.raw.isNatLit?.isSome
 
@@ -48,6 +101,7 @@ private partial def hasCharged (stx : Syntax) : Bool :=
       !(isNumLit a || isNumLit b) || hasCharged a || hasCharged b
   | `($a / $b) => !isNumLit b || hasCharged a || hasCharged b
   | `($a ∣ $b) => !isNumLit a || hasCharged a || hasCharged b
+  | `($a ^ $k) => !(isNumLit a && isNumLit k) || hasCharged a || hasCharged k
   | _ => stx.getArgs.any hasCharged
 
 /-- Does the syntax mention the identifier `self` (a recursive call)? -/
@@ -72,23 +126,36 @@ private partial def hoist (self : Name) (e : Syntax) :
   | `($a * $b) =>
       let ra ← hoist self a; let rb ← hoist self b
       unless isNumLit ⟨a⟩ || isNumLit ⟨b⟩ do
-        modify (·.push (none, ← `(NatArith.chargeMul $(⟨ra⟩) $(⟨rb⟩))))
+        modify (·.push (none, ← `(charge% ($(⟨ra⟩) * $(⟨rb⟩)))))
       `($(⟨ra⟩) * $(⟨rb⟩))
   | `($a % $b) =>
       let ra ← hoist self a; let rb ← hoist self b
       unless isNumLit ⟨b⟩ do
-        modify (·.push (none, ← `(NatArith.chargeMod $(⟨ra⟩) $(⟨rb⟩))))
+        modify (·.push (none, ← `(charge% ($(⟨ra⟩) % $(⟨rb⟩)))))
       `($(⟨ra⟩) % $(⟨rb⟩))
   | `($a / $b) =>
       let ra ← hoist self a; let rb ← hoist self b
       unless isNumLit ⟨b⟩ do
-        modify (·.push (none, ← `(NatArith.chargeMod $(⟨ra⟩) $(⟨rb⟩))))
+        modify (·.push (none, ← `(charge% ($(⟨ra⟩) / $(⟨rb⟩)))))
       `($(⟨ra⟩) / $(⟨rb⟩))
+  | `($a ^ $k) =>
+      let ra ← hoist self a; let rk ← hoist self k
+      match k.raw.isNatLit? with
+      | some n => unless isNumLit a do
+          -- `a ^ n` is computed as `((a * a) * a) ⋯`: charge each product
+          for i in [1:n] do
+            let lit := Syntax.mkNumLit (toString i)
+            modify (·.push (none, ← `(charge% ($(⟨ra⟩) ^ $lit * $(⟨ra⟩)))))
+      | none =>
+          unless a.raw.isNatLit? == some 2 do
+            Macro.throwErrorAt e "counted_def: a power with a variable exponent is not a \
+              primitive operation; compute it with a counted function such as `powMod`"
+      `($(⟨ra⟩) ^ $(⟨rk⟩))
   | `($a ∣ $b) =>
       -- a divisibility test computes `b mod a`
       let ra ← hoist self a; let rb ← hoist self b
       unless isNumLit ⟨a⟩ do
-        modify (·.push (none, ← `(NatArith.chargeMod $(⟨rb⟩) $(⟨ra⟩))))
+        modify (·.push (none, ← `(charge% ($(⟨ra⟩) ∣ $(⟨rb⟩)))))
       `($(⟨ra⟩) ∣ $(⟨rb⟩))
   | `($f:ident $args*) =>
       if f.getId == self then
@@ -97,17 +164,32 @@ private partial def hoist (self : Name) (e : Syntax) :
         -- call, so the counted and plain versions agree by unfolding once
         modify (·.push (none, ← `($(mkIdent (self ++ `counted)) $args'*)))
         `($f $args'*)
-      else generic e
+      else
+        -- a call of another function: charge its counted version, if it has one
+        let args' ← args.mapM fun a => do return (⟨← hoist self a.raw⟩ : Term)
+        let call ← `($f $args'*)
+        modify (·.push (none, ← `(counted_call% ($call))))
+        return call
   | _ =>
-      if isBinding e && (hasCharged e || mentions self e) then
-        Macro.throwErrorAt e "counted_def: arithmetic or a recursive call inside a nested \
-          binding form (`fun`, `match`, `let`, `if`, … inside an expression) cannot be \
-          counted in place; lift it to the top level of a branch"
+      if isBinding e then
+        if hasCharged e || mentions self e then
+          Macro.throwErrorAt e "counted_def: arithmetic or a recursive call inside a nested \
+            binding form (`fun`, `match`, `let`, `if`, … inside an expression) cannot be \
+            counted in place; lift it to the top level of a branch"
+        return ← guardCalls e
       generic e
 where
   generic (e : Syntax) : StateT (Array (Option Ident × Term)) MacroM Syntax :=
     match e with
     | .node info kind args => do return .node info kind (← args.mapM (hoist self))
+    | _ => pure e
+  /-- Under a binder nothing is hoisted; calls are checked not to need counting. -/
+  guardCalls (e : Syntax) : StateT (Array (Option Ident × Term)) MacroM Syntax := do
+    if let `($f:ident $args*) := e then
+      let args' ← args.mapM fun a => do return (⟨← guardCalls a.raw⟩ : Term)
+      return ← `(no_counted% ($f $args'*))
+    match e with
+    | .node info kind args => return .node info kind (← args.mapM guardCalls)
     | _ => pure e
 
 /-- Put the recorded charges and recursive calls in front of `body`, in order. -/
@@ -175,7 +257,7 @@ private def expandCounted (doc? : Option (TSyntax ``Lean.Parser.Command.docComme
     /-- Counting does not change the value. -/
     theorem $valName (C : CostModel) $bs* : CostM.val C $cCall = $fCall := by
       rw [$ceqDef:ident]; conv_rhs => rw [$eqDef:ident]
-      repeat' (first | split_ifs | split) <;> cost_simp)
+      repeat' (first | split_ifs | split | cost_simp))
   return mkNullNode #[c₁, c₂, c₃]
 
 /-- `counted_def f binders : τ := body [termination_by …] [decreasing_by …]` -/
@@ -200,17 +282,24 @@ macro_rules
     let altArr := alts[0].getArgs
     let some alt₀ := altArr[0]? | Macro.throwError "counted_def: no equations"
     let ncols := alt₀[1][0].getSepArgs.size
-    let mut argTys : Array Term := #[]
+    -- peel `A → B` and named `(x y : A) → B` arrows; named arguments keep their names
+    let mut args : Array (Option Ident × Term) := #[]
     let mut res : Term := ty
-    for _ in [0:ncols] do
+    while args.size < ncols do
       match res with
-      | `($a → $b) => argTys := argTys.push a; res := b
+      | `(($xs:ident* : $a) → $b) => args := args ++ xs.map (fun x => (some x, a)); res := b
+      | `($a → $b) => args := args.push (none, a); res := b
       | _ => Macro.throwErrorAt ty "counted_def: the type must have one arrow per pattern column"
+    if args.size != ncols then
+      Macro.throwErrorAt ty "counted_def: the type must have one arrow per pattern column"
     let mut newBs := bs
     let mut discrs : Array Term := #[]
-    for h : i in [0:argTys.size] do
-      let x := mkIdent (← Macro.addMacroScope (Name.mkSimple s!"eqnArg{i}"))
-      newBs := newBs.push (← `(bracketedBinder| ($x : $(argTys[i]))))
+    for h : i in [0:args.size] do
+      let (x?, a) := args[i]
+      let x ← match x? with
+        | some x => pure x
+        | none => pure (mkIdent (← Macro.addMacroScope (Name.mkSimple s!"eqnArg{i}")))
+      newBs := newBs.push (← `(bracketedBinder| ($x : $a)))
       discrs := discrs.push x
     let altsArr : Array (TSyntax ``Lean.Parser.Term.matchAlt) := altArr.map (⟨·⟩)
     let ds ← discrs.mapM fun x => `(Lean.Parser.Term.matchDiscr| $x:term)

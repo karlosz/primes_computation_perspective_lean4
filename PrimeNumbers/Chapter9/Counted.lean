@@ -42,22 +42,37 @@ instance : Monad Counted where
 @[simp] theorem Counted.bind_cost {α β} (x : Counted α) (f : α → Counted β) :
     (x >>= f).cost = x.cost + (f x.val).cost := rfl
 
-/-- The big-number primitives an algorithm may use.  Everything else (comparisons,
-additions, shifts) is free, as in the cost model. -/
+/-- The cost of multiplying two values of type `α` (for residues: including the reduction). -/
+class MulCost (α : Type) where
+  /-- bit operations to multiply `a` and `b` under the cost model `C` -/
+  mulCost : CostModel → α → α → ℕ
+
+/-- The cost of a division with remainder on values of type `α`. -/
+class DivCost (α : Type) where
+  /-- bit operations to divide `a` by `b` with remainder under the cost model `C` -/
+  divCost : CostModel → α → α → ℕ
+
+instance : MulCost ℕ := ⟨fun C a b => C.mul a.size b.size⟩
+instance : DivCost ℕ := ⟨fun C a b => C.divMod a.size b.size⟩
+/-- Integers are multiplied and divided as their absolute values (signs are free). -/
+instance : MulCost ℤ := ⟨fun C a b => C.mul a.natAbs.size b.natAbs.size⟩
+instance : DivCost ℤ := ⟨fun C a b => C.divMod a.natAbs.size b.natAbs.size⟩
+/-- A product of residues modulo `n`: a multiplication of two numbers `< n` and a reduction.
+(There is no `DivCost (ZMod n)`: division of residues is an inversion, which must be written
+out — e.g. with `modInv` — so that it is charged.) -/
+instance (n : ℕ) : MulCost (ZMod n) := ⟨fun C _ _ => C.mulMod n.size⟩
+
+/-- The big-number primitives an algorithm may use: charges for a multiplication and for a
+division with remainder.  Everything else (comparisons, additions, shifts) is free, as in
+the cost model. -/
 class NatArith (m : Type → Type) where
-  /-- multiplication -/
-  mul : ℕ → ℕ → m ℕ
-  /-- remainder -/
-  mod : ℕ → ℕ → m ℕ
-  /-- record the cost of multiplying `a` and `b` (no result) -/
-  chargeMul : ℕ → ℕ → m Unit
-  /-- record the cost of reducing `a` modulo `b` (no result) -/
-  chargeMod : ℕ → ℕ → m Unit
+  /-- record the cost of multiplying `a` and `b` -/
+  chargeMul {α : Type} [MulCost α] : α → α → m Unit
+  /-- record the cost of dividing `a` by `b` with remainder -/
+  chargeMod {α : Type} [DivCost α] : α → α → m Unit
 
 /-- Plain execution. -/
 instance : NatArith Id where
-  mul a b := pure (a * b)
-  mod a b := pure (a % b)
   chargeMul _ _ := pure ()
   chargeMod _ _ := pure ()
 
@@ -67,10 +82,8 @@ def CostM (_C : CostModel) (α : Type) : Type := Counted α
 instance (C : CostModel) : Monad (CostM C) := inferInstanceAs (Monad Counted)
 
 instance (C : CostModel) : NatArith (CostM C) where
-  mul a b := (⟨a * b, C.mul a.size b.size⟩ : Counted ℕ)
-  mod a b := (⟨a % b, C.divMod a.size b.size⟩ : Counted ℕ)
-  chargeMul a b := (⟨(), C.mul a.size b.size⟩ : Counted Unit)
-  chargeMod a b := (⟨(), C.divMod a.size b.size⟩ : Counted Unit)
+  chargeMul a b := (⟨(), MulCost.mulCost C a b⟩ : Counted Unit)
+  chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -86,16 +99,18 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.val C (x >>= f) = CostM.val C (f (CostM.val C x)) := rfl
 @[simp] theorem CostM.bind_cost {α β} (x : CostM C α) (f : α → CostM C β) :
     CostM.cost C (x >>= f) = CostM.cost C x + CostM.cost C (f (CostM.val C x)) := rfl
-@[simp] theorem CostM.mul_val (a b : ℕ) : CostM.val C (NatArith.mul a b) = a * b := rfl
-@[simp] theorem CostM.mul_cost (a b : ℕ) :
-    CostM.cost C (NatArith.mul a b) = C.mul a.size b.size := rfl
-@[simp] theorem CostM.mod_val (a b : ℕ) : CostM.val C (NatArith.mod a b) = a % b := rfl
-@[simp] theorem CostM.mod_cost (a b : ℕ) :
-    CostM.cost C (NatArith.mod a b) = C.divMod a.size b.size := rfl
-@[simp] theorem CostM.chargeMul_cost (a b : ℕ) :
-    CostM.cost C (NatArith.chargeMul a b) = C.mul a.size b.size := rfl
-@[simp] theorem CostM.chargeMod_cost (a b : ℕ) :
-    CostM.cost C (NatArith.chargeMod a b) = C.divMod a.size b.size := rfl
+@[simp] theorem CostM.chargeMul_cost {α} [MulCost α] (a b : α) :
+    CostM.cost C (NatArith.chargeMul a b) = MulCost.mulCost C a b := rfl
+@[simp] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
+    CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
+@[simp] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
+@[simp] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
+@[simp] theorem mulCost_int (a b : ℤ) :
+    MulCost.mulCost C a b = C.mul a.natAbs.size b.natAbs.size := rfl
+@[simp] theorem divCost_int (a b : ℤ) :
+    DivCost.divCost C a b = C.divMod a.natAbs.size b.natAbs.size := rfl
+@[simp] theorem mulCost_zmod {n : ℕ} (a b : ZMod n) : MulCost.mulCost C a b = C.mulMod n.size :=
+  rfl
 
 end
 
@@ -103,8 +118,24 @@ end
 sum of the charges of its primitive calls. -/
 macro "cost_simp" : tactic => `(tactic|
   (set_option linter.unusedSimpArgs false in
-    simp only [CostM.bind_cost, CostM.bind_val, CostM.pure_cost, CostM.pure_val, CostM.mul_cost,
-      CostM.mul_val, CostM.mod_cost, CostM.mod_val, CostM.chargeMul_cost, CostM.chargeMod_cost,
-      zero_add, add_zero] at *))
+    simp only [CostM.bind_cost, CostM.bind_val, CostM.pure_cost, CostM.pure_val,
+      CostM.chargeMul_cost, CostM.chargeMod_cost, mulCost_nat, divCost_nat, mulCost_int,
+      divCost_int, mulCost_zmod, zero_add, add_zero] at *))
+
+theorem ite_of_pos {α} {c : Prop} [Decidable c] (h : c) (a b : α) :
+    (if c then a else b) = a := by simp [h]
+theorem ite_of_neg {α} {c : Prop} [Decidable c] (h : ¬c) (a b : α) :
+    (if c then a else b) = b := by simp [h]
+
+/-- `cost_unfold f.counted`: unfold a counted algorithm one step, take the branches its
+conditions select (decided from the hypotheses, by `assumption` or `omega`), and unfold the
+bookkeeping. -/
+macro "cost_unfold " ids:ident,+ : tactic => `(tactic|
+  (rw [$[$ids:ident],*]
+   try (set_option linter.unusedSimpArgs false in
+    simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, CostM.bind_cost,
+      CostM.bind_val, CostM.pure_cost, CostM.pure_val, CostM.chargeMul_cost,
+      CostM.chargeMod_cost, mulCost_nat, divCost_nat, mulCost_int, divCost_int, mulCost_zmod,
+      zero_add, add_zero])))
 
 end PrimeNumbers.Chapter9

@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
@@ -38,7 +39,7 @@ def pm1Exponent (B : ℕ) : ℕ :=
   ((primesUpTo B).map fun p ↦ p ^ Nat.log p B).prod
 
 /-- The inner loop of step 2: `for (1 ≤ j ≤ a) c = c^p mod n`. -/
-def ladder (n p : ℕ) (c : ℕ) : ℕ → ℕ
+counted_def ladder (n p : ℕ) (c : ℕ) : ℕ → ℕ
   | 0 => c
   | j + 1 => ladder n p (powMod c p n) j
 
@@ -148,7 +149,7 @@ in `(B, B']` and `u ∣ M(B)`." -/
 /-- Traverse the exponents `Q M(B)`: with `c₁ = c^(M(B)) mod n` and `h = c₁^(prevQ) mod n`,
 pass to `c₁^Q` by multiplying with `c₁^(Q - prevQ)` ("the differences `Q_{i+1} - Q_i` are
 all much smaller than the `Q_i`'s"), and accumulate `P = ∏ (c₁^Q - 1) mod n`. -/
-def stage2Loop (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ → ℕ
+counted_def stage2Loop (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ → ℕ
   | _, _, P, [] => P
   | prevQ, h, P, Q :: Qs =>
     let h' := h * powMod c₁ (Q - prevQ) n % n

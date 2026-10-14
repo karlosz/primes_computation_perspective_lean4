@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
@@ -22,7 +23,7 @@ namespace PrimeNumbers.Chapter3
 while (d | N) { N = N/d;  F = F ∪ {d}; }
 ```
 Returns the new `(N, F)`. -/
-def divideOut (d N : ℕ) (F : List ℕ) : ℕ × List ℕ :=
+counted_def divideOut (d N : ℕ) (F : List ℕ) : ℕ × List ℕ :=
   if 1 < d ∧ 0 < N ∧ d ∣ N then divideOut d (N / d) (d :: F) else (N, F)
 termination_by N
 decreasing_by exact Nat.div_lt_self (by omega) (by omega)
@@ -42,7 +43,7 @@ if (N == 1) return F;
 return F ∪ {N};
 ```
 -/
-def trialLoop (d N : ℕ) (F : List ℕ) : List ℕ :=
+counted_def trialLoop (d N : ℕ) (F : List ℕ) : List ℕ :=
   if d * d ≤ N then
     let r := divideOut d N F
     trialLoop (d + 2) r.1 r.2

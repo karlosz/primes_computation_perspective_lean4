@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter5.Fermat
 
 /-!
@@ -43,7 +44,7 @@ theorem iroot_pow_le {e : ℕ} (he : e ≠ 0) (n : ℕ) : iroot e n ^ e ≤ n :=
   rootLoop_pow_le (by simp [he]) n
 
 /-- **Algorithm 5.1.2, step 1 [Trial division]**: a divisor `d` of `n` with `2 ≤ d ≤ c`. -/
-def smallDivisor (n : ℕ) : (d fuel : ℕ) → Option ℕ
+counted_def smallDivisor (n : ℕ) : (d fuel : ℕ) → Option ℕ
   | _, 0 => none
   | d, fuel + 1 => if n % d = 0 then some d else smallDivisor n (d + 1) fuel
 
@@ -52,7 +53,7 @@ def smallDivisor (n : ℕ) : (d fuel : ℕ) → Option ℕ
 if b = √(a² - 4kn) is an integer return gcd(a + b, n);
 ```
 -/
-def lehmanInner (n k a : ℕ) : ℕ → Option ℕ
+counted_def lehmanInner (n k a : ℕ) : ℕ → Option ℕ
   | 0 => none
   | fuel + 1 =>
     let t := a * a - 4 * k * n
@@ -64,7 +65,7 @@ def lehmanInner (n k a : ℕ) : ℕ → Option ℕ
 for (2√(kn) ≤ a ≤ 2√(kn) + n^(1/6)/(4√k)) { … }
 ```
 -/
-def lehmanOuter (n r6 : ℕ) : (k fuel : ℕ) → Option ℕ
+counted_def lehmanOuter (n r6 : ℕ) : (k fuel : ℕ) → Option ℕ
   | _, 0 => none
   | k, fuel + 1 =>
     match lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with

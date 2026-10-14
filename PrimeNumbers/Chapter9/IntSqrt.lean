@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.CountedDef
 
 /-!
 # §9.2.2 Integer square root by Newton's method
@@ -25,13 +25,14 @@ if (y ≥ x) return x;
 x = y;
 ```
 -/
-def isqrtLoop (N x : ℕ) : ℕ :=
-  if (x + N / x) / 2 < x then isqrtLoop N ((x + N / x) / 2) else x
+counted_def isqrtLoop (N x : ℕ) : ℕ :=
+  let y := (x + N / x) / 2
+  if y < x then isqrtLoop N y else x
 termination_by x
 
 /-- **Algorithm 9.2.11 (Integer part of square root).**  Returns `⌊√N⌋`, starting the
 Newton iteration from `x = 2^⌈B(N)/2⌉`, `B(N)` the number of bits of `N`. -/
-def isqrt (N : ℕ) : ℕ :=
+counted_def isqrt (N : ℕ) : ℕ :=
   isqrtLoop N (2 ^ ((N.size + 1) / 2))
 
 /-- One Newton step from any `x > 0` lands at or above `⌊√N⌋`: `N < (y + 1)²`. -/
@@ -50,19 +51,20 @@ theorem lt_newton_succ_sq (N : ℕ) {x : ℕ} (hx : 0 < x) :
 theorem isqrtLoop_eq (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) :
     isqrtLoop N x = Nat.sqrt N := by
   fun_induction isqrtLoop N x with
-  | case1 x hlt ih =>
-    rcases Nat.eq_zero_or_pos ((x + N / x) / 2) with h0 | hpos
+  | case1 x y hlt ih =>
+    rcases Nat.eq_zero_or_pos y with h0 | hpos
     · -- the next iterate is `0`: then `N = 0`
       have hN : N = 0 := by
         have := lt_newton_succ_sq N hx
+        simp only [y] at h0
         rw [h0] at this
         omega
       rw [h0, isqrtLoop]
       simp [hN]
     · exact ih hpos (lt_newton_succ_sq N hx)
-  | case2 x hge =>
+  | case2 x y hge =>
     -- on exit `⌊N/x⌋ ≥ x`, so `x² ≤ N < (x + 1)²`
-    have hq : x ≤ N / x := by omega
+    have hq : x ≤ N / x := by simp only [y] at hge; omega
     have hsq : x * x ≤ N := (Nat.mul_le_mul_left x hq).trans (Nat.mul_div_le N x)
     exact Nat.eq_sqrt.mpr ⟨hsq, h⟩
 
@@ -74,6 +76,11 @@ theorem isqrt_eq (N : ℕ) : isqrt N = Nat.sqrt N := by
   have h₂ : 2 ^ N.size ≤ 2 ^ ((N.size + 1) / 2) * 2 ^ ((N.size + 1) / 2) := by
     rw [← pow_add]; exact Nat.pow_le_pow_right (by norm_num) (by omega)
   nlinarith [Nat.zero_le (2 ^ ((N.size + 1) / 2))]
+
+/-- `Nat.sqrt` is computed by Algorithm 9.2.11: a call of `Nat.sqrt` in a `counted_def` is
+charged as `isqrt`. -/
+def _root_.Nat.sqrt.counted {m : Type → Type} [Monad m] [NatArith m] (N : ℕ) : m ℕ :=
+  isqrt.counted N
 
 /-! ## Running time -/
 
@@ -131,28 +138,22 @@ theorem isqrtSteps_le (N : ℕ) : isqrtSteps N (2 ^ ((N.size + 1) / 2)) ≤ (N.s
   refine (Nat.size_le_size (Nat.sub_le _ _)).trans ?_
   rw [Nat.size_pow]
 
-/-- The bit operations of `isqrtLoop N x`: one division `N / x` per pass.  (The halving
-and the addition are linear.) -/
-def isqrtCost (C : CostModel) (N x : ℕ) : ℕ :=
-  if (x + N / x) / 2 < x then C.divMod N.size x.size + isqrtCost C N ((x + N / x) / 2)
-  else C.divMod N.size x.size
-termination_by x
+/-- The bit operations of `isqrtLoop N x`: one division `N / x` per pass (the halving and
+the addition are linear). -/
+abbrev isqrtCost (C : CostModel) (N x : ℕ) : ℕ := CostM.cost C (isqrtLoop.counted N x)
 
 /-- Each pass costs one division by a number no longer than the starting value. -/
 theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
     (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (x : ℕ) (hx : x ≤ X) :
     isqrtCost C N x ≤ (isqrtSteps N x + 1) * B := by
-  fun_induction isqrtCost C N x with
-  | case1 x hlt ih =>
-    have ih := ih (by omega)
-    have := hB x.size (Nat.size_le_size hx)
-    rw [isqrtSteps]
-    simp only [hlt, ↓reduceIte, add_mul, one_mul] at ih ⊢
-    omega
-  | case2 x hge =>
-    have := hB x.size (Nat.size_le_size hx)
-    rw [isqrtSteps]
-    simpa [hge] using this
+  induction x using Nat.strong_induction_on with | _ x ih =>
+  have := hB x.size (Nat.size_le_size hx)
+  simp only [isqrtCost] at ih ⊢
+  rw [isqrtLoop.counted, isqrtSteps]; cost_simp
+  split_ifs with hlt
+  · have ih := ih _ hlt (by omega)
+    cost_simp; rw [add_mul, one_mul]; omega
+  · cost_simp; omega
 
 /-- **Bit complexity of Algorithm 9.2.11, grammar-school division**: at most
 `((k + 1)/2 + 2)(k + 1)²` bit operations for a `k`-bit `N`. -/

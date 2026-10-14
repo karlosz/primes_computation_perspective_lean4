@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
@@ -33,7 +34,7 @@ while (y > 0) (x, y) = (y, x mod y);
 return x;
 ```
 -/
-def euclid (x y : ℕ) : ℕ :=
+counted_def euclid (x y : ℕ) : ℕ :=
   if 0 < y then euclid y (x % y) else x
 termination_by y
 decreasing_by exact Nat.mod_lt _ ‹0 < y›
@@ -44,6 +45,11 @@ theorem euclid_eq_gcd (x y : ℕ) : euclid x y = Nat.gcd x y := by
   fun_induction euclid x y with
   | case1 x y hy ih => rw [ih, Nat.gcd_comm x y, Nat.gcd_rec y x, Nat.gcd_comm]
   | case2 x y hy => rw [Nat.eq_zero_of_not_pos hy, Nat.gcd_zero_right]
+
+/-- `Nat.gcd` is computed by Algorithm 2.1.2: a call of `Nat.gcd` in a `counted_def` is
+charged as `euclid`. -/
+def _root_.Nat.gcd.counted {m : Type → Type} [Monad m] [Chapter9.NatArith m] (x y : ℕ) : m ℕ :=
+  euclid.counted x y
 
 /-! ## Theorem 2.1.3 (Lamé) -/
 
@@ -90,7 +96,7 @@ while (w > 0) {
 return (a, b, g);
 ```
 -/
-def extEuclidLoop (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) : ℤ × ℤ × ℕ :=
+counted_def extEuclidLoop (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) : ℤ × ℤ × ℕ :=
   if 0 < w then
     let q := g / w
     extEuclidLoop u v w (a - q * u) (b - q * v) (g - q * w)
@@ -102,7 +108,7 @@ decreasing_by
   omega
 
 /-- **Algorithm 2.1.4.**  Returns `(a, b, g)` with `a x + b y = g = gcd(x, y)`. -/
-def extEuclid (x y : ℕ) : ℤ × ℤ × ℕ :=
+counted_def extEuclid (x y : ℕ) : ℤ × ℤ × ℕ :=
   extEuclidLoop 1 0 x 0 1 y
 
 /-- Loop invariant of Algorithm 2.1.4: the relations `a x + b y = g` and `u x + v y = w`
@@ -133,7 +139,7 @@ theorem extEuclid_spec (x y : ℕ) :
 /-! ## Modular inverse -/
 
 /-- The inverse `x⁻¹ mod m`, read off from Algorithm 2.1.4 as "`a mod m`". -/
-def modInv (x m : ℕ) : ℕ :=
+counted_def modInv (x m : ℕ) : ℕ :=
   ((extEuclid x m).1 % m).toNat
 
 theorem modInv_lt (x : ℕ) {m : ℕ} (hm : 0 < m) : modInv x m < m := by
@@ -211,10 +217,7 @@ theorem extEuclidSteps_eq (g w : ℕ) : extEuclidSteps g w = euclidSteps g w := 
 /-! ### Bit operations -/
 
 /-- The bit operations spent by `euclid x y`: one division `x mod y` per loop pass. -/
-def euclidBitCost (C : CostModel) (x y : ℕ) : ℕ :=
-  if 0 < y then C.divMod x.size y.size + euclidBitCost C y (x % y) else 0
-termination_by y
-decreasing_by exact Nat.mod_lt _ ‹0 < y›
+abbrev euclidBitCost (C : CostModel) (x y : ℕ) : ℕ := CostM.cost C (euclid.counted x y)
 
 /-- The key estimate of Exercise 2.6: with long division, the quotient bits of all the
 divisions of a Euclid run together number at most `size x + (number of steps)`, because
@@ -222,7 +225,8 @@ the bit lengths telescope.  Hence the total cost is at most
 `size y · (size x + steps)`. -/
 theorem euclidBitCost_school_le {x y : ℕ} (hyx : y ≤ x) :
     euclidBitCost school x y ≤ y.size * (x.size + euclidSteps x y) := by
-  fun_induction euclidBitCost school x y with
+  unfold euclidBitCost
+  fun_induction euclid x y with
   | case1 x y hy ih =>
     have ih := ih (Nat.mod_lt _ hy).le
     have hsteps : euclidSteps x y = euclidSteps y (x % y) + 1 := by
@@ -232,14 +236,15 @@ theorem euclidBitCost_school_le {x y : ℕ} (hyx : y ≤ x) :
     have h₃ : (x % y).size * (y.size + euclidSteps y (x % y)) ≤
         y.size * (y.size + euclidSteps y (x % y)) := Nat.mul_le_mul_right _ h₁
     have h₄ : school.divMod x.size y.size = (x.size - y.size + 1) * y.size := rfl
+    cost_unfold euclid.counted
     rw [hsteps, h₄]
-    calc (x.size - y.size + 1) * y.size + euclidBitCost school y (x % y)
+    calc (x.size - y.size + 1) * y.size + CostM.cost school (euclid.counted y (x % y))
         ≤ (x.size - y.size + 1) * y.size + y.size * (y.size + euclidSteps y (x % y)) := by
           omega
       _ = y.size * (x.size - y.size + 1 + y.size + euclidSteps y (x % y)) := by ring
       _ = y.size * (x.size + (euclidSteps y (x % y) + 1)) := by
           rw [show x.size - y.size + 1 + y.size = x.size + 1 by omega]; ring
-  | case2 x y hy => simp
+  | case2 x y hy => cost_unfold euclid.counted; simp
 
 /-- **Bit complexity of the Euclid algorithm (Exercise 2.6).**  For `y < x ≤ N`, with `N`
 of `k` bits, Algorithm 2.1.2 takes at most `k (3k + 1)` bit operations in the
@@ -300,17 +305,8 @@ theorem CofactorInv.natAbs_le {a u : ℤ} {g w Y : ℕ} (h : CofactorInv a u g w
 
 /-- The bit operations of `extEuclidLoop`: per pass the division `⌊g/w⌋` and the three
 products `q u`, `q v`, `q w`. -/
-def extEuclidCost (C : CostModel) (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) : ℕ :=
-  if 0 < w then
-    let q := g / w
-    C.divMod g.size w.size + C.mul q.size u.natAbs.size + C.mul q.size v.natAbs.size +
-      C.mul q.size w.size + extEuclidCost C u v w (a - q * u) (b - q * v) (g - q * w)
-  else 0
-termination_by w
-decreasing_by
-  have := Nat.mod_lt g ‹0 < w›
-  have := Nat.div_add_mod' g w
-  omega
+abbrev extEuclidCost (C : CostModel) (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) : ℕ :=
+  CostM.cost C (extEuclidLoop.counted a b g u v w)
 
 /-- **Bit complexity of the extended Euclid loop** (grammar-school): if all of `g, w` and
 the inputs `X, Y` have at most `k` bits, the cost is at most
@@ -320,8 +316,11 @@ theorem extEuclidCost_school_le {k X Y : ℕ} (hX : X.size ≤ k) (hY : Y.size �
     (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) (hg : 0 < g) (hgk : g.size ≤ k) (hwk : w.size ≤ k)
     (hau : CofactorInv a u g w Y) (hbv : CofactorInv b v g w X) :
     extEuclidCost school a b g u v w ≤ 4 * k * (max g.size w.size + extEuclidSteps g w) := by
-  fun_induction extEuclidCost school a b g u v w with
+  unfold extEuclidCost
+  fun_induction extEuclidLoop a b g u v w with
   | case1 a b g u v w hw q ih =>
+    cost_unfold extEuclidLoop.counted
+    simp only [Int.natAbs_natCast] at *
     have hmod : g - q * w < w := by
       have := Nat.mod_lt g hw
       have : g / w * w + g % w = g := Nat.div_add_mod' g w
@@ -349,18 +348,20 @@ theorem extEuclidCost_school_le {k X Y : ℕ} (hX : X.size ≤ k) (hY : Y.size �
       omega
     have hmax : max w.size (g - q * w).size = w.size :=
       max_eq_left (Nat.size_le_size hmod.le)
+    simp only [q] at *
     rw [hmax] at ih
     rw [hsteps]
     calc _ ≤ (g.size - w.size + 1) * (4 * k) +
-          4 * k * (w.size + extEuclidSteps w (g - q * w)) := by omega
-      _ = 4 * k * (g.size - w.size + w.size + (extEuclidSteps w (g - q * w) + 1)) := by ring
+          4 * k * (w.size + extEuclidSteps w (g - g / w * w)) := by omega
+      _ = 4 * k * (g.size - w.size + w.size + (extEuclidSteps w (g - g / w * w) + 1)) := by ring
       _ ≤ _ := Nat.mul_le_mul_left _ (by
           have : g.size - w.size + w.size ≤ max g.size w.size := by
             rcases Nat.le_total g.size w.size with h | h
             · rw [max_eq_right h]; omega
             · rw [max_eq_left h]; omega
           omega)
-  | case2 a b g u v w hw => exact Nat.zero_le _
+  | case2 a b g u v w hw =>
+    cost_unfold extEuclidLoop.counted; simp
 
 /-- The Euclid loop runs at most `2 size N + 2` times on any `x, y ≤ N`. -/
 theorem euclidSteps_le' {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N) :
@@ -380,8 +381,7 @@ theorem euclidSteps_le' {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N) :
     · omega
 
 /-- The bit operations of `modInv x m`: Algorithm 2.1.4 and the final reduction `a mod m`. -/
-def modInvCost (C : CostModel) (x m : ℕ) : ℕ :=
-  extEuclidCost C 1 0 x 0 1 m + C.divMod (extEuclid x m).1.natAbs.size m.size
+abbrev modInvCost (C : CostModel) (x m : ℕ) : ℕ := CostM.cost C (modInv.counted x m)
 
 /-- **Bit complexity of Algorithm 2.1.4** (grammar-school): for `0 < x` and `x, y ≤ N`,
 with `N` of `k` bits, the extended Euclid algorithm takes at most `4k (3k + 2)` bit
@@ -419,7 +419,8 @@ theorem modInvCost_school_le {x m N : ℕ} (hx0 : 0 < x) (hm0 : 0 < m) (hx : x �
     have := Nat.size_le_size hm
     rw [show (extEuclid x m).1.natAbs.size - m.size + 1 = 1 by omega, one_mul]
     omega
-  simp only [modInvCost]
+  simp only [modInvCost, modInv.counted, extEuclid.counted]; cost_simp
+  simp only [extEuclidCost, Int.natAbs_natCast] at *
   omega
 
 end RunningTime

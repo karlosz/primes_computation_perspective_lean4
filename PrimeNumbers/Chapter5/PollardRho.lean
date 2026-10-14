@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
 
@@ -39,7 +40,7 @@ g = gcd(U - V, n);
 if (g == 1) goto [Factor search];
 ```
 Returns the first `g ≠ 1`, or `none` if the fuel runs out. -/
-def pollardRhoLoop (n a : ℕ) (U V : ℕ) : ℕ → Option ℕ
+counted_def pollardRhoLoop (n a : ℕ) (U V : ℕ) : ℕ → Option ℕ
   | 0 => none
   | fuel + 1 =>
     let U' := rhoF n a U
@@ -307,7 +308,7 @@ product is taken with `n`." -/
 
 /-- `count` passes of [Factor search] without the gcd, accumulating
 `Q = Q · |U - V| mod n`.  Returns `(U, V, Q)`. -/
-def rhoBatch (n a : ℕ) : (U V Q count : ℕ) → ℕ × ℕ × ℕ
+counted_def rhoBatch (n a : ℕ) : (U V Q count : ℕ) → ℕ × ℕ × ℕ
   | U, V, Q, 0 => (U, V, Q)
   | U, V, Q, count + 1 =>
     let U' := rhoF n a U
@@ -315,7 +316,7 @@ def rhoBatch (n a : ℕ) : (U V Q count : ℕ) → ℕ × ℕ × ℕ
     rhoBatch n a U' V' (Q * absDiff U' V' % n) count
 
 /-- [Factor search] with one gcd per batch of `k` passes; at most `fuel` batches. -/
-def pollardRhoAccLoop (n a k : ℕ) (U V : ℕ) : ℕ → Option ℕ
+counted_def pollardRhoAccLoop (n a k : ℕ) (U V : ℕ) : ℕ → Option ℕ
   | 0 => none
   | fuel + 1 =>
     let r := rhoBatch n a U V 1 k
@@ -400,7 +401,7 @@ iterate saved at the last power of two: `x_j` against `x_{2^m}` for `2^m < j ≤
 This needs one evaluation of `F` per step instead of three. -/
 
 /-- Brent's cycle search.  `saved = x_{2^m}`, `cur = x_j`, `i = j - 2^m`, `limit = 2^m`. -/
-def pollardBrentLoop (n a : ℕ) : (saved cur i limit fuel : ℕ) → Option ℕ
+counted_def pollardBrentLoop (n a : ℕ) : (saved cur i limit fuel : ℕ) → Option ℕ
   | _, _, _, _, 0 => none
   | saved, cur, i, limit, fuel + 1 =>
     let cur' := rhoF n a cur

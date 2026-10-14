@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.IntSqrt
 import Mathlib
 
@@ -43,7 +44,7 @@ theorem ceilSqrt_le {n a : ℕ} (h : n ≤ a * a) : ceilSqrt n ≤ a := by
 if b = √(a² - n) is an integer return a - b;
 ```
 -/
-def fermatLoop (n a : ℕ) : ℕ → Option ℕ
+counted_def fermatLoop (n a : ℕ) : ℕ → Option ℕ
   | 0 => none
   | fuel + 1 =>
     let t := a * a - n

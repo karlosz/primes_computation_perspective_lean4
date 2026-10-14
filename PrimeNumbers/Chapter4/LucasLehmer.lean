@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
@@ -25,7 +26,7 @@ open LucasLehmer
 v = (v² - 2) mod (2^p - 1);
 ```
 with `M = 2^p - 1`.  On naturals, `v² - 2` is computed as `v² + M - 2`. -/
-def lucasLehmerLoop (M v : ℕ) : ℕ → ℕ
+counted_def lucasLehmerLoop (M v : ℕ) : ℕ → ℕ
   | 0 => v
   | k + 1 => lucasLehmerLoop M ((v * v + M - 2) % M) k
 

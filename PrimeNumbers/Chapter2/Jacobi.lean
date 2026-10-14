@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import Mathlib
 
@@ -82,7 +83,7 @@ theorem theorem_2_3_4_reciprocity {m n : ℕ} (hm : Odd m) (hn : Odd n) (hmn : m
 while (a even) { a = a/2;  if (m mod 8 ∈ {3,5}) t = -t; }
 ```
 (entered with `a ≠ 0`). Returns the new `(a, t)`. -/
-def jacobiHalve (a m : ℕ) (t : ℤ) : ℕ × ℤ :=
+counted_def jacobiHalve (a m : ℕ) (t : ℤ) : ℕ × ℤ :=
   if a ≠ 0 ∧ a % 2 = 0 then
     jacobiHalve (a / 2) m (if m % 8 = 3 ∨ m % 8 = 5 then -t else t)
   else (a, t)
@@ -127,7 +128,7 @@ if (m == 1) return t;
 return 0;
 ```
 -/
-def jacobiLoop (a m : ℕ) (t : ℤ) : ℤ :=
+counted_def jacobiLoop (a m : ℕ) (t : ℤ) : ℤ :=
   if a = 0 then
     if m = 1 then t else 0
   else
