@@ -84,7 +84,7 @@ theorem power_eq {M : Type*} [Monoid M] (x : M) (n : ℕ) : power x n = x ^ n :=
 
 /-- **Algorithm 2.1.5 for `xⁿ mod m`**: "the required modular reductions are to occur for
 each branch (even, odd) of the algorithm".  Extended to `n = 0` by `x⁰ = 1`. -/
-def powMod (x n m : ℕ) : ℕ :=
+counted_def powMod (x n m : ℕ) : ℕ :=
   if n = 0 then 1 % m
   else if n = 1 then x % m
   else if n % 2 = 0 then
@@ -171,52 +171,52 @@ theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
 
 /-! ### Bit operations -/
 
-/-- The bit operations spent by `powMod x n m`, following its recursion: each
-"multiply, then reduce mod `m`" is charged at the bit lengths of its operands. -/
-def powModCost (C : CostModel) (x n m : ℕ) : ℕ :=
-  if n = 0 then 0
-  else if n = 1 then C.divMod x.size m.size
-  else if n % 2 = 0 then
-    let y := powMod x (n / 2) m
-    powModCost C x (n / 2) m + (C.mul y.size y.size + C.divMod (y * y).size m.size)
-  else
-    let y := powMod x ((n - 1) / 2) m
-    let z := y * y % m
-    powModCost C x ((n - 1) / 2) m + (C.mul y.size y.size + C.divMod (y * y).size m.size) +
-      (C.mul x.size z.size + C.divMod (x * z).size m.size)
-termination_by n
-decreasing_by all_goals omega
+/-- The bit operations of `powMod x n m` (Algorithm 2.1.5), **derived from its code** by
+`counted_def`: every multiplication and reduction it performs, at the bit lengths of its
+actual operands. -/
+abbrev powModCost (C : CostModel) (x n m : ℕ) : ℕ := CostM.cost C (powMod.counted x n m)
 
 /-- **Bit complexity of Algorithm 2.1.5.**  For `x < m`, computing `xⁿ mod m` costs at
 most `2 ⌊log₂ n⌋` modular multiplications (plus the initial reduction of `x`). -/
-theorem powModCost_le (C : CostModel) {x m : ℕ} (hx : x < m) (n : ℕ) :
-    powModCost C x n m ≤
-      C.divMod m.size m.size + Nat.log 2 n * (2 * C.mulMod m.size) := by
-  have hm : 0 < m := by omega
-  fun_induction powModCost C x n m with
-  | case1 => omega
-  | case2 => simpa using C.divMod_mono _ (size_le_of_lt hx)
-  | case3 n h0 h1 heven y ih =>
-    have hy : y < m := powMod_lt _ _ hm
-    have hstep := mul_add_divMod_le C hy hy
-    have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
-      have := Nat.log_div_base 2 n
-      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+theorem powModCost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
+    powModCost C x n M ≤
+      C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) := by
+  unfold powModCost
+  have hM : 0 < M := by omega
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    rw [powMod.counted]
+    split_ifs with h0 h1 h2
+    · cost_simp
+      have : C.divMod (1 : ℕ).size M.size ≤ C.divMod M.size M.size :=
+        C.divMod_mono _ (Nat.size_le_size (by omega))
       omega
-    rw [hlog, add_mul]
-    omega
-  | case4 n h0 h1 hodd y z ih =>
-    have hy : y < m := powMod_lt _ _ hm
-    have hz : z < m := Nat.mod_lt _ hm
-    have hstep₁ := mul_add_divMod_le C hy hy
-    have hstep₂ := mul_add_divMod_le C hx hz
-    have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
-      have := Nat.log_div_base 2 n
-      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
-      rw [show (n - 1) / 2 = n / 2 by omega]
+    · cost_simp
+      have := C.divMod_mono M.size (size_le_of_lt hx)
       omega
-    rw [hlog, add_mul]
-    omega
+    · cost_simp
+      have ih := ih (n / 2) (by omega)
+      have hy : powMod x (n / 2) M < M := powMod_lt _ _ hM
+      have hstep := mul_add_divMod_le C hy hy
+      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
+        have := Nat.log_div_base 2 n
+        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+        omega
+      rw [hlog, add_mul]
+      omega
+    · cost_simp
+      have ih := ih ((n - 1) / 2) (by omega)
+      have hy : powMod x ((n - 1) / 2) M < M := powMod_lt _ _ hM
+      have hz := Nat.mod_lt (powMod x ((n - 1) / 2) M * powMod x ((n - 1) / 2) M) hM
+      have hstep₁ := mul_add_divMod_le C hy hy
+      have hstep₂ := mul_add_divMod_le C hx hz
+      have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
+        have := Nat.log_div_base 2 n
+        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+        rw [show (n - 1) / 2 = n / 2 by omega]
+        omega
+      rw [hlog, add_mul]
+      omega
 
 /-- **Exercise 2.17.**  With grammar-school arithmetic, `xⁿ mod m` costs at most
 `(4 log₂ n + 1)(k + 1)²` bit operations, `k` the bit length of `m`: that is
@@ -232,95 +232,5 @@ theorem powModCost_school_le {x m : ℕ} (hx : x < m) (n : ℕ) :
 
 end RunningTime
 
-section WrittenOnce
-
-open PrimeNumbers.Chapter9
-
-/-! ## Algorithm 2.1.5 written once with `counted_def`
-
-The definition below is plain code.  `counted_def` produces from it both the executable
-`powModC` and the counted `powModC.counted`, charging each `*` and `%`; the running-time
-theorem is proved about the latter, so no cost function is maintained by hand. -/
-
-/-- **Algorithm 2.1.5 for `xⁿ mod M`**, as a `counted_def`. -/
-counted_def powModC (x n M : ℕ) : ℕ :=
-  if n = 0 then 1 % M
-  else if n = 1 then x % M
-  else if n % 2 = 0 then
-    let y := powModC x (n / 2) M
-    y * y % M                               -- Even branch.
-  else
-    let y := powModC x ((n - 1) / 2) M
-    x * (y * y % M) % M                     -- Odd branch.
-termination_by n
-decreasing_by all_goals omega
-
-/-- Counting does not change the result: the counted run computes `powMod`. -/
-theorem powModC_counted_val (C : CostModel) (x n M : ℕ) :
-    CostM.val C (powModC.counted x n M) = powMod x n M := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rw [powModC.counted, powMod]
-    split_ifs with h0 h1 h2
-    · cost_simp
-    · cost_simp
-    · cost_simp; rw [ih (n / 2) (by omega)]
-    · cost_simp; rw [ih ((n - 1) / 2) (by omega)]
-
-/-- The plain run is `powMod`, so every theorem about `powMod` applies to `powModC`. -/
-theorem powModC_eq (x n M : ℕ) : powModC x n M = powMod x n M := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rw [powModC, powModC.counted, powMod]
-    split_ifs with h0 h1 h2
-    · rfl
-    · rfl
-    · rw [← ih (n / 2) (by omega), powModC]; rfl
-    · rw [← ih ((n - 1) / 2) (by omega), powModC]; rfl
-
-/-- **The running time of Algorithm 2.1.5, read off the code**: for `x < M`, at most
-`2 ⌊log₂ n⌋` modular multiplications plus one reduction. -/
-theorem powModC_cost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
-    CostM.cost C (powModC.counted x n M) ≤
-      C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) := by
-  have hM : 0 < M := by omega
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rw [powModC.counted]
-    split_ifs with h0 h1 h2
-    · cost_simp
-      have : C.divMod (1 : ℕ).size M.size ≤ C.divMod M.size M.size :=
-        C.divMod_mono _ (Nat.size_le_size (by omega))
-      omega
-    · cost_simp
-      have := C.divMod_mono M.size (size_le_of_lt hx)
-      omega
-    · cost_simp
-      rw [powModC_counted_val] at *
-      have ih := ih (n / 2) (by omega)
-      have hy : powMod x (n / 2) M < M := powMod_lt _ _ hM
-      have hstep := mul_add_divMod_le C hy hy
-      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
-        have := Nat.log_div_base 2 n
-        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
-        omega
-      rw [hlog, add_mul]
-      omega
-    · cost_simp
-      rw [powModC_counted_val] at *
-      have ih := ih ((n - 1) / 2) (by omega)
-      have hy : powMod x ((n - 1) / 2) M < M := powMod_lt _ _ hM
-      have hz := Nat.mod_lt (powMod x ((n - 1) / 2) M * powMod x ((n - 1) / 2) M) hM
-      have hstep₁ := mul_add_divMod_le C hy hy
-      have hstep₂ := mul_add_divMod_le C hx hz
-      have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
-        have := Nat.log_div_base 2 n
-        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
-        rw [show (n - 1) / 2 = n / 2 by omega]
-        omega
-      rw [hlog, add_mul]
-      omega
-
-end WrittenOnce
 
 end PrimeNumbers.Chapter2

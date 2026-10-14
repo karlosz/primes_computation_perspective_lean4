@@ -49,11 +49,17 @@ class NatArith (m : Type → Type) where
   mul : ℕ → ℕ → m ℕ
   /-- remainder -/
   mod : ℕ → ℕ → m ℕ
+  /-- record the cost of multiplying `a` and `b` (no result) -/
+  chargeMul : ℕ → ℕ → m Unit
+  /-- record the cost of reducing `a` modulo `b` (no result) -/
+  chargeMod : ℕ → ℕ → m Unit
 
 /-- Plain execution. -/
 instance : NatArith Id where
   mul a b := pure (a * b)
   mod a b := pure (a % b)
+  chargeMul _ _ := pure ()
+  chargeMod _ _ := pure ()
 
 /-- Counted execution under the cost model `C`. -/
 def CostM (_C : CostModel) (α : Type) : Type := Counted α
@@ -63,6 +69,8 @@ instance (C : CostModel) : Monad (CostM C) := inferInstanceAs (Monad Counted)
 instance (C : CostModel) : NatArith (CostM C) where
   mul a b := (⟨a * b, C.mul a.size b.size⟩ : Counted ℕ)
   mod a b := (⟨a % b, C.divMod a.size b.size⟩ : Counted ℕ)
+  chargeMul a b := (⟨(), C.mul a.size b.size⟩ : Counted Unit)
+  chargeMod a b := (⟨(), C.divMod a.size b.size⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -84,6 +92,10 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
 @[simp] theorem CostM.mod_val (a b : ℕ) : CostM.val C (NatArith.mod a b) = a % b := rfl
 @[simp] theorem CostM.mod_cost (a b : ℕ) :
     CostM.cost C (NatArith.mod a b) = C.divMod a.size b.size := rfl
+@[simp] theorem CostM.chargeMul_cost (a b : ℕ) :
+    CostM.cost C (NatArith.chargeMul a b) = C.mul a.size b.size := rfl
+@[simp] theorem CostM.chargeMod_cost (a b : ℕ) :
+    CostM.cost C (NatArith.chargeMod a b) = C.divMod a.size b.size := rfl
 
 end
 
@@ -92,6 +104,7 @@ sum of the charges of its primitive calls. -/
 macro "cost_simp" : tactic => `(tactic|
   (set_option linter.unusedSimpArgs false in
     simp only [CostM.bind_cost, CostM.bind_val, CostM.pure_cost, CostM.pure_val, CostM.mul_cost,
-      CostM.mul_val, CostM.mod_cost, CostM.mod_val, zero_add, add_zero] at *))
+      CostM.mul_val, CostM.mod_cost, CostM.mod_val, CostM.chargeMul_cost, CostM.chargeMod_cost,
+      zero_add, add_zero] at *))
 
 end PrimeNumbers.Chapter9

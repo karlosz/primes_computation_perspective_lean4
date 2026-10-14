@@ -180,27 +180,27 @@ With `k` the bit length of the modulus / input:
 once, as plain code, with the `counted_def` command (`Chapter9/CountedDef.lean`):
 
 ```lean
-counted_def powModC (x n M : ℕ) : ℕ :=
-  if n = 0 then 1 % M
-  else if n = 1 then x % M
+counted_def powMod (x n m : ℕ) : ℕ :=
+  if n = 0 then 1 % m
+  else if n = 1 then x % m
   else if n % 2 = 0 then
-    let y := powModC x (n / 2) M
-    y * y % M
+    let y := powMod x (n / 2) m
+    y * y % m
   else
-    let y := powModC x ((n - 1) / 2) M
-    x * (y * y % M) % M
+    let y := powMod x ((n - 1) / 2) m
+    x * (y * y % m) % m
 termination_by n
 ```
 
-It generates the executable `powModC` and a counted version `powModC.counted`, run in
+It generates the plain `powMod` (exactly as written) and a counted version `powMod.counted`, run in
 `CostM C` (`Chapter9/Counted.lean`), in which **every** `*` and `%` is charged under the
 cost model `C` (except by a numeric literal, which is a shift).  Anything the translation
-cannot account for — a charged operation in an `if` condition, arithmetic inside `fun`,
-`match`, … — is rejected with an error, so nothing can be left out of the count.
-Running-time theorems are proved about `CostM.cost C (f.counted …)`; one lemma per
-algorithm (`powModC_counted_val`, `powModC_eq`) links it to the existing function.  The
-older hand-written cost functions (`powModCost`, `euclidBitCost`, …) are to be replaced
-this way.
+cannot account for (arithmetic inside a nested `fun`, `match`, …) is rejected with an
+error, so nothing can be left out of the count; charged operations in `if` conditions and
+`let` values are fine.  The lemma `f.counted_val` (counting does not change the value) is
+generated and proved automatically.  `powMod` is now a `counted_def`, and `powModCost` is
+simply `CostM.cost C (powMod.counted …)`; all the bounds built on it carried over
+unchanged.  The remaining hand-written cost functions are being converted the same way.
 
 **A second cost model.**  `Chapter9/Karatsuba.lean` implements Karatsuba multiplication
 (§9.5.1), proves it correct (`karatsuba_eq`) and proves its cost is `O(N^(log₂ 3))`
