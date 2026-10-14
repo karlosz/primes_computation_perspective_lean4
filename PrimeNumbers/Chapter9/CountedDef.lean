@@ -46,7 +46,8 @@ private partial def hasCharged (stx : Syntax) : Bool :=
   match stx with
   | `($a * $b) | `($a % $b) =>
       !(isNumLit a || isNumLit b) || hasCharged a || hasCharged b
-  | `($a / $b) => !isNumLit b || hasCharged a
+  | `($a / $b) => !isNumLit b || hasCharged a || hasCharged b
+  | `($a ∣ $b) => !isNumLit a || hasCharged a || hasCharged b
   | _ => stx.getArgs.any hasCharged
 
 /-- Does the syntax mention the identifier `self` (a recursive call)? -/
@@ -79,10 +80,16 @@ private partial def hoist (self : Name) (e : Syntax) :
         modify (·.push (none, ← `(NatArith.chargeMod $(⟨ra⟩) $(⟨rb⟩))))
       `($(⟨ra⟩) % $(⟨rb⟩))
   | `($a / $b) =>
-      if isNumLit ⟨b⟩ then
-        let ra ← hoist self a
-        `($(⟨ra⟩) / $b)
-      else Macro.throwErrorAt e "counted_def: division is only allowed by a numeric literal"
+      let ra ← hoist self a; let rb ← hoist self b
+      unless isNumLit ⟨b⟩ do
+        modify (·.push (none, ← `(NatArith.chargeMod $(⟨ra⟩) $(⟨rb⟩))))
+      `($(⟨ra⟩) / $(⟨rb⟩))
+  | `($a ∣ $b) =>
+      -- a divisibility test computes `b mod a`
+      let ra ← hoist self a; let rb ← hoist self b
+      unless isNumLit ⟨a⟩ do
+        modify (·.push (none, ← `(NatArith.chargeMod $(⟨rb⟩) $(⟨ra⟩))))
+      `($(⟨ra⟩) ∣ $(⟨rb⟩))
   | `($f:ident $args*) =>
       if f.getId == self then
         let args' ← args.mapM fun a => do return (⟨← hoist self a.raw⟩ : Term)
@@ -117,6 +124,15 @@ level of each branch, `if` and `let` structure the computation; every charged op
 recursive call in an expression (including in `if` conditions and `let` values) is
 evaluated, left to right, before it is used. -/
 private partial def translate (self : Name) (e : Term) : MacroM Term := do
+  -- `match d₁, …, dₖ with | pats => rhs | …`: charge the discriminants, translate each rhs
+  -- (node layout: "match" generalizing? motive? discriminants "with" matchAlts)
+  if e.raw.isOfKind ``Lean.Parser.Term.match then
+    let (discrs', binds) ← (hoist self e.raw[3]).run #[]
+    let alts := e.raw[5][0].getArgs
+    let alts' ← alts.mapM fun alt => do
+      return alt.setArg 3 (← translate self ⟨alt[3]⟩)
+    let m := (e.raw.setArg 3 discrs').setArg 5 (e.raw[5].setArg 0 (mkNullNode alts'))
+    return ← wrap binds ⟨m⟩
   match e with
   | `(($e)) => translate self e
   | `(if $c then $a else $b) => do
@@ -132,37 +148,73 @@ private partial def translate (self : Name) (e : Term) : MacroM Term := do
       let (r, binds) ← (hoist self e).run #[]
       wrap binds (← `(pure $(⟨r⟩)))
 
+/-- Generate the plain definition, the counted one and the value lemma. -/
+private def expandCounted (doc? : Option (TSyntax ``Lean.Parser.Command.docComment))
+    (f : Ident) (bs : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (ty body : Term)
+    (suff : TSyntax ``Lean.Parser.Termination.suffix) : MacroM Syntax := do
+  let counted := mkIdent (f.getId ++ `counted)
+  let tbody ← translate f.getId body
+  let mut args : Array Ident := #[]
+  for b in bs do
+    match b with
+    | `(bracketedBinder| ($xs:ident* : $_)) => args := args ++ xs
+    | _ => Macro.throwErrorAt b "counted_def: use explicit binders `(x y : ℕ)`"
+  let mo := mkIdent `countedMonad
+  let c₁ ← `(command| $[$doc?:docComment]?
+    def $f $bs* : $ty := $body
+    $suff:suffix)
+  let c₂ ← `(command| $[$doc?:docComment]?
+    def $counted {$mo : Type → Type} [Monad $mo] [NatArith $mo] $bs* : $mo $ty := $tbody
+    $suff:suffix)
+  let valName := mkIdent (f.getId ++ `counted_val)
+  let fCall := Syntax.mkApp f (args.map fun a => ⟨a.raw⟩)
+  let cCall := Syntax.mkApp counted (args.map fun a => ⟨a.raw⟩)
+  let eqDef := mkIdent (f.getId ++ `eq_def)
+  let ceqDef := mkIdent (f.getId ++ `counted ++ `eq_def)
+  let c₃ ← `(command|
+    /-- Counting does not change the value. -/
+    theorem $valName (C : CostModel) $bs* : CostM.val C $cCall = $fCall := by
+      rw [$ceqDef:ident]; conv_rhs => rw [$eqDef:ident]
+      repeat' (first | split_ifs | split) <;> cost_simp)
+  return mkNullNode #[c₁, c₂, c₃]
+
 /-- `counted_def f binders : τ := body [termination_by …] [decreasing_by …]` -/
 syntax (name := countedDef) (docComment)? "counted_def " ident bracketedBinder* " : " term
   " := " term Lean.Parser.Termination.suffix : command
 
+/-- `counted_def f binders : A₁ → ⋯ → τ | pats => rhs | …` (equation style) -/
+syntax (name := countedDefEqns) (docComment)? "counted_def " ident bracketedBinder* " : " term
+  Lean.Parser.Command.declValEqns : command
+
 macro_rules
   | `($[$doc?:docComment]? counted_def $f:ident $bs:bracketedBinder* : $ty := $body
-      $suff:suffix) => do
-    let counted := mkIdent (f.getId ++ `counted)
-    let tbody ← translate f.getId body
-    let mut args : Array Ident := #[]
-    for b in bs do
-      match b with
-      | `(bracketedBinder| ($xs:ident* : $_)) => args := args ++ xs
-      | _ => Macro.throwErrorAt b "counted_def: use explicit binders `(x y : ℕ)`"
-    let mo := mkIdent `countedMonad
-    let c₁ ← `(command| $[$doc?:docComment]?
-      def $f $bs* : $ty := $body
-      $suff:suffix)
-    let c₂ ← `(command| $[$doc?:docComment]?
-      def $counted {$mo : Type → Type} [Monad $mo] [NatArith $mo] $bs* : $mo $ty := $tbody
-      $suff:suffix)
-    let valName := mkIdent (f.getId ++ `counted_val)
-    let fCall := Syntax.mkApp f (args.map fun a => ⟨a.raw⟩)
-    let cCall := Syntax.mkApp counted (args.map fun a => ⟨a.raw⟩)
-    let eqDef := mkIdent (f.getId ++ `eq_def)
-    let ceqDef := mkIdent (f.getId ++ `counted ++ `eq_def)
-    let c₃ ← `(command|
-      /-- Counting does not change the value. -/
-      theorem $valName (C : CostModel) $bs* : CostM.val C $cCall = $fCall := by
-        rw [$ceqDef:ident]; conv_rhs => rw [$eqDef:ident]
-        split_ifs <;> cost_simp)
-    return mkNullNode #[c₁, c₂, c₃]
+      $suff:suffix) => expandCounted doc? f bs ty body suff
+
+macro_rules
+  | `($[$doc?:docComment]? counted_def $f:ident $bs:bracketedBinder* : $ty
+      $eqns:declValEqns) => do
+    -- `declValEqns` is `matchAlts terminationSuffix whereDecls?`
+    let alts := eqns.raw[0][0]
+    let suff : TSyntax ``Lean.Parser.Termination.suffix := ⟨eqns.raw[0][1]⟩
+    -- the number of pattern columns, and the types they range over
+    let altArr := alts[0].getArgs
+    let some alt₀ := altArr[0]? | Macro.throwError "counted_def: no equations"
+    let ncols := alt₀[1][0].getSepArgs.size
+    let mut argTys : Array Term := #[]
+    let mut res : Term := ty
+    for _ in [0:ncols] do
+      match res with
+      | `($a → $b) => argTys := argTys.push a; res := b
+      | _ => Macro.throwErrorAt ty "counted_def: the type must have one arrow per pattern column"
+    let mut newBs := bs
+    let mut discrs : Array Term := #[]
+    for h : i in [0:argTys.size] do
+      let x := mkIdent (← Macro.addMacroScope (Name.mkSimple s!"eqnArg{i}"))
+      newBs := newBs.push (← `(bracketedBinder| ($x : $(argTys[i]))))
+      discrs := discrs.push x
+    let altsArr : Array (TSyntax ``Lean.Parser.Term.matchAlt) := altArr.map (⟨·⟩)
+    let ds ← discrs.mapM fun x => `(Lean.Parser.Term.matchDiscr| $x:term)
+    let body ← `(match $[$ds],* with $altsArr:matchAlt*)
+    expandCounted doc? f newBs res body suff
 
 end PrimeNumbers.Chapter9
