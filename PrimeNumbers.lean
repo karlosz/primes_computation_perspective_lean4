@@ -1,5 +1,6 @@
 import PrimeNumbers.Assumed
 import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.Karatsuba
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter9.FastMul

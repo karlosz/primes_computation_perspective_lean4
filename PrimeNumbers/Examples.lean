@@ -14,6 +14,7 @@ import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
 import PrimeNumbers.Chapter9.FastMul
+import PrimeNumbers.Chapter9.Karatsuba
 import PrimeNumbers.Chapter9.Newton
 import PrimeNumbers.Chapter9.FastMod
 import PrimeNumbers.Chapter5.Fermat
@@ -339,5 +340,10 @@ open PrimeNumbers.Chapter9 in
     (prodLinear ((List.range 40).map ((↑) : ℕ → ZMod 8051)))) =
   Chapter2.Poly.trim (Poly.modMonic ((List.range 200).map fun i ↦ ((i * i * i + 5 : ℕ) : ZMod 8051))
     (prodLinear ((List.range 40).map ((↑) : ℕ → ZMod 8051))))
+
+/-! ## §9.5.1 Karatsuba multiplication of 512-bit numbers -/
+
+open PrimeNumbers.Chapter9 in
+#guard karatsuba 9 (2 ^ 511 + 12345) (3 ^ 300 + 1) = (2 ^ 511 + 12345) * (3 ^ 300 + 1)
 
 end PrimeNumbers.Examples

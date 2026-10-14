@@ -141,7 +141,7 @@ Open items in Chapter 2:
 * Thm 2.1.3 average case.
 * Thm 2.3.7 (Gauss sums).
 
-### Running times — the cost model in `PrimeNumbers/Chapter9/BitCost.lean`
+### Running times — the cost models in `PrimeNumbers/Chapter9/BitCost.lean` and `Karatsuba.lean`
 
 Running times are stated in **bit operations**, the book's measure, using the groundwork
 of §9.1.  All future complexity analyses in this project use this layer.
@@ -175,6 +175,12 @@ With `k` the bit length of the modulus / input:
 | 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps; ≤ `((k+1)/2 + 2)(k+1)²` bit operations | `isqrt_eq` (correctness), `isqrtSteps_le`, `isqrtCost_school_le` |
 | 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
 | 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse; grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
+
+**A second cost model.**  `Chapter9/Karatsuba.lean` implements Karatsuba multiplication
+(§9.5.1), proves it correct (`karatsuba_eq`) and proves its cost is `O(N^(log₂ 3))`
+(`karatsubaCost_le`); `karatsubaModel` packages that as a `CostModel`, so every theorem
+stated for an arbitrary cost model also holds with Karatsuba multiplication.  Its division
+is still grammar-school.
 
 **Where things are.**  `Chapter9/BitCost.lean` contains only the cost model and imports
 nothing else from the project.  Each algorithm's file imports it and ends with a section
