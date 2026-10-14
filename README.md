@@ -176,6 +176,16 @@ With `k` the bit length of the modulus / input:
 | 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
 | 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse; grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
 
+**Costs derived from the code (new; migration in progress).**  `Chapter9/Counted.lean`
+lets an algorithm be written once, generically over a monad with the big-number
+primitives (`NatArith`): run in `Id` it is the plain executable algorithm, run in
+`CostM C` the same code returns its result and its exact bit-operation count under the
+cost model `C`.  Running-time theorems are then statements about that count, so no
+separate cost function has to be kept in sync with the algorithm.  First example:
+`Chapter2.powModG` (Algorithm 2.1.5) with `powModG_id` (it *is* `powMod`), `powModG_val`
+and `powModG_cost_le`.  The older hand-written cost functions (`powModCost`,
+`euclidBitCost`, …) are to be replaced this way.
+
 **A second cost model.**  `Chapter9/Karatsuba.lean` implements Karatsuba multiplication
 (§9.5.1), proves it correct (`karatsuba_eq`) and proves its cost is `O(N^(log₂ 3))`
 (`karatsubaCost_le`); `karatsubaModel` packages that as a `CostModel`, so every theorem

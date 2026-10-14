@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.Counted
 import Mathlib
 
 /-!
@@ -231,5 +231,101 @@ theorem powModCost_school_le {x m : ℕ} (hx : x < m) (n : ℕ) :
     Nat.zero_le (Nat.log 2 n * m.size)]
 
 end RunningTime
+
+section WrittenOnce
+
+open PrimeNumbers.Chapter9
+
+/-! ## Example: Algorithm 2.1.5, written once -/
+
+/-- **Algorithm 2.1.5 for `xⁿ mod m`**, written once over any monad with `NatArith`.  This
+is the same algorithm as `Chapter2.powMod`. -/
+def powModG {m : Type → Type} [Monad m] [NatArith m] (x n M : ℕ) : m ℕ :=
+  if n = 0 then NatArith.mod 1 M
+  else if n = 1 then NatArith.mod x M
+  else if n % 2 = 0 then do
+    let y ← powModG x (n / 2) M
+    let yy ← NatArith.mul y y
+    NatArith.mod yy M
+  else do
+    let y ← powModG x ((n - 1) / 2) M
+    let yy ← NatArith.mul y y
+    let z ← NatArith.mod yy M
+    let xz ← NatArith.mul x z
+    NatArith.mod xz M
+termination_by n
+decreasing_by all_goals omega
+
+/-- Run plainly, the generic algorithm is `Chapter2.powMod`; so all its theorems apply. -/
+theorem powModG_id (x n M : ℕ) : powModG (m := Id) x n M = Chapter2.powMod x n M := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    rw [powModG, Chapter2.powMod]
+    split_ifs with h0 h1 h2
+    · rfl
+    · rfl
+    · show Id.run (powModG (m := Id) x (n / 2) M) *
+        Id.run (powModG (m := Id) x (n / 2) M) % M = _
+      rw [ih _ (by omega)]; rfl
+    · show x * (Id.run (powModG (m := Id) x ((n - 1) / 2) M) *
+        Id.run (powModG (m := Id) x ((n - 1) / 2) M) % M) % M = _
+      rw [ih _ (by omega)]; rfl
+
+/-- Counting does not change the result. -/
+theorem powModG_val (C : CostModel) (x n M : ℕ) :
+    CostM.val C (powModG x n M) = Chapter2.powMod x n M := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    rw [powModG, Chapter2.powMod]
+    split_ifs with h0 h1 h2
+    · simp
+    · simp
+    · simp [ih (n / 2) (by omega)]
+    · simp [ih ((n - 1) / 2) (by omega)]
+
+/-- **The running time of Algorithm 2.1.5, read off the code itself**: for `x < M`, at most
+`2 ⌊log₂ n⌋` modular multiplications plus one reduction — the same bound as before, now
+with no separately maintained cost function. -/
+theorem powModG_cost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
+    CostM.cost C (powModG x n M) ≤
+      C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) := by
+  have hM : 0 < M := by omega
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    rw [powModG]
+    split_ifs with h0 h1 h2
+    · simp only [CostM.mod_cost]
+      have : C.divMod (1 : ℕ).size M.size ≤ C.divMod M.size M.size :=
+        C.divMod_mono _ (Nat.size_le_size (by omega))
+      omega
+    · simp only [CostM.mod_cost]
+      have := C.divMod_mono M.size (size_le_of_lt hx)
+      omega
+    · simp only [CostM.bind_cost, CostM.mul_cost, CostM.mul_val, CostM.mod_cost, powModG_val]
+      have ih := ih (n / 2) (by omega)
+      have hy : Chapter2.powMod x (n / 2) M < M := Chapter2.powMod_lt _ _ hM
+      have hstep := mul_add_divMod_le C hy hy
+      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
+        have := Nat.log_div_base 2 n
+        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+        omega
+      rw [hlog, add_mul]
+      omega
+    · simp only [CostM.bind_cost, CostM.mul_cost, CostM.mul_val, CostM.mod_cost, CostM.mod_val,
+        powModG_val]
+      have ih := ih ((n - 1) / 2) (by omega)
+      have hy : Chapter2.powMod x ((n - 1) / 2) M < M := Chapter2.powMod_lt _ _ hM
+      have hz := Nat.mod_lt (Chapter2.powMod x ((n - 1) / 2) M * Chapter2.powMod x ((n - 1) / 2) M) hM
+      have hstep₁ := mul_add_divMod_le C hy hy
+      have hstep₂ := mul_add_divMod_le C hx hz
+      have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
+        have := Nat.log_div_base 2 n
+        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+        rw [show (n - 1) / 2 = n / 2 by omega]
+        omega
+      rw [hlog, add_mul]
+      omega
+
+end WrittenOnce
 
 end PrimeNumbers.Chapter2
