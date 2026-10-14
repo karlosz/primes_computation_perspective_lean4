@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 
 /-!
 # §9.2.2 Integer square root by Newton's method

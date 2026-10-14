@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.SquareRoot
@@ -240,48 +240,33 @@ open PrimeNumbers.Chapter9
 
 /-! ### Bit operations -/
 
-/-- The bit operations of `probablePrime n a` (Algorithm 3.4.3): one modular power. -/
-def probablePrimeCost (C : CostModel) (n a : ℕ) : ℕ := costOf C (powMod a (n - 1) n)
-
 /-- **Bit complexity of the Fermat test**: `O(ln³ n)` with grammar-school arithmetic. -/
 theorem probablePrimeCost_school_le {n a : ℕ} (ha : a < n) :
-    probablePrimeCost school n a ≤ (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 := by
+    costOf school (probablePrime n a) ≤ (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 := by
+  cost_unfold probablePrime.counted
   refine (powModCost_school_le ha (n - 1)).trans (Nat.mul_le_mul_right _ ?_)
   have := Nat.log_mono_right (b := 2) (Nat.sub_le n 1)
   omega
 
-/-- The bit operations of the loop of Algorithm 3.5.2, following `sprpLoop`. -/
-def sprpLoopCost (C : CostModel) (n b : ℕ) : ℕ → ℕ
-  | 0 => 0
-  | j + 1 =>
-    let b' := b * b % n
-    C.mul b.size b.size + C.divMod (b * b).size n.size +
-      if b' = n - 1 then 0 else sprpLoopCost C n b' j
-
-/-- The bit operations of `strongProbablePrime n a` (Algorithm 3.5.2). -/
-def strongProbablePrimeCost (C : CostModel) (n a : ℕ) : ℕ :=
-  let st := oddPart (n - 1)
-  let b := powMod a st.2 n
-  costOf C (powMod a st.2 n) + if b = 1 ∨ b = n - 1 then 0 else sprpLoopCost C n b (st.1 - 1)
-
 theorem sprpLoopCost_le (C : CostModel) {n b : ℕ} (hb : b < n) (j : ℕ) :
-    sprpLoopCost C n b j ≤ j * C.mulMod n.size := by
+    costOf C (sprpLoop n b j) ≤ j * C.mulMod n.size := by
   induction j generalizing b with
-  | zero => simp [sprpLoopCost]
+  | zero => cost_unfold sprpLoop.counted
   | succ j ih =>
     have hstep := mul_add_divMod_le C hb hb
     have ih := ih (b := b * b % n) (Nat.mod_lt _ (by omega))
-    simp only [sprpLoopCost, add_mul, one_mul]
+    cost_unfold sprpLoop.counted
+    simp only [add_mul, one_mul]
     split_ifs <;> omega
 
 /-- **Bit complexity of the strong probable prime test**, for any cost model: with
 `n - 1 = 2^s t`, the power `a^t` and the `s - 1` squarings together use at most
 `2 log₂ n` modular multiplications. -/
 theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha : a < n) :
-    strongProbablePrimeCost C n a ≤
+    costOf C (strongProbablePrime n a) ≤
       C.divMod n.size n.size + Nat.log 2 n * (2 * C.mulMod n.size) := by
   obtain ⟨hst, ht⟩ := oddPart_spec (n := n - 1) (by omega)
-  simp only [strongProbablePrimeCost]
+  cost_unfold strongProbablePrime.counted
   generalize (oddPart (n - 1)).1 = s at hst ⊢
   generalize (oddPart (n - 1)).2 = t at hst ht ⊢
   have hpow := powModCost_le C ha t
@@ -305,7 +290,7 @@ theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha 
 /-- **Bit complexity of the strong probable prime test, grammar-school arithmetic**:
 at most `(4 log₂ n + 1)(k + 1)²` bit operations, i.e. `O(ln³ n)` per base. -/
 theorem strongProbablePrimeCost_school_le {n a : ℕ} (hn : 1 < n) (ha : a < n) :
-    strongProbablePrimeCost school n a ≤ (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 := by
+    costOf school (strongProbablePrime n a) ≤ (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 := by
   refine (strongProbablePrimeCost_le school hn ha).trans ?_
   rw [school_mulMod]
   have : school.divMod n.size n.size = n.size := by simp [school]

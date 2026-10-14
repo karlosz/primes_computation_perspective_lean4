@@ -84,12 +84,15 @@ class NatArith (m : Type → Type) where
   chargeMod {α : Type} [DivCost α] : α → α → m Unit
   /-- record the cost of the power `a ^ e` -/
   chargePow {α : Type} [PowCost α] : α → ℕ → m Unit
+  /-- record `k` bit operations (e.g. `k` memory writes) -/
+  charge : ℕ → m Unit
 
 /-- Plain execution. -/
 instance : NatArith Id where
   chargeMul _ _ := pure ()
   chargeMod _ _ := pure ()
   chargePow _ _ := pure ()
+  charge _ := pure ()
 
 /-- Counted execution under the cost model `C`. -/
 def CostM (_C : CostModel) (α : Type) : Type := Counted α
@@ -100,6 +103,7 @@ instance (C : CostModel) : NatArith (CostM C) where
   chargeMul a b := (⟨(), MulCost.mulCost C a b⟩ : Counted Unit)
   chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
   chargePow a e := (⟨(), PowCost.powCost C a e⟩ : Counted Unit)
+  charge k := (⟨(), k⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -127,6 +131,8 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
 @[simp, cost_simps] theorem CostM.chargePow_cost {α} [PowCost α] (a : α) (e : ℕ) :
     CostM.cost C (NatArith.chargePow a e) = PowCost.powCost C a e := rfl
+@[simp, cost_simps] theorem CostM.charge_cost (k : ℕ) :
+    CostM.cost C (NatArith.charge k) = k := rfl
 @[simp, cost_simps] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
 @[simp, cost_simps] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
 @[simp, cost_simps] theorem mulCost_int (a b : ℤ) :
@@ -193,6 +199,63 @@ def _root_.List.find?.counted (p : α → Bool) (l : List α) (p_charge : α →
   | a :: l => do p_charge a; if p a then pure () else List.find?.counted p l p_charge
 
 end ListCombinators
+
+/-! ### Arrays
+
+Arrays are used for the sieve, whose work is its memory writes: each written entry costs
+one bit operation. -/
+
+/-- Writing one entry. -/
+def _root_.Array.setIfInBounds.counted {m : Type → Type} [Monad m] [NatArith m] {α : Type}
+    (_xs : Array α) (_i : ℕ) (_v : α) : m Unit := NatArith.charge 1
+
+/-- Allocating and filling `n` entries. -/
+def _root_.Array.replicate.counted {m : Type → Type} [Monad m] [NatArith m] {α : Type}
+    (n : ℕ) (_v : α) : m Unit := NatArith.charge n
+
+section
+variable (C : CostModel) {α β : Type}
+
+@[cost_simps] theorem CostM.setIfInBounds_cost (xs : Array α) (i : ℕ) (v : α) :
+    CostM.cost C (Array.setIfInBounds.counted xs i v) = 1 := rfl
+@[cost_simps] theorem CostM.replicate_cost (n : ℕ) (v : α) :
+    CostM.cost C (Array.replicate.counted n v) = n := rfl
+
+/-- `filter` pays the charge of its predicate at every element. -/
+@[cost_simps] theorem CostM.filter_cost (p : α → Bool) (l : List α) (pc : α → CostM C Unit) :
+    CostM.cost C (List.filter.counted p l pc) = (l.map fun a => CostM.cost C (pc a)).sum := by
+  induction l with
+  | nil => rfl
+  | cons a l ih =>
+    simp only [List.filter.counted, List.map_cons, List.sum_cons, ← ih]; rfl
+
+/-- `map` pays the charge of its function at every element. -/
+@[cost_simps] theorem CostM.map_cost (f : α → β) (l : List α) (fc : α → CostM C Unit) :
+    CostM.cost C (List.map.counted f l fc) = (l.map fun a => CostM.cost C (fc a)).sum := by
+  induction l with
+  | nil => rfl
+  | cons a l ih =>
+    simp only [List.map.counted, List.map_cons, List.sum_cons, ← ih]; rfl
+
+/-- `foldl` pays the charge of its function at every step; with an invariant `P` of the
+accumulator, each step's charge is bounded by `K` of the element. -/
+theorem CostM.foldl_cost_le {f : α → β → α} {fc : α → β → CostM C Unit} (P : α → Prop)
+    (K : β → ℕ) (hf : ∀ a b, P a → P (f a b)) (l : List β)
+    (hK : ∀ a b, P a → b ∈ l → CostM.cost C (fc a b) ≤ K b) {init : α} (h : P init) :
+    CostM.cost C (List.foldl.counted f init l fc) ≤ (l.map K).sum := by
+  induction l generalizing init with
+  | nil => simp [List.foldl.counted, CostM.cost]; rfl
+  | cons b l ih =>
+    have h₁ := hK init b h (by simp)
+    have h₂ := ih (fun a b' ha hb' ↦ hK a b' ha (by simp [hb'])) (hf init b h)
+    simp only [List.foldl.counted, List.map_cons, List.sum_cons]
+    change CostM.cost C (fc init b) + CostM.cost C (List.foldl.counted f (f init b) l fc) ≤ _
+    omega
+
+@[cost_simps] theorem sum_map_zero (l : List α) : (l.map fun _ => (0 : ℕ)).sum = 0 := by
+  induction l <;> simp_all
+
+end
 
 attribute [cost_simps] zero_add add_zero ite_self
 

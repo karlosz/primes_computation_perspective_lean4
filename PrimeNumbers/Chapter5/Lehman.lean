@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter2.Euclid
 

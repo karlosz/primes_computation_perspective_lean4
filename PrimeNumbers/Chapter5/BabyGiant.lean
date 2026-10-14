@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
@@ -187,83 +187,78 @@ section RunningTime
 
 open PrimeNumbers.Chapter9
 
-/-- The bit operations of `babyTable`: one modular multiplication per baby step. -/
-def babyCost (C : CostModel) (p g : ℕ) : (cur count : ℕ) → ℕ
-  | _, 0 => 0
-  | cur, count + 1 =>
-    C.mul cur.size g.size + C.divMod (cur * g).size p.size + babyCost C p g (cur * g % p) count
-
-/-- The bit operations of `giantLoop`: one modular multiplication per giant step taken. -/
-def giantCost (C : CostModel) (p h : ℕ) (m : Std.HashMap ℕ ℕ) : (y count : ℕ) → ℕ
-  | _, 0 => 0
-  | y, count + 1 =>
-    match m[y]? with
-    | some _ => 0
-    | none => C.mul y.size h.size + C.divMod (y * h).size p.size +
-        giantCost C p h m (y * h % p) count
-
-/-- The bit operations of `bsgs p g t n`.  `I` is the cost of the modular inverse
-`g⁻¹ mod p` (extended Euclid, whose coefficient arithmetic is not yet analysed).  Hash
-table operations (linear in the bit length of a key) are not charged. -/
-def bsgsCost (C : CostModel) (I p g t n : ℕ) : ℕ :=
-  let b := Nat.sqrt n + 1
-  let h := powMod (modInv g p) b p
-  let m := babyTable p g 0 (1 % p) b ∅
-  I + costOf C (powMod (modInv g p) b p) + C.divMod t.size p.size +
-    babyCost C p g (1 % p) b + giantCost C p h m (t % p) b
-
-theorem babyCost_le (C : CostModel) {p g cur : ℕ} (hg : g < p) (hcur : cur < p) (count : ℕ) :
-    babyCost C p g cur count ≤ count * C.mulMod p.size := by
-  induction count generalizing cur with
-  | zero => simp [babyCost]
+/-- One modular multiplication per baby step (hash-table insertions are not charged). -/
+theorem babyCost_le (C : CostModel) {p g : ℕ} (hg : g < p) (i : ℕ) {cur : ℕ} (hcur : cur < p)
+    (count : ℕ) (m : Std.HashMap ℕ ℕ) :
+    costOf C (babyTable p g i cur count m) ≤ count * C.mulMod p.size := by
+  induction count generalizing i cur m with
+  | zero => cost_unfold babyTable.counted
   | succ count ih =>
     have := mul_add_divMod_le C hcur hg
-    have ih := ih (cur := cur * g % p) (Nat.mod_lt _ (by omega))
-    simp only [babyCost, add_mul, one_mul]
+    have ih := ih (i + 1) (cur := cur * g % p) (Nat.mod_lt _ (by omega)) (m.insert cur i)
+    cost_unfold babyTable.counted
+    rw [add_mul, one_mul]
     omega
 
-theorem giantCost_le (C : CostModel) {p h y : ℕ} (m : Std.HashMap ℕ ℕ) (hh : h < p)
-    (hy : y < p) (count : ℕ) : giantCost C p h m y count ≤ count * C.mulMod p.size := by
-  induction count generalizing y with
-  | zero => simp [giantCost]
+/-- One modular multiplication per giant step taken (look-ups are not charged), and on
+success the product `j b`. -/
+theorem giantCost_le (C : CostModel) {p b h : ℕ} (m : Std.HashMap ℕ ℕ) (hh : h < p)
+    (j : ℕ) {y : ℕ} (hy : y < p) (count : ℕ) (hj : j + count ≤ b) :
+    costOf C (giantLoop p b h m j y count) ≤
+      count * C.mulMod p.size + C.mul b.size b.size := by
+  induction count generalizing j y with
+  | zero => cost_unfold giantLoop.counted
   | succ count ih =>
     have := mul_add_divMod_le C hy hh
-    have ih := ih (y := y * h % p) (Nat.mod_lt _ (by omega))
-    simp only [giantCost, add_mul, one_mul]
-    split <;> omega
+    have ih := ih (j + 1) (y := y * h % p) (Nat.mod_lt _ (by omega)) (by omega)
+    have hjb : C.mul j.size b.size ≤ C.mul b.size b.size :=
+      C.mul_mono (Nat.size_le_size (by omega)) le_rfl
+    cost_unfold giantLoop.counted
+    rw [add_mul, one_mul]
+    split <;> simp only [cost_simps] <;> omega
 
 /-- **Bit complexity of baby-steps, giant-steps**, for any cost model: with
-`b = ⌊√n⌋ + 1`, at most `2b + 2 log₂ b` modular multiplications (the book's "`O(√n)` group
-operations"), two reductions, and one modular inverse. -/
-theorem bsgsCost_le (C : CostModel) (I : ℕ) {p g t : ℕ} (hg : g < p) (ht : t < p) (n : ℕ) :
-    bsgsCost C I p g t n ≤
-      I + 2 * C.divMod p.size p.size +
-        (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size := by
+`b = ⌊√n⌋ + 1`, the square root, the modular inverse `g⁻¹ mod p`, at most
+`2b + 2 log₂ b` modular multiplications (the book's "`O(√n)` group operations"), three
+reductions modulo `p` and the product `j b`. -/
+theorem bsgsCost_le (C : CostModel) {p g t : ℕ} (hg : g < p) (ht : t < p) (n : ℕ) :
+    costOf C (bsgs p g t n) ≤
+      costOf C (Nat.sqrt n) + costOf C (modInv g p) + 3 * C.divMod p.size p.size +
+        (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size +
+        C.mul (Nat.sqrt n + 1).size (Nat.sqrt n + 1).size := by
   have hp : 0 < p := by omega
   have h₁ := powModCost_le C (modInv_lt g hp) (Nat.sqrt n + 1)
-  have h₂ := babyCost_le C hg (Nat.mod_lt 1 hp) (Nat.sqrt n + 1)
-  have h₃ := giantCost_le C (babyTable p g 0 (1 % p) (Nat.sqrt n + 1) ∅)
-    (powMod_lt (modInv g p) (Nat.sqrt n + 1) hp) (Nat.mod_lt t hp) (Nat.sqrt n + 1)
+  have h₂ := babyCost_le C hg 0 (Nat.mod_lt 1 hp) (Nat.sqrt n + 1) ∅
+  have h₃ := giantCost_le C (b := Nat.sqrt n + 1) (babyTable p g 0 (1 % p) (Nat.sqrt n + 1) ∅)
+    (powMod_lt (modInv g p) (Nat.sqrt n + 1) hp) 0 (Nat.mod_lt t hp) (Nat.sqrt n + 1)
+    (by omega)
   have h₄ : C.divMod t.size p.size ≤ C.divMod p.size p.size :=
     C.divMod_mono _ (size_le_of_lt ht)
+  have h₄' : C.divMod (1 : ℕ).size p.size ≤ C.divMod p.size p.size :=
+    C.divMod_mono _ (Nat.size_le_size (by omega))
   have h₅ : (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size =
       Nat.log 2 (Nat.sqrt n + 1) * (2 * C.mulMod p.size) +
         (Nat.sqrt n + 1) * C.mulMod p.size + (Nat.sqrt n + 1) * C.mulMod p.size := by ring
-  simp only [bsgsCost]
+  cost_unfold bsgs.counted
   omega
 
 /-- **Bit complexity of baby-steps, giant-steps, grammar-school arithmetic**, with the
-inverse computed by Algorithm 2.1.4 (`modInvCost_school_le`): with `k` the bit length of
-`p` and `b = ⌊√n⌋ + 1`, at most
-`4k(3k + 2) + 3k + (2 log₂ b + 2b)(2k² + k)` bit operations — `O(√n ln² p)`. -/
+square root by Algorithm 9.2.11 and the inverse by Algorithm 2.1.4: with `k` the bit length
+of `p` and `b = ⌊√n⌋ + 1`, at most
+`schoolSqrt (size n) + 4k(3k + 2) + 4k + (2 log₂ b + 2b)(2k² + k) + (size b)²` bit
+operations — `O(√n ln² p)`. -/
 theorem bsgsCost_school_le {p g t : ℕ} (hg0 : 0 < g) (hg : g < p) (ht : t < p) (n : ℕ) :
-    bsgsCost school (costOf school (modInv g p)) p g t n ≤
-      4 * p.size * (3 * p.size + 2) + 3 * p.size +
-        (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * (2 * p.size ^ 2 + p.size) := by
-  have h₁ := bsgsCost_le school (costOf school (modInv g p)) hg ht n
+    costOf school (bsgs p g t n) ≤
+      schoolSqrt n.size + (4 * p.size * (3 * p.size + 2) + 4 * p.size) +
+        (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * (2 * p.size ^ 2 + p.size) +
+        (Nat.sqrt n + 1).size * (Nat.sqrt n + 1).size := by
+  have h₁ := bsgsCost_le school hg ht n
   have h₂ := modInvCost_school_le hg0 (by omega : 0 < p) hg.le (le_refl p)
   have h₃ : school.divMod p.size p.size = p.size := by simp [school]
-  rw [school_mulMod, h₃] at h₁
+  have h₄ := sqrt_counted_cost_school_le n
+  have h₅ : school.mul (Nat.sqrt n + 1).size (Nat.sqrt n + 1).size =
+      (Nat.sqrt n + 1).size * (Nat.sqrt n + 1).size := rfl
+  rw [school_mulMod, h₃, h₅] at h₁
   omega
 
 end RunningTime

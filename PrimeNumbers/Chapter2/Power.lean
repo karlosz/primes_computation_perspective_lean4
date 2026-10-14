@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import Mathlib
 
 /-!
@@ -168,6 +168,28 @@ theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
     have h₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
     rw [show (n - 1) / 2 = n / 2 by omega] at ih ⊢
     omega
+
+/-- In a structure where every product costs `K` bit operations (e.g. `ZMod p`, with
+`K = C.mulMod (size p)`), Algorithm 2.1.5 costs `powCost n · K`. -/
+theorem pow_cost (C : CostModel) {M : Type} [Mul M] [MulCost M] {K : ℕ}
+    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
+    costOf C (pow x n) = powCost n * K := by
+  fun_induction pow x n with
+  | case1 n h => cost_unfold pow.counted; rw [powCost, if_pos h, zero_mul]
+  | case2 n h heven y ih =>
+    cost_unfold pow.counted
+    rw [powCost, if_neg h, if_pos heven, ih, hK, add_mul, one_mul]
+  | case3 n h hodd y ih =>
+    cost_unfold pow.counted
+    rw [powCost, if_neg h, if_neg hodd, ih, hK, hK]; ring
+
+theorem power_cost (C : CostModel) {M : Type} [Mul M] [One M] [MulCost M] {K : ℕ}
+    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
+    costOf C (power x n) = powCost n * K := by
+  cost_unfold power.counted
+  split_ifs with h
+  · subst h; rw [powCost, if_pos (by omega), zero_mul]
+  · exact pow_cost C hK x n
 
 /-! ### Bit operations -/
 

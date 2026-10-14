@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.Euclid
@@ -211,16 +211,12 @@ open PrimeNumbers.Chapter9
 
 /-! ### Pepin test: bit operations -/
 
-/-- The bit operations of `pepin k`: one modular power modulo `F_k`. -/
-def pepinCost (C : CostModel) (k : ℕ) : ℕ :=
-  let F := 2 ^ 2 ^ k + 1
-  costOf C (powMod 3 ((F - 1) / 2) F)
-
 /-- **Bit complexity of the Pepin test, grammar-school arithmetic**: cubic in the bit
 length of `F_k`. -/
 theorem pepinCost_school_le {k : ℕ} (hk : 1 ≤ k) :
-    pepinCost school k ≤
+    costOf school (pepin k) ≤
       (4 * Nat.log 2 (2 ^ 2 ^ k + 1) + 1) * ((2 ^ 2 ^ k + 1).size + 1) ^ 2 := by
+  cost_unfold pepin.counted
   have h4 : 2 ^ 2 ≤ 2 ^ 2 ^ k :=
     Nat.pow_le_pow_right (by norm_num) (Nat.one_lt_two_pow (by omega))
   refine (powModCost_school_le (by omega) _).trans (Nat.mul_le_mul_right _ ?_)

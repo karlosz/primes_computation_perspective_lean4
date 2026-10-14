@@ -44,30 +44,50 @@ private def notFree : List Name :=
    ``Int.sqrt, ``Nat.minFac, ``Nat.primeFactorsList, ``Nat.primeFactors, ``Nat.factorization,
    ``Nat.divisors, ``Nat.factorial, ``Nat.choose, ``Nat.totient, ``Nat.Prime, ``Prime,
    ``Squarefree, ``IsSquare, ``Nat.Coprime, ``Inv.inv, ``ZMod.inv, ``HDiv.hDiv, ``Nat.find,
-   ``List.prod, ``Multiset.prod, ``Finset.prod, ``Nat.pow,
+   ``List.prod, ``Multiset.prod, ``Finset.prod, ``Nat.pow, ``Nat.log, ``Nat.clog,
+   ``Array.setIfInBounds, ``Array.set!, ``Array.replicate, ``Array.set,
    ``legendreSym, ``jacobiSym, ``orderOf]
 
 /-- Elaborate a call `g a₁ … aₖ`; if its head is a constant `g` with a counted version,
 return `g.counted` and the elaborated arguments.  A call that cannot be charged — of a
 library function that is not free (`notFree`) or of a function of this project that is
 neither counted nor `@[cost_free]` — is an error. -/
-private def countedCallee? (call : Syntax) : TermElabM (Expr × Option (Name × Array Expr)) := do
-  let e ← elabTerm call none
-  synthesizeSyntheticMVarsNoPostponing
-  let e ← instantiateMVars e
-  let some c := e.getAppFn.constName? | return (e, none)
-  if (← whnfR (← inferType e)).isSort then return (e, none)   -- a type, not a computation
+private def classifyCall (e : Expr) (ref : Syntax) : TermElabM (Option (Name × Array Expr)) := do
+  let some c := e.getAppFn.constName? | return none
+  if (← whnfR (← inferType e)).isSort then return none   -- a type, not a computation
   let env ← getEnv
   let cc := c ++ `counted
-  if env.contains cc then return (e, some (cc, e.getAppArgs))
+  if env.contains cc then return some (cc, e.getAppArgs)
   if notFree.contains c then
-    throwErrorAt call[0] "counted_def: `{c}` is not free, and no `{cc}` is in scope to charge it \
+    throwErrorAt ref "counted_def: `{c}` is not free, and no `{cc}` is in scope to charge it \
       (import the file that defines it)"
   if (`PrimeNumbers).isPrefixOf c && !costFreeAttr.hasTag env c &&
       !(env.find? c).any (fun i => i.isCtor) && (env.getProjectionFnInfo? c).isNone then
-    throwErrorAt call[0] "counted_def: `{c}` has no counted version; define it with \
+    throwErrorAt ref "counted_def: `{c}` has no counted version; define it with \
       `counted_def`, or mark it `@[cost_free]` if it does no big-number arithmetic"
-  return (e, none)
+  return none
+
+/-- Elaborate a call on its own. -/
+private def elabCallAlone (call : Syntax) : TermElabM Expr := do
+  let e ← elabTerm call none
+  synthesizeSyntheticMVarsNoPostponing
+  instantiateMVars e
+
+private def countedCallee? (call : Syntax) : TermElabM (Expr × Option (Name × Array Expr)) := do
+  let e ← elabCallAlone call
+  return (e, ← classifyCall e call[0])
+
+/-- The calls of a `counted_def` body as elaborated in place (`call_site%`), so that each is
+charged exactly as it is computed — e.g. `power 2 k` at the type the context gives `2`. -/
+initialize callSites : IO.Ref (Std.HashMap Name Expr) ← IO.mkRef {}
+
+/-- `call_site% s e`: the expression `e`, recorded as the call site `s`. -/
+syntax (name := callSite) "call_site% " ident ppSpace term:max : term
+
+@[term_elab callSite] private def elabCallSite : TermElab := fun stx ety? => do
+  let r ← elabTerm stx[2] ety?
+  callSites.modify (·.insert stx[1].getId r)
+  return r
 
 /-- `no_counted% (g a₁ … aₖ)`: the call itself, but an error if `g` has a counted version —
 used for calls under a binder, whose cost cannot be charged in place. -/
@@ -141,7 +161,7 @@ private def chargeTag? : Expr → Option Nat
 `g` has a counted version (passing, for each function argument `aᵢ`, its charge function
 `cᵢ`), otherwise nothing (`pure ()`), after checking that the functions passed to `g` do
 no chargeable work. -/
-syntax (name := countedCall) "counted_call% " term:max " [" term,* "]" : term
+syntax (name := countedCall) "counted_call% " ident ppSpace term:max " [" term,* "]" : term
 
 /-- Is `b` a binder of one of the cost classes (`MulCost`, `DivCost`, `PowCost`)?  Counted
 versions may take these in addition to the binders of the plain function. -/
@@ -181,45 +201,64 @@ private def mkCountedCall (cc : Name) (m : Expr) (args : Array Expr) (charges : 
   instantiateMVars (mkAppN fn xs)
 
 @[term_elab countedCall] private def elabCountedCall : TermElab := fun stx ety? => do
-  let call := stx[1]
-  let charges := stx[3].getSepArgs
-  let (e, cc?) ← countedCallee? call
+  let site := stx[1].getId
+  let call := stx[2]
+  let charges := stx[4].getSepArgs
+  -- the call as elaborated in place, if its site has been elaborated (else wait for it)
+  if !(← callSites.get).contains site then tryPostpone
+  let inPlace? ← match (← callSites.get).get? site with
+    | some e => do
+        let mut e ← instantiateMVars e
+        if e.hasExprMVar then
+          tryPostpone
+          synthesizeSyntheticMVarsNoPostponing
+          e ← instantiateMVars e
+        let lctx ← getLCtx
+        pure (if e.hasExprMVar || e.hasAnyFVar (fun x => !lctx.contains x) then none
+          else some e)
+    | none => pure none
+  let tagged : Bool := charges.any (!isHole ·)
+  -- the tags of the function arguments are found on the call elaborated alone
+  let alone? ← if tagged || inPlace?.isNone then some <$> elabCallAlone call else pure none
+  let e := inPlace?.getD (alone?.getD default)
   -- a function value (a partial application) costs nothing until it is applied
   if (← whnfR (← inferType e)).isForall then return ← elabTerm (← `(pure ())) ety?
+  let cc? ← classifyCall e call[0]
   let some c := e.getAppFn.constName? | return ← elabTerm (← `(pure ())) ety?
   let some m := (← getLCtx).findFromUserName? `countedMonad
     | throwErrorAt call "counted_def: no counting monad in scope"
-  -- the explicit arguments, and whether each is a function
+  -- the explicit arguments, whether each is a function, and its tag
   let explicitArgs ← forallTelescopeReducing (← inferType e.getAppFn) fun xs _ => do
-    let mut r : Array (Expr × Bool) := #[]
+    let mut r : Array (Expr × Bool × Option Nat) := #[]
     for h : j in [0:xs.size] do
       if j < e.getAppNumArgs then
         let d ← xs[j].fvarId!.getDecl
         if d.binderInfo.isExplicit then
-          r := r.push (e.getAppArgs[j]!, (← whnfR d.type).isForall)
+          let tag := alone?.bind fun a => if j < a.getAppNumArgs then chargeTag? a.getAppArgs[j]!
+            else none
+          r := r.push (e.getAppArgs[j]!.consumeMData, (← whnfR d.type).isForall, tag)
     return r
-  let chargeFor (a : Expr) : Option Syntax := do
-    let k ← chargeTag? a
-    let ch ← charges[k]?
+  let chargeFor (tag : Option Nat) : Option Syntax := do
+    let ch ← charges[← tag]?
     if isHole ch then none else some ch
   match cc? with
   | some (cc, args) =>
       let mut extra : Array Syntax := #[]
       for h : i in [0:explicitArgs.size] do
-        let (a, isFun) := explicitArgs[i]
+        let (_, isFun, tag) := explicitArgs[i]
         if isFun then
-          let some ch := chargeFor a
+          let some ch := chargeFor tag
             | throwErrorAt call[0] "counted_def: cannot charge the function passed as argument \
                 {i + 1} of `{c}`; pass a `fun`, a function or a function parameter"
           extra := extra.push ch
-      let r ← mkCountedCall cc m.toExpr args extra call
+      let r ← mkCountedCall cc m.toExpr (args.map (·.consumeMData)) extra call
       if let some ety := ety? then discard <| isDefEq (← inferType r) ety
       return r
   | none =>
       -- `g` is free: the functions passed to it must not do chargeable work
-      for (a, isFun) in explicitArgs do
+      for (a, isFun, tag) in explicitArgs do
         unless isFun do continue
-        let some ch := chargeFor a | continue
+        let some ch := chargeFor tag | continue
         let aTy ← whnfR (← inferType a)
         let expected ← forallTelescopeReducing aTy fun xs _ =>
           mkForallFVars xs (mkApp m.toExpr (mkConst ``Unit))
@@ -237,8 +276,9 @@ syntax (name := chargeOf) "charge_of% " term:max : term
   let some ety := ety? | throwErrorAt stx "charge_of%: expected type unknown"
   forallTelescopeReducing ety fun xs res => do
     let xsStx ← xs.mapM fun x => exprToSyntax x
+    let site := mkIdent (← mkFreshUserName `site)
     let body ← elabTermEnsuringType
-      (← `(bind (counted_call% ($(⟨stx[1]⟩) $xsStx*) []) fun _ => pure ())) res
+      (← `(bind (counted_call% $site ($(⟨stx[1]⟩) $xsStx*) []) fun _ => pure ())) res
     mkLambdaFVars xs body
 
 /-- `costOf C (f a₁ … aₖ)`: the number of bit operations that the call `f a₁ … aₖ` of an
@@ -269,9 +309,11 @@ private def delabCostOf : Delab := do
   let x := e.appArg!
   let .const c ls := x.getAppFn | failure
   guard (c.isStr && c.getString! == "counted" && x.getAppNumArgs ≥ 3)
-  let call := mkAppN (.const c.getPrefix ls) (x.getAppArgs.extract 3 x.getAppNumArgs)
+  let _ := ls
+  let some call ← liftM (m := MetaM) (observing? <| mkAppOptM c.getPrefix
+      ((x.getAppArgs.extract 3 x.getAppNumArgs).map some)) | failure
   let C ← withNaryArg 0 delab
-  let callStx ← liftM (m := MetaM) (PrettyPrinter.delab call)
+  let some callStx ← liftM (m := MetaM) (observing? (PrettyPrinter.delab call)) | failure
   `(costOf $C $callStx)
 
 /-- Is `t` a numeric literal? -/
@@ -443,7 +485,9 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
   | `($x:ident) =>
       -- `l.prod`, `n.size`: a call written as a field of a variable
       if x.getId.isStr && !x.getId.getPrefix.isAnonymous && x.getId != ctx.self then
-        modify (·.push (← `(counted_call% $x:ident [])))
+        let site := mkIdent (← withFreshMacroScope (MonadQuotation.addMacroScope `site))
+        modify (·.push (← `(counted_call% $site $x:ident [])))
+        return ← `(call_site% $site $x:ident)
       return x
   | `($f $args*) =>
       -- a call with a computed head (e.g. dot notation `(l.map g).prod`)
@@ -541,7 +585,9 @@ private partial def hoistApp (ctx : Ctx) (f : Term) (args : Array Term) : HoistM
       | none =>
           tagged := tagged.push args'[k]!
           charges := charges.push (← `(_))
-    modify (·.push (← `(counted_call% ($f $tagged*) [$charges,*])))
+    let site := mkIdent (← withFreshMacroScope (MonadQuotation.addMacroScope `site))
+    modify (·.push (← `(counted_call% $site ($f $tagged*) [$charges,*])))
+    return ← `(call_site% $site ($call))
   return call
 
 end
@@ -613,7 +659,7 @@ private def expandCounted (doc? : Option (TSyntax ``Lean.Parser.Command.docComme
   let mut chargeBsC : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := #[]
   for b in bs do
     match b with
-    | `(bracketedBinder| ($xs:ident* : $t)) =>
+    | `(bracketedBinder| ($xs:ident* : $t)) | `(bracketedBinder| ($xs:ident* : $t := $_)) =>
         for x in xs do
           let doms := arrowDomains t
           unless doms.isEmpty do

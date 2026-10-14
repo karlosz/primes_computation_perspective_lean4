@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Assumed
 
 /-!
@@ -301,9 +301,70 @@ theorem sieveCost_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
     omega
   | case2 p bits hgt => exact Nat.zero_le _
 
+open PrimeNumbers.Chapter9 in
+/-- The bit operations of `markMultiples` are its writes. -/
+theorem markMultiples_cost (C : CostModel) (p : ℕ) (bits : Array Bool) (j : ℕ) :
+    costOf C (markMultiples p bits j) = markCost p bits j := by
+  fun_induction markMultiples p bits j with
+  | case1 bits j h ih =>
+    cost_unfold markMultiples.counted
+    rw [markCost, if_pos h, ih]; omega
+  | case2 bits j h =>
+    cost_unfold markMultiples.counted
+    rw [markCost, if_neg h]
+
+open PrimeNumbers.Chapter9 in
+/-- The bit operations of the main loop: its writes, and the products `p · p` (the test
+`p² ≤ N` and the start `p²` of the multiples), with `p ≤ N + 2`. -/
+theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : p ≤ N + 2) :
+    costOf C (sieveLoop N p bits) ≤
+      sieveCost N p bits + (2 * (N + 2 - p) + 1) * C.mul (N + 2).size (N + 2).size := by
+  fun_induction sieveLoop N p bits with
+  | case1 p bits h ih =>
+    have hpp : p ≤ N := (Nat.le_mul_self p).trans h.1
+    have ih := ih (by omega)
+    have hM : C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size :=
+      C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
+    cost_unfold sieveLoop.counted
+    rw [sieveCost, if_pos h]
+    simp only [dite_eq_ite] at ih
+    split_ifs with hb
+    · rw [markMultiples_cost]
+      rw [show 2 * (N + 2 - p) + 1 = (2 * (N + 2 - (p + 1)) + 1) + 2 by omega, add_mul]
+      simp only [hb, ↓reduceIte] at ih
+      omega
+    · rw [show 2 * (N + 2 - p) + 1 = (2 * (N + 2 - (p + 1)) + 1) + 2 by omega, add_mul]
+      simp only [hb, Bool.false_eq_true, ↓reduceIte] at ih ⊢
+      omega
+  | case2 p bits h =>
+    have hM : C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size :=
+      C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
+    cost_unfold sieveLoop.counted
+    rw [sieveCost, if_neg h]
+    nlinarith
+
 /-- The number of bit writes made by `sieve N` in its main loop. -/
 def sieveWrites (N : ℕ) : ℕ :=
   sieveCost N 2 (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false)
+
+open PrimeNumbers.Chapter9 in
+/-- **Bit operations of the sieve**: filling the array (`N + 1` writes, and `2` more), the
+writes of the main loop, and at most `2N + 1` products `p · p` of numbers `≤ N + 2`. -/
+theorem sieve_cost_le (C : CostModel) (N : ℕ) :
+    costOf C (sieve N) ≤
+      N + 3 + sieveWrites N + (2 * N + 1) * C.mul (N + 2).size (N + 2).size := by
+  have h := sieveLoop_cost_le C N 2
+    (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false) (by omega)
+  cost_unfold sieve.counted
+  rw [sieveWrites]
+  rw [show 2 * (N + 2 - 2) + 1 = 2 * N + 1 by omega] at h
+  omega
+
+open PrimeNumbers.Chapter9 in
+/-- Reading off the primes is free: the list of primes costs what the sieve costs. -/
+theorem sievePrimes_cost (C : CostModel) (N : ℕ) :
+    costOf C (sievePrimes N) = costOf C (sieve N) := by
+  cost_unfold sievePrimes.counted
 
 /-- **Running time of the sieve of Eratosthenes**: at most `∑_{p=2}^{⌊√N⌋} ⌊N/p⌋` bit
 writes (one term for each `p`, whether prime or not; the true count, over primes only, is

@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.Jacobi
@@ -52,6 +52,13 @@ counted_def oddPart (n : ℕ) : ℕ × ℕ :=
   else (0, n)
 termination_by n
 decreasing_by omega
+
+/-- Splitting off the powers of two is free: tests and halvings are shifts. -/
+@[cost_simps] theorem oddPart_cost (C : Chapter9.CostModel) (n : ℕ) :
+    Chapter9.CostM.cost C (oddPart.counted n) = 0 := by
+  fun_induction oddPart n with
+  | case1 n h r ih => cost_unfold oddPart.counted; exact ih
+  | case2 n h => cost_unfold oddPart.counted
 
 theorem oddPart_spec {n : ℕ} (hn : n ≠ 0) :
     n = 2 ^ (oddPart n).1 * (oddPart n).2 ∧ (oddPart n).2 % 2 = 1 := by
@@ -524,20 +531,42 @@ theorem tonelliMults_le {p : ℕ} (a d : ZMod p) :
 
 /-! ### Bit operations of the modular square root -/
 
-/-- The bit operations of `tonelli a d`: each of its multiplications modulo `p` multiplies
-two residues and reduces, costing at most `C.mulMod (size p)` (`mul_add_divMod_le`). -/
-def tonelliCost (C : CostModel) {p : ℕ} (a d : ZMod p) : ℕ :=
-  tonelliMults a d * C.mulMod p.size
+/-- The loop's bit operations are its multiplications modulo `p`. -/
+theorem tonelliLoop_cost (C : CostModel) {p : ℕ} (A D : ZMod p) (s i m : ℕ) :
+    costOf C (tonelliLoop A D s i m) = tonelliLoopMults A D s i m * C.mulMod p.size := by
+  have hK : ∀ a b : ZMod p, MulCost.mulCost C a b = C.mulMod p.size := fun _ _ ↦ rfl
+  fun_induction tonelliLoop A D s i m with
+  | case1 i m hlt hz ih =>
+    cost_unfold tonelliLoop.counted
+    rw [tonelliLoopMults, if_pos hlt, if_pos hz, power_cost C hK, power_cost C hK, ih]
+    ring
+  | case2 i m hlt hz ih =>
+    cost_unfold tonelliLoop.counted
+    rw [tonelliLoopMults, if_pos hlt, if_neg hz, power_cost C hK, power_cost C hK, ih]
+    ring
+  | case3 i m hlt =>
+    cost_unfold tonelliLoop.counted
+    rw [tonelliLoopMults, if_neg hlt, zero_mul]
+
+/-- **The bit operations of Tonelli's algorithm** are its multiplications modulo `p`, each a
+product of residues and a reduction (`C.mulMod (size p)`). -/
+theorem tonelli_cost (C : CostModel) {p : ℕ} (a d : ZMod p) :
+    costOf C (tonelli a d) = tonelliMults a d * C.mulMod p.size := by
+  have hK : ∀ a b : ZMod p, MulCost.mulCost C a b = C.mulMod p.size := fun _ _ ↦ rfl
+  cost_unfold tonelli.counted
+  rw [tonelliMults, power_cost C hK, power_cost C hK, tonelliLoop_cost, power_cost C hK,
+    power_cost C hK]
+  ring
 
 /-- **Bit complexity of Tonelli's algorithm, grammar-school arithmetic**: with
 `p - 1 = 2^s t` and `k` the bit length of `p`, at most
 `(6 log₂ t + 4s² + 1)(2k² + k)` bit operations — `O(ln⁴ p)` in the worst case (`s ≈ k`)
 and `O(ln³ p)` when `s` is bounded, as the book states. -/
 theorem tonelliCost_school_le {p : ℕ} (a d : ZMod p) :
-    tonelliCost school a d ≤
+    costOf school (tonelli a d) ≤
       (6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1) *
         (2 * p.size ^ 2 + p.size) := by
-  rw [tonelliCost, school_mulMod]
+  rw [tonelli_cost, school_mulMod]
   exact Nat.mul_le_mul_right _ (tonelliMults_le a d)
 
 theorem oddPart_snd_le (n : ℕ) : (oddPart n).2 ≤ n := by
@@ -551,6 +580,16 @@ def sqrtModMults (p : ℕ) (a : ZMod p) : ℕ :=
   if p % 8 = 3 ∨ p % 8 = 7 then powCost ((p + 1) / 4)
   else if p % 8 = 5 then powCost ((p + 3) / 8) + 1 + (powCost ((p - 1) / 4) + 1)
   else tonelliMults a (findNonresidue p : ℕ)
+
+/-- **The bit operations of Algorithm 2.3.8** are its multiplications modulo `p`, and in the
+case `p ≡ 1 (mod 8)` the search for a nonresidue. -/
+theorem sqrtMod_cost_le (C : CostModel) (p : ℕ) (a : ZMod p) :
+    costOf C (sqrtMod p a) ≤ sqrtModMults p a * C.mulMod p.size + costOf C (findNonresidue p) := by
+  have hK : ∀ a b : ZMod p, MulCost.mulCost C a b = C.mulMod p.size := fun _ _ ↦ rfl
+  cost_unfold sqrtMod.counted
+  unfold sqrtModMults
+  simp only [power_cost C hK, tonelli_cost]
+  split_ifs <;> nlinarith [Nat.zero_le (costOf C (findNonresidue p))]
 
 /-- **Complexity of Algorithm 2.3.8**: at most `6 log₂ p + 4s² + 2` multiplications modulo
 `p`, where `2^s` is the power of two in `p - 1`; so `O(ln p)` multiplications, i.e.
