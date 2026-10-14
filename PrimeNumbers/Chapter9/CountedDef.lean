@@ -78,6 +78,33 @@ syntax (name := countedCall) "counted_call% " term:max : term
       elabTerm (← `($(mkCIdent cc) $args*)) ety?
   | none => elabTerm (← `(pure ())) ety?
 
+/-- `costOf C (f a₁ … aₖ)`: the number of bit operations that the call `f a₁ … aₖ` of an
+algorithm defined by `counted_def` performs under the cost model `C`, i.e.
+`CostM.cost C (f.counted a₁ … aₖ)`. -/
+syntax (name := costOfStx) "costOf " term:max ppSpace term:max : term
+
+@[term_elab costOfStx] private def elabCostOf : TermElab := fun stx ety? => do
+  let call := stx[2]
+  match (← countedCallee? call).2 with
+  | some (cc, args) =>
+      let args ← args.mapM fun a => exprToSyntax a
+      elabTerm (← `(CostM.cost $(⟨stx[1]⟩) ($(mkCIdent cc) $args*))) ety?
+  | none => throwErrorAt call "costOf: `{call}` is not a call of a counted algorithm"
+
+open PrettyPrinter Delaborator SubExpr in
+/-- Print `CostM.cost C (f.counted a₁ … aₖ)` as `costOf C (f a₁ … aₖ)`. -/
+@[delab app.PrimeNumbers.Chapter9.CostM.cost]
+private def delabCostOf : Delab := do
+  let e ← getExpr
+  guard (e.getAppNumArgs == 3)
+  let x := e.appArg!
+  let .const c ls := x.getAppFn | failure
+  guard (c.isStr && c.getString! == "counted" && x.getAppNumArgs ≥ 3)
+  let call := mkAppN (.const c.getPrefix ls) (x.getAppArgs.extract 3 x.getAppNumArgs)
+  let C ← withNaryArg 0 delab
+  let callStx ← liftM (m := MetaM) (PrettyPrinter.delab call)
+  `(costOf $C $callStx)
+
 /-- `no_counted% (g a₁ … aₖ)`: the call itself, but an error if `g` has a counted version —
 used for calls under a binder, whose cost cannot be charged in place. -/
 syntax (name := noCounted) "no_counted% " term:max : term

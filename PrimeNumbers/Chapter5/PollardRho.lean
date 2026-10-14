@@ -248,7 +248,7 @@ def pollardRhoCost (C : CostModel) (n a : ℕ) (U V : ℕ) : ℕ → ℕ
     let V₁ := rhoF n a V
     let V' := rhoF n a V₁
     rhoFCost C n a U + rhoFCost C n a V + rhoFCost C n a V₁ +
-      euclidBitCost C n (absDiff U' V') +
+      costOf C (euclid n (absDiff U' V')) +
       if euclid n (absDiff U' V') = 1 then pollardRhoCost C n a U' V' fuel else 0
 
 /-- One evaluation of `F` on a residue costs at most one modular multiplication. -/
@@ -272,7 +272,7 @@ theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := 
 /-- **Bit complexity of Pollard rho**, for any cost model: each pass costs at most three
 modular multiplications and one gcd with `n` (bounded by `G`). -/
 theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
-    (hG : ∀ d < n, euclidBitCost C n d ≤ G) {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
+    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
     pollardRhoCost C n a U V fuel ≤ fuel * (3 * C.mulMod n.size + G) := by
   have hn : 0 < n := by omega
   induction fuel generalizing U V with
@@ -566,7 +566,7 @@ def pollardBrentCost (C : CostModel) (n a : ℕ) : (saved cur i limit fuel : ℕ
   | _, _, _, _, 0 => 0
   | saved, cur, i, limit, fuel + 1 =>
     let cur' := rhoF n a cur
-    rhoFCost C n a cur + euclidBitCost C n (absDiff cur' saved) +
+    rhoFCost C n a cur + costOf C (euclid n (absDiff cur' saved)) +
       if euclid n (absDiff cur' saved) = 1 then
         if i + 1 = limit then pollardBrentCost C n a cur' cur' 0 (2 * limit) fuel
         else pollardBrentCost C n a saved cur' (i + 1) limit fuel
@@ -575,7 +575,7 @@ def pollardBrentCost (C : CostModel) (n a : ℕ) : (saved cur i limit fuel : ℕ
 /-- **Bit complexity of Brent's variant**: each step costs one modular multiplication and
 one gcd — against three and one for Algorithm 5.2.1. -/
 theorem pollardBrentCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
-    (hG : ∀ d < n, euclidBitCost C n d ≤ G) {saved cur : ℕ} (hs : saved < n) (hc : cur < n)
+    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {saved cur : ℕ} (hs : saved < n) (hc : cur < n)
     (i limit fuel : ℕ) :
     pollardBrentCost C n a saved cur i limit fuel ≤ fuel * (C.mulMod n.size + G) := by
   have hn : 0 < n := by omega

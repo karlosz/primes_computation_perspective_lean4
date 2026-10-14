@@ -198,10 +198,6 @@ def divideOutOps (d N : ℕ) (F : List ℕ) : ℕ :=
 termination_by N
 decreasing_by exact Nat.div_lt_self (by omega) (by omega)
 
-/-- The bit operations of `divideOut d N F`: each of its divisions, at operand size. -/
-abbrev divideOutCost (C : CostModel) (d N : ℕ) (F : List ℕ) : ℕ :=
-  CostM.cost C (divideOut.counted d N F)
-
 /-- The number of big-number operations made by the main loop `trialLoop d N F`: per pass
 the test `d² ≤ N` and the divisions of the inner loop, and the final test. -/
 def trialOps (d N : ℕ) (F : List ℕ) : ℕ :=
@@ -214,13 +210,6 @@ decreasing_by
   have h₁ : d ≤ d * d := Nat.le_mul_self d
   have h₂ := divideOut_fst_le d N F
   omega
-
-/-- The bit operations of `trialLoop d N F`. -/
-abbrev trialCost (C : CostModel) (d N : ℕ) (F : List ℕ) : ℕ :=
-  CostM.cost C (trialLoop.counted d N F)
-
-/-- The bit operations of `trialDivision n` (Algorithm 3.1.1). -/
-abbrev trialDivisionCost (C : CostModel) (n : ℕ) : ℕ := CostM.cost C (trialDivision.counted n)
 
 /-- Each successful division at least halves `N`: so the divisions of one inner loop
 number at most `2 (log₂ N - log₂ N') + 1`, where `N'` is the cofactor left. -/
@@ -261,10 +250,9 @@ variable (C : CostModel) {n B : ℕ}
 include hB
 
 theorem divideOutCost_le {d N : ℕ} (hd : d ≤ n) (hN : N ≤ n) (F : List ℕ) :
-    divideOutCost C d N F ≤ divideOutOps d N F * B := by
+    costOf C (divideOut d N F) ≤ divideOutOps d N F * B := by
   have hdiv : ∀ N' ≤ n, C.divMod N'.size d.size ≤ B := fun N' hN' ↦
     (hB _ _ (Nat.size_le_size hN') (Nat.size_le_size hd)).1
-  unfold divideOutCost
   fun_induction divideOut d N F with
   | case1 N F h ih =>
     have ih := ih ((Nat.div_le_self _ _).trans hN)
@@ -279,10 +267,9 @@ theorem divideOutCost_le {d N : ℕ} (hd : d ≤ n) (hN : N ≤ n) (F : List ℕ
     simpa [h] using hdiv N hN
 
 theorem trialCost_le {d N : ℕ} (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d) (hdn : d ≤ n) :
-    trialCost C d N F ≤ trialOps d N F * B := by
+    costOf C (trialLoop d N F) ≤ trialOps d N F * B := by
   have hmul (d : ℕ) (hd : d ≤ n) : C.mul d.size d.size ≤ B :=
     (hB d.size d.size (Nat.size_le_size hd) (Nat.size_le_size hd)).2
-  unfold trialCost
   fun_induction trialLoop d N F with
   | case1 d N F hle r ih =>
     have := hmul d hdn
@@ -291,7 +278,7 @@ theorem trialCost_le {d N : ℕ} (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d) (
     have := divideOutCost_le C hB (hdN.trans hN) hN F
     cost_unfold trialLoop.counted
     rw [trialOps]
-    simp only [hle, ↓reduceIte, add_mul, one_mul, r, divideOutCost] at ih this ⊢
+    simp only [hle, ↓reduceIte, add_mul, one_mul, r] at ih this ⊢
     omega
   | case2 d F hlt => cost_unfold trialLoop.counted; rw [trialOps]; simpa [hlt] using hmul d hdn
   | case3 d N F hlt hN1 => cost_unfold trialLoop.counted; rw [trialOps]; simpa [hlt] using hmul d hdn
@@ -299,7 +286,7 @@ theorem trialCost_le {d N : ℕ} (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d) (
 /-- **Bit complexity of trial division**, for any cost model: at most
 `2 log₂ n + √n + 2` divisions and multiplications, each of numbers no longer than `n`. -/
 theorem trialDivisionCost_le (hn : 3 ≤ n) :
-    trialDivisionCost C n ≤ (2 * Nat.log 2 n + Nat.sqrt n + 2) * B := by
+    costOf C (trialDivision n) ≤ (2 * Nat.log 2 n + Nat.sqrt n + 2) * B := by
   have h₁ := divideOutCost_le C hB (d := 2) (by omega) le_rfl []
   have h₂ := trialCost_le C hB (divideOut_fst_le 2 n []) (d := 3) (divideOut 2 n []).2
     (by omega) hn
@@ -310,10 +297,9 @@ theorem trialDivisionCost_le (hn : 3 ≤ n) :
     Nat.sqrt_le_sqrt (divideOut_fst_le 2 n [])
   have hops : divideOutOps 2 n [] + trialOps 3 (divideOut 2 n []).1 (divideOut 2 n []).2 ≤
       2 * Nat.log 2 n + Nat.sqrt n + 2 := by omega
-  calc trialDivisionCost C n
+  calc costOf C (trialDivision n)
       ≤ divideOutOps 2 n [] * B +
           trialOps 3 (divideOut 2 n []).1 (divideOut 2 n []).2 * B := by
-        unfold trialDivisionCost divideOutCost trialCost at *
         cost_unfold trialDivision.counted
         omega
     _ = (divideOutOps 2 n [] + trialOps 3 (divideOut 2 n []).1 (divideOut 2 n []).2) * B := by
@@ -326,7 +312,7 @@ end Bound
 factors a `k`-bit number `n ≥ 3` in at most `(2 log₂ n + √n + 2) · k (k + 1)` bit
 operations, i.e. `O(√n ln² n)`. -/
 theorem trialDivisionCost_school_le {n : ℕ} (hn : 3 ≤ n) :
-    trialDivisionCost school n ≤
+    costOf school (trialDivision n) ≤
       (2 * Nat.log 2 n + Nat.sqrt n + 2) * ((n.size + 1) * n.size) :=
   trialDivisionCost_le school (fun a b ha hb ↦
     ⟨Nat.mul_le_mul (by omega) hb, Nat.mul_le_mul (by omega) hb⟩) hn

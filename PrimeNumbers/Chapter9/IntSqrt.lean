@@ -138,17 +138,12 @@ theorem isqrtSteps_le (N : ℕ) : isqrtSteps N (2 ^ ((N.size + 1) / 2)) ≤ (N.s
   refine (Nat.size_le_size (Nat.sub_le _ _)).trans ?_
   rw [Nat.size_pow]
 
-/-- The bit operations of `isqrtLoop N x`: one division `N / x` per pass (the halving and
-the addition are linear). -/
-abbrev isqrtCost (C : CostModel) (N x : ℕ) : ℕ := CostM.cost C (isqrtLoop.counted N x)
-
 /-- Each pass costs one division by a number no longer than the starting value. -/
 theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
     (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (x : ℕ) (hx : x ≤ X) :
-    isqrtCost C N x ≤ (isqrtSteps N x + 1) * B := by
+    costOf C (isqrtLoop N x) ≤ (isqrtSteps N x + 1) * B := by
   induction x using Nat.strong_induction_on with | _ x ih =>
   have := hB x.size (Nat.size_le_size hx)
-  simp only [isqrtCost] at ih ⊢
   rw [isqrtSteps]
   by_cases hlt : (x + N / x) / 2 < x
   · have ih := ih _ hlt (by omega)
@@ -160,7 +155,7 @@ theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
 /-- **Bit complexity of Algorithm 9.2.11, grammar-school division**: at most
 `((k + 1)/2 + 2)(k + 1)²` bit operations for a `k`-bit `N`. -/
 theorem isqrtCost_school_le (N : ℕ) :
-    isqrtCost school N (2 ^ ((N.size + 1) / 2)) ≤
+    costOf school (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤
       ((N.size + 1) / 2 + 2) * (N.size + 1) ^ 2 := by
   have hsteps := isqrtSteps_le N
   have hX : (2 ^ ((N.size + 1) / 2)).size = (N.size + 1) / 2 + 1 := Nat.size_pow
@@ -173,7 +168,7 @@ theorem isqrtCost_school_le (N : ℕ) :
 
 /-- The cost charged for a call of `Nat.sqrt` in a counted algorithm. -/
 theorem sqrt_counted_cost (C : CostModel) (N : ℕ) :
-    CostM.cost C (Nat.sqrt.counted N) = isqrtCost C N (2 ^ ((N.size + 1) / 2)) := by
+    CostM.cost C (Nat.sqrt.counted N) = costOf C (isqrtLoop N (2 ^ ((N.size + 1) / 2))) := by
   simp only [Nat.sqrt.counted, isqrt.counted]; cost_simp
 
 /-- The bound of `isqrtCost_school_le` as a function of the bit length `k`: a valid

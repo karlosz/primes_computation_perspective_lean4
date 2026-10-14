@@ -240,7 +240,7 @@ open PrimeNumbers.Chapter9
 /-! ### Bit operations -/
 
 /-- The bit operations of `probablePrime n a` (Algorithm 3.4.3): one modular power. -/
-def probablePrimeCost (C : CostModel) (n a : ℕ) : ℕ := powModCost C a (n - 1) n
+def probablePrimeCost (C : CostModel) (n a : ℕ) : ℕ := costOf C (powMod a (n - 1) n)
 
 /-- **Bit complexity of the Fermat test**: `O(ln³ n)` with grammar-school arithmetic. -/
 theorem probablePrimeCost_school_le {n a : ℕ} (ha : a < n) :
@@ -261,7 +261,7 @@ def sprpLoopCost (C : CostModel) (n b : ℕ) : ℕ → ℕ
 def strongProbablePrimeCost (C : CostModel) (n a : ℕ) : ℕ :=
   let st := oddPart (n - 1)
   let b := powMod a st.2 n
-  powModCost C a st.2 n + if b = 1 ∨ b = n - 1 then 0 else sprpLoopCost C n b (st.1 - 1)
+  costOf C (powMod a st.2 n) + if b = 1 ∨ b = n - 1 then 0 else sprpLoopCost C n b (st.1 - 1)
 
 theorem sprpLoopCost_le (C : CostModel) {n b : ℕ} (hb : b < n) (j : ℕ) :
     sprpLoopCost C n b j ≤ j * C.mulMod n.size := by

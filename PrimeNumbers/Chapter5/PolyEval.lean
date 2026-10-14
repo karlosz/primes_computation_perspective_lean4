@@ -186,7 +186,7 @@ def blockProdCost (C : CostModel) (n m : ℕ) : ℕ → ℕ
 def findBlockCost (C : CostModel) (n B : ℕ) : (j fuel : ℕ) → ℕ
   | _, 0 => 0
   | j, fuel + 1 =>
-    blockProdCost C n (j * B) B + euclidBitCost C n (blockProd n (j * B) B) +
+    blockProdCost C n (j * B) B + costOf C (euclid n (blockProd n (j * B) B)) +
       if euclid n (blockProd n (j * B) B) ≠ 1 then 0 else findBlockCost C n B (j + 1) fuel
 
 theorem blockProd_lt {n : ℕ} (hn : 0 < n) (m i : ℕ) : blockProd n m i < n := by
@@ -218,7 +218,7 @@ number of at most `2 log₂ B` bits, and `B` gcds with `n` (each bounded by `G`)
 final scan of one interval adds at most `B` divisions.  With Algorithm 9.6.7 in place of
 `blockProd` the `B²` would become `O(B ln² B)`; that is not formalized. -/
 theorem findBlockCost_le (C : CostModel) {n B G : ℕ} (hn : 0 < n)
-    (hG : ∀ d < n, euclidBitCost C n d ≤ G) (j fuel : ℕ) (hj : j + fuel ≤ B + 1) :
+    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) (j fuel : ℕ) (hj : j + fuel ≤ B + 1) :
     findBlockCost C n B j fuel ≤
       fuel * (B * (C.mul n.size (B * B).size + C.divMod (n.size + (B * B).size) n.size) + G) := by
   induction fuel generalizing j with

@@ -171,17 +171,11 @@ theorem powCost_le (n : ℕ) : powCost n ≤ 2 * Nat.log 2 n := by
 
 /-! ### Bit operations -/
 
-/-- The bit operations of `powMod x n m` (Algorithm 2.1.5), **derived from its code** by
-`counted_def`: every multiplication and reduction it performs, at the bit lengths of its
-actual operands. -/
-abbrev powModCost (C : CostModel) (x n m : ℕ) : ℕ := CostM.cost C (powMod.counted x n m)
-
 /-- **Bit complexity of Algorithm 2.1.5.**  For `x < m`, computing `xⁿ mod m` costs at
 most `2 ⌊log₂ n⌋` modular multiplications (plus the initial reduction of `x`). -/
 theorem powModCost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
-    powModCost C x n M ≤
+    costOf C (powMod x n M) ≤
       C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) := by
-  unfold powModCost
   have hM : 0 < M := by omega
   induction n using Nat.strong_induction_on with
   | _ n ih =>
@@ -222,7 +216,7 @@ theorem powModCost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
 `(4 log₂ n + 1)(k + 1)²` bit operations, `k` the bit length of `m`: that is
 `O(ln n · ln² m)`, cubic in the number of bits when `n` is of the size of `m`. -/
 theorem powModCost_school_le {x m : ℕ} (hx : x < m) (n : ℕ) :
-    powModCost school x n m ≤ (4 * Nat.log 2 n + 1) * (m.size + 1) ^ 2 := by
+    costOf school (powMod x n m) ≤ (4 * Nat.log 2 n + 1) * (m.size + 1) ^ 2 := by
   refine (powModCost_le school hx n).trans ?_
   rw [school_mulMod]
   have : school.divMod m.size m.size = m.size := by simp [school]

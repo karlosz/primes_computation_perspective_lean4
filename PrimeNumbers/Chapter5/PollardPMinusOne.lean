@@ -252,7 +252,7 @@ open PrimeNumbers.Chapter9
 /-- The bit operations of `ladder n p c j`: `j` modular powers with exponent `p`. -/
 def ladderCost (C : CostModel) (n p : ℕ) (c : ℕ) : ℕ → ℕ
   | 0 => 0
-  | j + 1 => powModCost C c p n + ladderCost C n p (powMod c p n) j
+  | j + 1 => costOf C (powMod c p n) + ladderCost C n p (powMod c p n) j
 
 /-- The bit operations of the power ladders over a list of primes. -/
 def laddersCost (C : CostModel) (n B : ℕ) : List ℕ → ℕ → ℕ
@@ -262,7 +262,7 @@ def laddersCost (C : CostModel) (n B : ℕ) : List ℕ → ℕ → ℕ
 
 /-- The bit operations of `pollardPMinusOne n B c` (steps 2 and 3). -/
 def pm1Cost (C : CostModel) (n B c : ℕ) : ℕ :=
-  laddersCost C n B (primesUpTo B) c + euclidBitCost C n ((ladders n B c + n - 1) % n)
+  laddersCost C n B (primesUpTo B) c + costOf C (euclid n ((ladders n B c + n - 1) % n))
 
 /-- The number of modular powers in step 2: `∑_{p ≤ B} a_p`. -/
 def pm1Steps (B : ℕ) : ℕ := ((primesUpTo B).map fun p ↦ Nat.log p B).sum
@@ -294,7 +294,7 @@ theorem ladderCost_le {p c : ℕ} (hp : p ≤ B) (hc : c < n) (j : ℕ) :
   induction j generalizing c with
   | zero => simp [ladderCost]
   | succ j ih =>
-    have h₁ : powModCost C c p n ≤ powBound C n B :=
+    have h₁ : costOf C (powMod c p n) ≤ powBound C n B :=
       (powModCost_le C hc p).trans (Nat.add_le_add_left
         (Nat.mul_le_mul_right _ (Nat.log_mono_right hp)) _)
     have ih := ih (c := powMod c p n) (powMod_lt _ _ (by omega))
@@ -313,7 +313,7 @@ theorem laddersCost_le (L : List ℕ) (hL : ∀ p ∈ L, p ≤ B) {c : ℕ} (hc 
 
 /-- **Bit complexity of Pollard `p - 1`**, for any cost model: `pm1Steps B` modular powers
 with exponents at most `B`, and one gcd with `n` (bounded by `G`). -/
-theorem pm1Cost_le {G c : ℕ} (hG : ∀ d < n, euclidBitCost C n d ≤ G) (hc : c < n) :
+theorem pm1Cost_le {G c : ℕ} (hG : ∀ d < n, costOf C (euclid n d) ≤ G) (hc : c < n) :
     pm1Cost C n B c ≤ pm1Steps B * powBound C n B + G := by
   have h₁ := laddersCost_le C (primesUpTo B) (fun p hp ↦ (mem_primesUpTo.mp hp).2) hc
   have h₂ := hG _ (Nat.mod_lt (ladders n B c + n - 1) (by omega : 0 < n))
@@ -344,7 +344,7 @@ def stage2Cost (C : CostModel) (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ �
   | prevQ, h, P, Q :: Qs =>
     let pw := powMod c₁ (Q - prevQ) n
     let h' := h * pw % n
-    powModCost C c₁ (Q - prevQ) n + (C.mul h.size pw.size + C.divMod (h * pw).size n.size) +
+    costOf C (powMod c₁ (Q - prevQ) n) + (C.mul h.size pw.size + C.divMod (h * pw).size n.size) +
       (C.mul P.size (h' + n - 1).size + C.divMod (P * (h' + n - 1)).size n.size) +
       stage2Cost C n c₁ Q h' (P * (h' + n - 1) % n) Qs
 
@@ -361,7 +361,7 @@ theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h
   | nil => simp [stage2Cost]
   | cons Q Qs ih =>
     have hQ : Q ≤ B' := hQs Q (by simp)
-    have h₁ : powModCost C c₁ (Q - prevQ) n ≤ powBound C n B' :=
+    have h₁ : costOf C (powMod c₁ (Q - prevQ) n) ≤ powBound C n B' :=
       (powModCost_le C hc _).trans (Nat.add_le_add_left
         (Nat.mul_le_mul_right _ (Nat.log_mono_right (by omega))) _)
     have hpw : powMod c₁ (Q - prevQ) n < n := powMod_lt _ _ hn

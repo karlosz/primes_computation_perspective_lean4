@@ -248,16 +248,10 @@ theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
   | case1 a t h ih => cost_unfold jacobiHalve.counted; exact ih
   | case2 a t h => cost_unfold jacobiHalve.counted
 
-/-- The bit operations spent by `jacobiLoop a m t`: one division `m mod a'` per pass of
-the outer loop. -/
-abbrev jacobiBitCost (C : CostModel) (a m : ℕ) (t : ℤ) : ℕ :=
-  CostM.cost C (jacobiLoop.counted a m t)
-
 /-- As for Euclid, the quotient bits of all the divisions telescope: the total cost is at
 most `size a · (size m + passes)`. -/
 theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
-    jacobiBitCost school a m t ≤ a.size * (m.size + jacobiSteps a m t) := by
-  unfold jacobiBitCost
+    costOf school (jacobiLoop a m t) ≤ a.size * (m.size + jacobiSteps a m t) := by
   fun_induction jacobiLoop a m t with
   | case1 t => cost_unfold jacobiLoop.counted; simp
   | case2 m t => cost_unfold jacobiLoop.counted; simp
@@ -292,7 +286,7 @@ theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
 Algorithm 2.3.5 spends at most `k (3k + 1)` bit operations on its divisions in the
 grammar-school model: `O(ln² m)`, "about as hard as taking a gcd". -/
 theorem jacobiBitCost_school_le' (a m : ℕ) (t : ℤ) (ham : a < m) :
-    jacobiBitCost school a m t ≤ m.size * (3 * m.size + 1) := by
+    costOf school (jacobiLoop a m t) ≤ m.size * (3 * m.size + 1) := by
   refine (jacobiBitCost_school_le a m t ham).trans ?_
   have h₁ : a.size ≤ m.size := size_le_of_lt ham
   have h₂ := jacobiSteps_le a m t ham

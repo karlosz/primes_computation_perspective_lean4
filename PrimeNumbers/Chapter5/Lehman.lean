@@ -701,15 +701,6 @@ section BitCost
 
 open PrimeNumbers.Chapter9 PrimeNumbers.Chapter2
 
-/-- The bit operations of the inner loop for one `k` (Fermat's loop on `4kn`, and the final
-gcd if it succeeds). -/
-abbrev lehmanInnerCost (C : CostModel) (n k a fuel : ℕ) : ℕ :=
-  CostM.cost C (lehmanInner.counted n k a fuel)
-
-/-- The bit operations of step [Loop] of Algorithm 5.1.2. -/
-abbrev lehmanCost (C : CostModel) (n r6 k fuel : ℕ) : ℕ :=
-  CostM.cost C (lehmanOuter.counted n r6 k fuel)
-
 /-- The operations of one pass of the inner loop at `a`: the squaring `a²`, the product
 `4k · n`, the square root `b = ⌊√(a² - 4kn)⌋` and the check `b²`. -/
 abbrev lehmanPassCost (C : CostModel) (n k a : ℕ) : ℕ :=
@@ -728,9 +719,8 @@ theorem lehmanInnerCost_le (C : CostModel) {n k A W G : ℕ}
     (hW : ∀ a ≤ A, lehmanPassCost C n k a ≤ W)
     (hG : ∀ a b, a ≤ A → b ≤ A → CostM.cost C (Nat.gcd.counted (a + b) n) ≤ G)
     (a fuel : ℕ) (h : a + fuel ≤ A + 1) :
-    lehmanInnerCost C n k a fuel ≤
+    costOf C (lehmanInner n k a fuel) ≤
       lehmanInnerPasses n k a fuel * W + if (lehmanInner n k a fuel).isSome then G else 0 := by
-  unfold lehmanInnerCost
   induction fuel generalizing a with
   | zero => cost_unfold lehmanInner.counted; simp [lehmanInner]
   | succ fuel ih =>
@@ -757,8 +747,7 @@ theorem lehmanCost_le (C : CostModel) {n r6 A W V G : ℕ} (k fuel : ℕ)
     (hW : ∀ k' a, k ≤ k' → k' < k + fuel → a ≤ A → lehmanPassCost C n k' a ≤ W)
     (hV : ∀ k', k ≤ k' → k' < k + fuel → lehmanSetupCost C n r6 k' ≤ V)
     (hG : ∀ a b, a ≤ A → b ≤ A → CostM.cost C (Nat.gcd.counted (a + b) n) ≤ G) :
-    lehmanCost C n r6 k fuel ≤ lehmanPasses n r6 k fuel * W + fuel * V + G := by
-  unfold lehmanCost
+    costOf C (lehmanOuter n r6 k fuel) ≤ lehmanPasses n r6 k fuel * W + fuel * V + G := by
   induction fuel generalizing k with
   | zero => cost_unfold lehmanOuter.counted; simp
   | succ fuel ih =>
@@ -768,7 +757,6 @@ theorem lehmanCost_le (C : CostModel) {n r6 A W V G : ℕ} (k fuel : ℕ)
       (fun k' a hk₁ hk₂ ↦ hW k' a (by omega) (by omega))
       (fun k' hk₁ hk₂ ↦ hV k' (by omega) (by omega))
     have h₃ := hV k le_rfl (by omega)
-    unfold lehmanInnerCost at h₁
     cost_unfold lehmanOuter.counted
     rw [lehmanPasses]
     rcases hm : lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with _ | d
@@ -793,7 +781,7 @@ per pass, `V = 3K² + (K + 1) K + 2 schoolSqrt K` per value of `k`, and
 `G = (K + 1)(3K + 5)` for the final gcd: `O(n^{1/3} ln³ n)`. -/
 theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
     let K := (4 * (iroot 3 n + 1) * n + n + 2).size
-    (lehmanCost school n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤
+    (costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) : ℝ) ≤
       (4 * (n : ℝ) ^ (1 / 3 : ℝ) + 2) * (3 * K ^ 2 + schoolSqrt (2 * K) : ℕ) +
         ((n : ℝ) ^ (1 / 3 : ℝ) + 1) * (3 * K ^ 2 + (K + 1) * K + 2 * schoolSqrt K : ℕ) +
         ((K + 1) * (3 * K + 5) : ℕ) := by
@@ -870,7 +858,7 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
     rw [show (1 / 3 : ℝ) = (((3 : ℕ) : ℝ)⁻¹) by norm_num]
     exact (Real.le_rpow_inv_iff_of_pos (by positivity) (by positivity) (by norm_num)).mpr
       (by exact_mod_cast h3)
-  have hcost' : (lehmanCost school n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤
+  have hcost' : (costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) : ℝ) ≤
       (lehmanPasses n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) * (3 * K ^ 2 + schoolSqrt (2 * K) : ℕ) +
         ((iroot 3 n + 1 : ℕ) : ℝ) * (3 * K ^ 2 + (K + 1) * K + 2 * schoolSqrt K : ℕ) +
         ((K + 1) * (3 * K + 5) : ℕ) := by

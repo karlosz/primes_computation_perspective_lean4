@@ -212,7 +212,7 @@ open PrimeNumbers.Chapter9
 /-- The bit operations of `pepin k`: one modular power modulo `F_k`. -/
 def pepinCost (C : CostModel) (k : ℕ) : ℕ :=
   let F := 2 ^ 2 ^ k + 1
-  powModCost C 3 ((F - 1) / 2) F
+  costOf C (powMod 3 ((F - 1) / 2) F)
 
 /-- **Bit complexity of the Pepin test, grammar-school arithmetic**: cubic in the bit
 length of `F_k`. -/

@@ -208,7 +208,7 @@ def bsgsCost (C : CostModel) (I p g t n : ℕ) : ℕ :=
   let b := Nat.sqrt n + 1
   let h := powMod (modInv g p) b p
   let m := babyTable p g 0 (1 % p) b ∅
-  I + powModCost C (modInv g p) b p + C.divMod t.size p.size +
+  I + costOf C (powMod (modInv g p) b p) + C.divMod t.size p.size +
     babyCost C p g (1 % p) b + giantCost C p h m (t % p) b
 
 theorem babyCost_le (C : CostModel) {p g cur : ℕ} (hg : g < p) (hcur : cur < p) (count : ℕ) :
@@ -256,10 +256,10 @@ inverse computed by Algorithm 2.1.4 (`modInvCost_school_le`): with `k` the bit l
 `p` and `b = ⌊√n⌋ + 1`, at most
 `4k(3k + 2) + 3k + (2 log₂ b + 2b)(2k² + k)` bit operations — `O(√n ln² p)`. -/
 theorem bsgsCost_school_le {p g t : ℕ} (hg0 : 0 < g) (hg : g < p) (ht : t < p) (n : ℕ) :
-    bsgsCost school (modInvCost school g p) p g t n ≤
+    bsgsCost school (costOf school (modInv g p)) p g t n ≤
       4 * p.size * (3 * p.size + 2) + 3 * p.size +
         (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * (2 * p.size ^ 2 + p.size) := by
-  have h₁ := bsgsCost_le school (modInvCost school g p) hg ht n
+  have h₁ := bsgsCost_le school (costOf school (modInv g p)) hg ht n
   have h₂ := modInvCost_school_le hg0 (by omega : 0 < p) hg.le (le_refl p)
   have h₃ : school.divMod p.size p.size = p.size := by simp [school]
   rw [school_mulMod, h₃] at h₁

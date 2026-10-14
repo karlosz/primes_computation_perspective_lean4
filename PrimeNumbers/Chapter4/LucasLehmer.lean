@@ -84,13 +84,8 @@ open PrimeNumbers.Chapter9
 
 /-! ### Bit operations -/
 
-/-- The bit operations of `lucasLehmerLoop M v k`: a squaring and a reduction per pass. -/
-abbrev lucasLehmerCost (C : CostModel) (M v k : ℕ) : ℕ :=
-  CostM.cost C (lucasLehmerLoop.counted M v k)
-
 theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
-    lucasLehmerCost C M v k ≤ k * C.mulMod M.size := by
-  unfold lucasLehmerCost
+    costOf C (lucasLehmerLoop M v k) ≤ k * C.mulMod M.size := by
   induction k generalizing v with
   | zero => cost_unfold lucasLehmerLoop.counted; simp
   | succ k ih =>
@@ -115,7 +110,7 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
 /-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
 primality of `2^p - 1` takes at most `(p - 2)(2p² + p)` bit operations, i.e. `O(p³)`. -/
 theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
-    lucasLehmerCost school (2 ^ p - 1) 4 (p - 2) ≤ (p - 2) * (2 * p ^ 2 + p) := by
+    costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ (p - 2) * (2 * p ^ 2 + p) := by
   have h8 : 2 ^ 3 ≤ 2 ^ p := Nat.pow_le_pow_right (by norm_num) hp
   refine (lucasLehmerCost_le school (by omega) (p - 2)).trans (Nat.mul_le_mul_left _ ?_)
   have hsize : (2 ^ p - 1).size ≤ p := Nat.size_le.mpr (by omega)
