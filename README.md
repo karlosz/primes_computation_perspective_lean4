@@ -231,7 +231,7 @@ AKS (§4.5).
 | Alg 5.1.2 Lehman method, Thm 5.1.3 | `lehman` (with `k` up to `⌊n^{1/3}⌋ + 1`, one further than printed) | `lehman_sound` (a returned `d` is a nontrivial divisor, `n ≥ 576`); `theorem_5_1_3_complete` (no answer ⇒ `n` prime, via Dirichlet's approximation theorem); `lehmanPasses_le_cuberoot` (≤ `4 n^{1/3} + 2` passes) | `Lehman` |
 | §5.4 second stage of `p − 1` | `pollardStage2`, `stage2Primes` | `pollardStage2_dvd`; `dvd_pollardStage2`: a prime `p ∣ n` with `p − 1 ∣ Q·M(B)` for a prime `Q ∈ (B, B']` divides the result | `PollardPMinusOne` |
 | §5.2.2 rho for discrete logarithms (in `Z_p^*`) | `rhoLog` | `rhoLog_sound`; `iterate_rhoLogStep_inv` (the walk keeps `x = g^a t^b`); `pow_rhoLogSolve` (at a collision with `gcd(b − B, N) = 1` the candidate is the logarithm); `exists_rhoLog_collision` (a collision within `p` steps); assembled: `rhoLog_isSome` (within `p` passes it returns a logarithm, provided `b − B` is invertible mod `N` at every collision); `rhoLogWalkCost_le` (3 modular multiplications per pass) | `RhoLog` |
-| §5.5 polynomial evaluation method (Pollard–Strassen) | `pollardStrassen` | `pollardStrassen_eq`: for composite `n` it returns the least prime factor — **with `f(jB) mod n` computed block by block, not by Algorithm 9.6.7** | `PolyEval` |
+| §5.5 polynomial evaluation method (Pollard–Strassen) | `pollardStrassenFast` (fast multipoint evaluation), `pollardStrassen` (block by block) | `pollardStrassenFast_eq_minFac`: for composite `n` it returns the least prime factor; `pollardStrassenFast_eq` (both versions agree) | `PolyEval` |
 | Alg 5.3.1 baby-steps, giant-steps (in `Z_p^*`, hash table) | `bsgs` | `bsgs_sound`: a returned `l` has `g^l ≡ t (mod p)`; `bsgs_complete`: an answer is returned whenever `t ≡ g^l` for some `l ≤ n` | `BabyGiant` |
 | §5.2.1 rho with Brent's cycle-finding | `pollardBrent` | `pollardBrent_sound`; `pollardBrentLoop_isSome_of_collision`: stops within `4T` steps given `RhoCollision p a s T` (so within `4p` unconditionally); `pollardBrentCost_le`: one modular multiplication + one gcd per step | `PollardRho` |
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
@@ -275,9 +275,10 @@ Over any commutative ring (so over `Z_n` for composite `n`):
 | Alg 9.6.1 fast multiplication (binary segmentation), with GMP integer multiplication | `mulNat`, `mulNatAuto`, `mulMod` (in `Z_n[t]`), `pack`, `unpack` | `mulNat_eq` (= schoolbook product when coefficients fit), `coeff_mul_le`, `toPolynomial_mulMod`, `mulNatCost_le` (one `bD`-bit integer multiplication) |
 | Alg 9.6.2 fast inversion (Newton iteration) | `invNewton` (any proved-correct multiplication `mulF`, e.g. `mulMod`) | `invNewton_spec`: `a h ≡ 1 (mod t^(2^k))` |
 | Alg 9.6.4 fast remainder (via reversal and Newton inversion) | `fastModMonic` (any proved-correct `mulF`) | `toPolynomial_fastModMonic`: computes `%ₘ` (proof via Mathlib's `reflect_mul`) |
-| Alg 9.6.7 evaluation at arbitrary points | `multipointEval` | `multipointEval_eq`: returns exactly the values `x(t)` |
+| Alg 9.6.7 evaluation at arbitrary points | `multipointEval`; `multipointEvalWith` (any correct product/remainder routines); `multipointEvalFast` (over `Z_n` with `mulMod` and `fastModMonic`, product tree `prodTree`) | `multipointEval_eq`, `multipointEvalWith_eq`, `multipointEvalFast_eq` |
 
-Still to do for §9.6: using fast multiplication
+Still to do for §9.6: a fast-multiplication cost model and the `O(D ln² D)` running-time analysis
+of the fast Algorithm 9.6.7, hence the `O(n^{1/4} ln² n)` bound for §5.5; using fast multiplication
 and remainder inside Algorithm 9.6.7; evaluation on arithmetic and geometric
 progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
 multiplication; then plugging Algorithm 9.6.7 into §5.5.

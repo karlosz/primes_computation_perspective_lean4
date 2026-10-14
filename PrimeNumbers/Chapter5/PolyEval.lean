@@ -1,6 +1,7 @@
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter9.BitCost
+import PrimeNumbers.Chapter9.FastMultipoint
 
 /-!
 # §5.5 Polynomial evaluation method (Pollard–Strassen)
@@ -231,5 +232,84 @@ theorem findBlockCost_le (C : CostModel) {n B G : ℕ} (hn : 0 < n)
     split_ifs <;> omega
 
 end RunningTime
+
+/-! ## The method with fast multipoint evaluation
+
+Here `f(t) = t (t - 1) ⋯ (t - B + 1)` is formed once as a polynomial over `Z_n` and
+evaluated at all the points `jB`, `j = 1, …, B`, by Algorithm 9.6.7 with fast
+multiplication and fast remainder (`multipointEvalFast`), as the book describes. -/
+
+section Fast
+
+open PrimeNumbers.Chapter9
+
+/-- The values `f(jB) mod n`, `j = 1, …, B`, by fast multipoint evaluation. -/
+def psValues (n B : ℕ) : List ℕ :=
+  (multipointEvalFast n 4 (prodLinear ((List.range B).map ((↑) : ℕ → ZMod n)))
+    ((List.range B).map fun j ↦ (((1 + j) * B : ℕ) : ZMod n))).map ZMod.val
+
+/-- The first index (counting from `j`) whose value has a nontrivial gcd with `n`. -/
+def findFirst (n : ℕ) : ℕ → List ℕ → Option ℕ
+  | _, [] => none
+  | j, v :: vs => if euclid n v ≠ 1 then some j else findFirst n (j + 1) vs
+
+/-- **The Pollard–Strassen method with fast polynomial evaluation.** -/
+def pollardStrassenFast (n : ℕ) : Option ℕ :=
+  let B := iroot 4 n + 1
+  match findFirst n 1 (psValues n B) with
+  | none => none
+  | some j => smallDivisor n (max 2 ((j - 1) * B + 1)) B
+
+theorem findFirst_eq_findBlock (n B j fuel : ℕ) :
+    findFirst n j ((List.range fuel).map fun i ↦ blockProd n ((j + i) * B) B) =
+      findBlock n B j fuel := by
+  induction fuel generalizing j with
+  | zero => simp [findFirst, findBlock]
+  | succ fuel ih =>
+    rw [List.range_succ_eq_map, List.map_cons, List.map_map, findFirst, findBlock, add_zero]
+    have hl : (List.range fuel).map ((fun i ↦ blockProd n ((j + i) * B) B) ∘ Nat.succ) =
+        (List.range fuel).map fun i ↦ blockProd n ((j + 1 + i) * B) B :=
+      List.map_congr_left fun x _ ↦ by
+        simp only [Function.comp_apply, Nat.succ_eq_add_one, show j + (x + 1) = j + 1 + x by ring]
+    rw [hl, ih (j + 1)]
+
+theorem cast_blockProd {n : ℕ} (m i : ℕ) :
+    ((blockProd n m i : ℕ) : ZMod n) = ((List.range i).map fun e ↦ ((m - e : ℕ) : ZMod n)).prod := by
+  induction i with
+  | zero => simp [blockProd]
+  | succ i ih => rw [blockProd, ZMod.natCast_mod, Nat.cast_mul, ih, List.range_succ]; simp
+
+/-- Fast evaluation produces exactly the block products `f(jB) mod n`. -/
+theorem psValues_eq {n : ℕ} (hn : 1 < n) (B : ℕ) :
+    psValues n B = (List.range B).map fun i ↦ blockProd n ((1 + i) * B) B := by
+  have : Fact (1 < n) := ⟨hn⟩
+  have : NeZero n := ⟨by omega⟩
+  rw [psValues, multipointEvalFast_eq, List.map_map, List.map_map]
+  refine List.map_congr_left fun j _ ↦ ?_
+  simp only [Function.comp_apply]
+  rw [← Poly.eval_eq, Poly.eval_eq, eval_prodLinear, List.map_map]
+  have hcast : ((List.range B).map ((fun u ↦ (((1 + j) * B : ℕ) : ZMod n) - u) ∘
+      ((↑) : ℕ → ZMod n))).prod = ((blockProd n ((1 + j) * B) B : ℕ) : ZMod n) := by
+    rw [cast_blockProd]
+    congr 1
+    refine List.map_congr_left fun e he ↦ ?_
+    have : e ≤ (1 + j) * B := by
+      have := List.mem_range.mp he
+      nlinarith
+    simp [Nat.cast_sub this]
+  rw [hcast, ZMod.val_natCast, Nat.mod_eq_of_lt (blockProd_lt (by omega) _ _)]
+
+/-- **The fast method computes the same answer**, so `pollardStrassen_eq` applies: for
+composite `n > 1` it returns the least prime factor. -/
+theorem pollardStrassenFast_eq {n : ℕ} (hn : 1 < n) :
+    pollardStrassenFast n = pollardStrassen n := by
+  simp only [pollardStrassenFast, pollardStrassen, psValues_eq hn,
+    findFirst_eq_findBlock n _ 1]
+
+theorem pollardStrassenFast_eq_minFac {n : ℕ} (hn : 1 < n) (hnp : ¬n.Prime) :
+    pollardStrassenFast n = some n.minFac := by
+  rw [pollardStrassenFast_eq hn, pollardStrassen_eq hn hnp]
+
+end Fast
 
 end PrimeNumbers.Chapter5

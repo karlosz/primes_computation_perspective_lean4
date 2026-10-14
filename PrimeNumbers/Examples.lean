@@ -293,6 +293,9 @@ second stage with `B' = 150` finds it. -/
 #guard pollardStrassen 1000001 = some 101
 #guard pollardStrassen (1000003 * 1000033) = some 1000003
 #guard pollardStrassen 1000003 = none              -- a prime
+#guard pollardStrassenFast 8051 = some 83          -- with fast multipoint evaluation
+#guard pollardStrassenFast (1000003 * 1000033) = some 1000003
+#guard pollardStrassenFast 1000003 = none
 
 /-! ## §9.6 Algorithm 9.6.7: evaluation at many points
 
