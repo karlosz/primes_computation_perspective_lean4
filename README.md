@@ -176,17 +176,31 @@ With `k` the bit length of the modulus / input:
 | 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications + 1 integer square root; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
 | 5.3.1 baby-steps giant-steps | ≤ `2b + 2 log₂ b` modular multiplications, `b = ⌊√n⌋ + 1`, + 1 modular inverse; grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
 
-**Costs derived from the code (new; migration in progress).**  `Chapter9/Counted.lean`
-lets an algorithm be written once, generically over a monad with the big-number
-primitives (`NatArith`): run in `Id` it is the plain executable algorithm, run in
-`CostM C` the same code returns its result and its exact bit-operation count under the
-cost model `C`.  Arithmetic is written naturally inside `arith%( … )`, e.g.
-`arith%(x * (y * y % M) % M)`, where each `*` and `%` is one charged primitive.
-Running-time theorems are then statements about that count, so no
-separate cost function has to be kept in sync with the algorithm.  First example:
-`Chapter2.powModG` (Algorithm 2.1.5) with `powModG_id` (it *is* `powMod`), `powModG_val`
-and `powModG_cost_le`.  The older hand-written cost functions (`powModCost`,
-`euclidBitCost`, …) are to be replaced this way.
+**Costs derived from the code (new; migration in progress).**  An algorithm is written
+once, as plain code, with the `counted_def` command (`Chapter9/CountedDef.lean`):
+
+```lean
+counted_def powModC (x n M : ℕ) : ℕ :=
+  if n = 0 then 1 % M
+  else if n = 1 then x % M
+  else if n % 2 = 0 then
+    let y := powModC x (n / 2) M
+    y * y % M
+  else
+    let y := powModC x ((n - 1) / 2) M
+    x * (y * y % M) % M
+termination_by n
+```
+
+It generates the executable `powModC` and a counted version `powModC.counted`, run in
+`CostM C` (`Chapter9/Counted.lean`), in which **every** `*` and `%` is charged under the
+cost model `C` (except by a numeric literal, which is a shift).  Anything the translation
+cannot account for — a charged operation in an `if` condition, arithmetic inside `fun`,
+`match`, … — is rejected with an error, so nothing can be left out of the count.
+Running-time theorems are proved about `CostM.cost C (f.counted …)`; one lemma per
+algorithm (`powModC_counted_val`, `powModC_eq`) links it to the existing function.  The
+older hand-written cost functions (`powModCost`, `euclidBitCost`, …) are to be replaced
+this way.
 
 **A second cost model.**  `Chapter9/Karatsuba.lean` implements Karatsuba multiplication
 (§9.5.1), proves it correct (`karatsuba_eq`) and proves its cost is `O(N^(log₂ 3))`

@@ -16,9 +16,9 @@ So a running-time theorem is a statement about `(alg (m := CostM C) …).cost`, 
 cannot drift away from the algorithm.  A per-algorithm lemma `(alg (m := CostM C) …).val =
 alg (m := Id) …` (proved once, by unfolding) says counting does not change the answer.
 
-This file is the framework; it depends only on the cost model.  The first algorithm
-written this way is Algorithm 2.1.5 (`Chapter2.powModG`, in `Chapter2/Power.lean`); the
-others can be migrated the same way.
+This file is the framework; it depends only on the cost model.  Algorithms are not written
+against it by hand: the `counted_def` command (`CountedDef.lean`) generates the counted
+version from plain code.
 -/
 
 namespace PrimeNumbers.Chapter9
@@ -86,38 +86,6 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.cost C (NatArith.mod a b) = C.divMod a.size b.size := rfl
 
 end
-
-/-! ## Natural notation: `arith%( … )`
-
-Inside `arith%( e )` the operators `*` and `%` in `e` are the counted primitives; every
-other subterm (variables, literals, `n / 2`, …) is an ordinary value.  So
-
-    arith%(x * (y * y % M) % M)
-
-expands to `do let a ← NatArith.mul y y; let b ← NatArith.mod a M; …`, with exactly one
-charged call per `*` and `%`, just as many as plain evaluation of the expression performs.
-In `Id` it is literally the expression. -/
-
-/-- Counted arithmetic expression: `*` and `%` are charged primitives. -/
-syntax "arith%(" term ")" : term
-
-macro_rules
-  | `(arith%($e)) => `(pure $e)
-
-macro_rules
-  | `(arith%(($e))) => `(arith%($e))
-
-macro_rules
-  | `(arith%($a * $b)) => `(do
-      let x ← arith%($a)
-      let y ← arith%($b)
-      NatArith.mul x y)
-
-macro_rules
-  | `(arith%($a % $b)) => `(do
-      let x ← arith%($a)
-      let y ← arith%($b)
-      NatArith.mod x y)
 
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
 sum of the charges of its primitive calls. -/
