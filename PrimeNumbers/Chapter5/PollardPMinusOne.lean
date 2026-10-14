@@ -384,6 +384,22 @@ theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h
     simp only [stage2Cost, List.length_cons, add_mul, one_mul]
     omega
 
+/-- **Bit complexity of the second stage, grammar-school arithmetic**: at most
+`(4 log₂ B' + 5)(k + 1)²` bit operations per prime `Q ∈ (B, B']`. -/
+theorem stage2Cost_school_le {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ) (Qs : List ℕ)
+    (hh : h < n) (hP : P < n) (hQs : ∀ Q ∈ Qs, Q ≤ B') :
+    stage2Cost school n c₁ prevQ h P Qs ≤
+      Qs.length * ((4 * Nat.log 2 B' + 5) * (n.size + 1) ^ 2) := by
+  refine (stage2Cost_le school hc prevQ h P Qs hh hP hQs).trans (Nat.mul_le_mul_left _ ?_)
+  have h₁ : school.divMod n.size n.size = n.size := by simp [school]
+  have h₂ : school.divMod (2 * n.size + 1) n.size = (n.size + 2) * n.size := by
+    change (2 * n.size + 1 - n.size + 1) * n.size = _
+    rw [show 2 * n.size + 1 - n.size + 1 = n.size + 2 by omega]
+  have h₃ : school.mul n.size (n.size + 1) = n.size * (n.size + 1) := rfl
+  rw [powBound, school_mulMod, h₁, h₂, h₃]
+  nlinarith [Nat.zero_le (Nat.log 2 B'), Nat.zero_le n.size,
+    Nat.zero_le (Nat.log 2 B' * n.size)]
+
 end RunningTime
 
 end PrimeNumbers.Chapter5

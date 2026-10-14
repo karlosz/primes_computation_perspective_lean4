@@ -188,6 +188,69 @@ theorem exists_rhoLog_collision (hp : 0 < p) (s : ℕ × ℕ × ℕ) (hs : s.1 <
     (fun x ↦ by simp only [rhoLogStep]; split_ifs <;> exact Nat.mod_lt _ hp) hs
   exact ⟨i, h₁, h₂, by rw [iterate_rhoLogStep_fst, iterate_rhoLogStep_fst, h₃]⟩
 
+/-- The loop of `rhoLog` holds `u = S⁽ᵏ⁾(s₀)`, `v = S⁽²ᵏ⁾(s₀)`; if a later pass `i ≤ k + fuel`
+has an `x`-collision, and every `x`-collision yields a candidate that passes the check,
+the loop returns. -/
+theorem rhoLogLoop_isSome_of (s₀ : ℕ × ℕ × ℕ) (k fuel : ℕ)
+    (hcheck : ∀ i, ((rhoLogStep p N g t)^[i] s₀).1 = ((rhoLogStep p N g t)^[2 * i] s₀).1 →
+      powMod g (rhoLogSolve N ((rhoLogStep p N g t)^[i] s₀).2.1
+        ((rhoLogStep p N g t)^[i] s₀).2.2 ((rhoLogStep p N g t)^[2 * i] s₀).2.1
+        ((rhoLogStep p N g t)^[2 * i] s₀).2.2) p = t % p)
+    (hex : ∃ i, k < i ∧ i ≤ k + fuel ∧
+      ((rhoLogStep p N g t)^[i] s₀).1 = ((rhoLogStep p N g t)^[2 * i] s₀).1) :
+    (rhoLogLoop p N g t ((rhoLogStep p N g t)^[k] s₀) ((rhoLogStep p N g t)^[2 * k] s₀)
+      fuel).isSome := by
+  induction fuel generalizing k with
+  | zero => obtain ⟨i, h₁, h₂, -⟩ := hex; omega
+  | succ fuel ih =>
+    have hu : rhoLogStep p N g t ((rhoLogStep p N g t)^[k] s₀) =
+        (rhoLogStep p N g t)^[k + 1] s₀ := (Function.iterate_succ_apply' _ _ _).symm
+    have hv : rhoLogStep p N g t (rhoLogStep p N g t ((rhoLogStep p N g t)^[2 * k] s₀)) =
+        (rhoLogStep p N g t)^[2 * (k + 1)] s₀ := by
+      rw [show 2 * (k + 1) = 2 * k + 1 + 1 by ring, Function.iterate_succ_apply',
+        Function.iterate_succ_apply']
+    simp only [rhoLogLoop, hu, hv]
+    split_ifs with hcol hchk
+    · rfl
+    · exact absurd (hcheck (k + 1) hcol) hchk
+    · obtain ⟨i, h₁, h₂, h₃⟩ := hex
+      have hne : i ≠ k + 1 := by rintro rfl; exact hcol h₃
+      exact ih (k + 1) ⟨i, by omega, by omega, h₃⟩
+
+/-- **The rho method for discrete logarithms, assembled.**  Let `g` have order `N > 0`
+modulo `p`, and `t ≡ g^l`.  Suppose that at every collision of the walk the difference
+`b - B` of the `t`-exponents is invertible modulo `N` (for prime `N`: `b ≢ B`; this is the
+part left to chance).  Then within `p` passes `rhoLog` returns a discrete logarithm of
+`t`.  Under the random-map heuristic (`RhoCollision`-style hypotheses) the number of passes
+is `O(√N)` instead of `p`. -/
+theorem rhoLog_isSome {l : ℕ} (hp : 0 < p) (hN : 0 < N) (hord : orderOf (g : ZMod p) = N)
+    (ht : (t : ZMod p) = (g : ZMod p) ^ l)
+    (hcop : ∀ i, ((rhoLogStep p N g t)^[i] (1 % p, 0, 0)).1 =
+        ((rhoLogStep p N g t)^[2 * i] (1 % p, 0, 0)).1 →
+      Nat.Coprime ((((rhoLogStep p N g t)^[i] (1 % p, 0, 0)).2.2 + N -
+        ((rhoLogStep p N g t)^[2 * i] (1 % p, 0, 0)).2.2 % N) % N) N)
+    {fuel : ℕ} (hfuel : p ≤ fuel) : (rhoLog p N g t fuel).isSome := by
+  have hgN : (g : ZMod p) ^ N = 1 := hord ▸ pow_orderOf_eq_one _
+  have htN : (t : ZMod p) ^ N = 1 := by rw [ht, ← pow_mul, mul_comm, pow_mul, hgN, one_pow]
+  have hinv0 : RhoLogInv p g t (1 % p, 0, 0) := by simp [RhoLogInv]
+  obtain ⟨i, h₁, h₂, h₃⟩ := exists_rhoLog_collision (N := N) (g := g) (t := t) hp
+    (1 % p, 0, 0) (Nat.mod_lt 1 hp)
+  have := rhoLogLoop_isSome_of (p := p) (N := N) (g := g) (t := t) (1 % p, 0, 0) 0 fuel
+    (fun i hcol ↦ by
+      have hu := iterate_rhoLogStep_inv hgN htN hinv0 i
+      have hv := iterate_rhoLogStep_inv hgN htN hinv0 (2 * i)
+      have hcolZ : (g : ZMod p) ^ ((rhoLogStep p N g t)^[i] (1 % p, 0, 0)).2.1 *
+          (t : ZMod p) ^ ((rhoLogStep p N g t)^[i] (1 % p, 0, 0)).2.2 =
+          (g : ZMod p) ^ ((rhoLogStep p N g t)^[2 * i] (1 % p, 0, 0)).2.1 *
+          (t : ZMod p) ^ ((rhoLogStep p N g t)^[2 * i] (1 % p, 0, 0)).2.2 := by
+        rw [← hu, ← hv, hcol]
+      have hsol := pow_rhoLogSolve hN hord ht hcolZ (hcop i hcol)
+      rw [← cast_powMod] at hsol
+      have := (ZMod.natCast_eq_natCast_iff' _ _ _).mp hsol
+      rwa [Nat.mod_eq_of_lt (powMod_lt _ _ hp)] at this)
+    ⟨i, h₁, by omega, h₃⟩
+  simpa [rhoLog] using this
+
 end Invariant
 
 /-! ## Running time -/

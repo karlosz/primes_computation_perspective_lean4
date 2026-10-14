@@ -735,6 +735,81 @@ theorem lehmanCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n 
     rw [hcongr, lehmanCost, add_mul]
     split <;> omega
 
+/-- Each pass of the inner loop costs at most `W = 2 · C.mul + sq` at the size of `A`. -/
+theorem fermatCost_le_passes (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n k a A : ℕ}
+    (fuel : ℕ) (h : a + fuel ≤ A + 1) :
+    fermatCost C sq (4 * k * n) a fuel ≤
+      lehmanInnerPasses n k a fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+  induction fuel generalizing a with
+  | zero => simp [fermatCost, lehmanInnerPasses]
+  | succ fuel ih =>
+    have haA : a ≤ A := by omega
+    have ih := ih (a := a + 1) (by omega)
+    have hb : Nat.sqrt (a * a - 4 * k * n) ≤ a := by
+      have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) (4 * k * n))
+      rwa [Nat.sqrt_eq] at this
+    have h₁ : C.mul a.size a.size ≤ C.mul A.size A.size :=
+      C.mul_mono (Nat.size_le_size haA) (Nat.size_le_size haA)
+    have h₂ : C.mul (Nat.sqrt (a * a - 4 * k * n)).size (Nat.sqrt (a * a - 4 * k * n)).size ≤
+        C.mul A.size A.size :=
+      C.mul_mono (Nat.size_le_size (hb.trans haA)) (Nat.size_le_size (hb.trans haA))
+    have h₃ : sq (a * a - 4 * k * n).size ≤ sq (2 * A.size) := hsq (by
+      have := Nat.size_le_size (Nat.sub_le (a * a) (4 * k * n))
+      have := size_mul_le a a
+      have := Nat.size_le_size haA
+      omega)
+    simp only [fermatCost, lehmanInnerPasses]
+    split_ifs <;> simp only [add_mul, one_mul, add_zero] <;> omega
+
+/-- The bit cost of step [Loop] is at most (number of passes) × `W`. -/
+theorem lehmanCost_le_passes (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq) {n r6 A : ℕ}
+    (k fuel : ℕ)
+    (hA : ∀ k', k ≤ k' → k' < k + fuel →
+      ceilSqrt (4 * k' * n) + (r6 / (4 * Nat.sqrt k') + 2) ≤ A + 1) :
+    lehmanCost C sq n r6 k fuel ≤
+      lehmanPasses n r6 k fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+  induction fuel generalizing k with
+  | zero => simp [lehmanCost, lehmanPasses]
+  | succ fuel ih =>
+    have h₁ := fermatCost_le_passes C hsq (n := n) (k := k) (a := ceilSqrt (4 * k * n))
+      (r6 / (4 * Nat.sqrt k) + 2) (hA k le_rfl (by omega))
+    have h₂ := ih (k + 1) fun k' hk₁ hk₂ ↦ hA k' (by omega) (by omega)
+    rcases hm : lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with _ | d
+    · simp only [lehmanCost, lehmanPasses, hm, add_mul]; omega
+    · simp only [lehmanCost, lehmanPasses, hm, add_zero]; omega
+
+/-- **Bit complexity of the Lehman method, grammar-school arithmetic**, with integer square
+roots by Algorithm 9.2.11: step [Loop] costs at most `(4 n^{1/3} + 2) · W` bit operations,
+where `W = 2 K² + schoolSqrt (2K)` and `K` is the bit length of
+`A = 4 (⌊n^{1/3}⌋ + 1) n + n + 2` (so `K ≈ (4/3) log₂ n`): `O(n^{1/3} ln³ n)`. -/
+theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
+    (lehmanCost school schoolSqrt n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤
+      (4 * (n : ℝ) ^ (1 / 3 : ℝ) + 2) *
+        (2 * ((4 * (iroot 3 n + 1) * n + n + 2).size * (4 * (iroot 3 n + 1) * n + n + 2).size)
+          + schoolSqrt (2 * (4 * (iroot 3 n + 1) * n + n + 2).size)) := by
+  have hr6 : iroot 6 n ≤ n := (Nat.le_self_pow (by norm_num) _).trans (iroot_pow_le (by norm_num) n)
+  have hcost := lehmanCost_le_passes school schoolSqrt_mono
+    (A := 4 * (iroot 3 n + 1) * n + n + 2) (n := n) (r6 := iroot 6 n) 1 (iroot 3 n + 1)
+    (fun k' hk₁ hk₂ ↦ by
+      have h₁ : ceilSqrt (4 * k' * n) ≤ 4 * k' * n := ceilSqrt_le (Nat.le_mul_self _)
+      have h₂ : 4 * k' * n ≤ 4 * (iroot 3 n + 1) * n :=
+        Nat.mul_le_mul_right n (Nat.mul_le_mul_left 4 (by omega))
+      have h₃ : iroot 6 n / (4 * Nat.sqrt k') ≤ iroot 6 n := Nat.div_le_self _ _
+      omega)
+  have hpasses := lehmanPasses_le_cuberoot hn
+  have hW : (0 : ℝ) ≤ ((2 * ((4 * (iroot 3 n + 1) * n + n + 2).size *
+      (4 * (iroot 3 n + 1) * n + n + 2).size) +
+      schoolSqrt (2 * (4 * (iroot 3 n + 1) * n + n + 2).size) : ℕ) : ℝ) := Nat.cast_nonneg _
+  calc (lehmanCost school schoolSqrt n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ)
+      ≤ ((lehmanPasses n (iroot 6 n) 1 (iroot 3 n + 1) *
+          (2 * ((4 * (iroot 3 n + 1) * n + n + 2).size *
+            (4 * (iroot 3 n + 1) * n + n + 2).size) +
+          schoolSqrt (2 * (4 * (iroot 3 n + 1) * n + n + 2).size)) : ℕ) : ℝ) := by
+        exact_mod_cast hcost
+    _ ≤ _ := by
+        push_cast at hW ⊢
+        exact mul_le_mul_of_nonneg_right hpasses hW
+
 end BitCost
 
 end PrimeNumbers.Chapter5
