@@ -36,6 +36,30 @@ theorem ilog_eq (b n : ℕ) : ilog b n = Nat.log b n := by
 def _root_.Nat.log.counted {m : Type → Type} [Monad m] [NatArith m] (b n : ℕ) : m ℕ :=
   ilog.counted b n
 
+/-- `Nat.clog.go`, Mathlib's implementation of `Nat.clog`. -/
+counted_def clogGo (n : ℕ) : (b fuel : ℕ) → ℕ × ℕ
+  | b, 0 => (b / n, 0)
+  | b, fuel + 1 =>
+    if n ≤ b then (b / n, 0)
+    else
+      match clogGo n (b * b) fuel with
+      | (q, e) => if q < b then (q, 2 * e + 1) else (q / b, 2 * e)
+
+theorem clogGo_eq (n b fuel : ℕ) : clogGo n b fuel = Nat.clog.go n b fuel := by
+  induction fuel generalizing b with
+  | zero => rw [clogGo, Nat.clog.go]
+  | succ fuel ih => rw [clogGo, Nat.clog.go, ih]
+
+/-- `⌈log_b n⌉`, as Mathlib computes it. -/
+counted_def iclog (b n : ℕ) : ℕ := if 1 < b ∧ 1 < n then (clogGo n b n).2 + 1 else 0
+
+theorem iclog_eq (b n : ℕ) : iclog b n = Nat.clog b n := by
+  rw [iclog, Nat.clog, clogGo_eq]
+
+/-- A call of `Nat.clog` in a `counted_def` is charged as Mathlib's implementation. -/
+def _root_.Nat.clog.counted {m : Type → Type} [Monad m] [NatArith m] (b n : ℕ) : m ℕ :=
+  iclog.counted b n
+
 theorem logGo_fst_le (n b fuel : ℕ) : (logGo n b fuel).1 ≤ n := by
   induction fuel generalizing b with
   | zero => simp [logGo]

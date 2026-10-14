@@ -34,7 +34,7 @@ theorem ofDigits_eq_eval (B : ℕ) (L : List ℕ) :
   | cons c L ih => simp [Nat.ofDigits_cons, ih]
 
 /-- Pack a coefficient list into the integer `L(2^b)`, splitting the list in halves. -/
-def pack (b : ℕ) (L : List ℕ) : ℕ :=
+counted_def pack (b : ℕ) (L : List ℕ) : ℕ :=
   if L.length ≤ 1 then Nat.ofDigits (2 ^ b) L
   else pack b (L.take (L.length / 2)) + (pack b (L.drop (L.length / 2)) <<< (b * (L.length / 2)))
 termination_by L.length
@@ -50,7 +50,7 @@ theorem pack_eq (b : ℕ) (L : List ℕ) : pack b L = Nat.ofDigits (2 ^ b) L := 
     ring
 
 /-- Unpack the `count` base-`2^b` digits of `N`, splitting in halves. -/
-def unpack (b N count : ℕ) : List ℕ :=
+counted_def unpack (b N count : ℕ) : List ℕ :=
   if count = 0 then []
   else if count = 1 then [N]
   else unpack b (N % 2 ^ (b * (count / 2))) (count / 2) ++
@@ -106,7 +106,7 @@ theorem length_mul_nat {f g : List ℕ} (hf : f ≠ []) (hg : g ≠ []) :
 
 /-- **Algorithm 9.6.1 (binary segmentation)** for coefficient lists over `ℕ`:
 `x(t) y(t)` is read off the base-`2^b` digits of the integer product `x(2^b) · y(2^b)`. -/
-def mulNat (b : ℕ) (f g : List ℕ) : List ℕ :=
+counted_def mulNat (b : ℕ) (f g : List ℕ) : List ℕ :=
   if f = [] ∨ g = [] then mul f g
   else unpack b (pack b f * pack b g) (f.length + g.length - 1)
 
@@ -162,7 +162,7 @@ theorem coeff_mul_le {f g : List ℕ} {A A' : ℕ} (hf : ∀ x ∈ f, x ≤ A) (
     nlinarith
 
 /-- Binary segmentation with a sufficient `b` chosen automatically. -/
-def mulNatAuto (f g : List ℕ) : List ℕ :=
+counted_def mulNatAuto (f g : List ℕ) : List ℕ :=
   mulNat ((f.length * (f.sum * g.sum)).size + 1) f g
 
 theorem mulNatAuto_eq (f g : List ℕ) : mulNatAuto f g = mul f g := by
@@ -184,7 +184,7 @@ theorem toPolynomial_map_natCast {R : Type} [CommSemiring R] (L : List ℕ) :
 
 /-- **Polynomial multiplication in `Z_n[t]` by binary segmentation**: lift the coefficients
 to `[0, n)`, multiply over `ℕ` with one integer multiplication, reduce. -/
-def mulMod (n : ℕ) (f g : Chapter2.Poly (ZMod n)) : Chapter2.Poly (ZMod n) :=
+counted_def mulMod (n : ℕ) (f g : Chapter2.Poly (ZMod n)) : Chapter2.Poly (ZMod n) :=
   (mulNatAuto (f.map ZMod.val) (g.map ZMod.val)).map (Nat.cast : ℕ → ZMod n)
 
 theorem toPolynomial_mulMod {n : ℕ} [NeZero n] (f g : Chapter2.Poly (ZMod n)) :

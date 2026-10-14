@@ -54,7 +54,8 @@ h = u;
 for (1 ≤ i ≤ k) { K = 2^i;  h = h (2 - a h) mod t^K; }
 ```
 -/
-def invNewton (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (a : Chapter2.Poly R)
+counted_def invNewton [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+    (a : Chapter2.Poly R)
     (u : R) : ℕ → Chapter2.Poly R
   | 0 => [u]
   | k + 1 =>

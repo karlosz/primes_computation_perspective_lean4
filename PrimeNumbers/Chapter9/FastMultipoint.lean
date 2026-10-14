@@ -25,7 +25,7 @@ variable {R : Type} [CommRing R]
 
 /-- Force the coefficient list of a polynomial known to be monic of degree `d` into the
 shape `[c₀, …, c_{d-1}, 1]`, so that its last entry is visibly `1`. -/
-def monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : Chapter2.Poly R := L.take d ++ [1]
+@[cost_free] def monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : Chapter2.Poly R := L.take d ++ [1]
 
 theorem lead_monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : lead (monicOfDegree d L) = 1 := by
   simp [monicOfDegree, lead]
@@ -66,7 +66,8 @@ theorem toPolynomial_prodLinear_append (a b : List R) :
   | cons u a ih => simp only [List.cons_append, prodLinear, toPolynomial_mul, ih]; ring
 
 /-- The product `∏ (t - u)` as a balanced product tree, multiplying with `mulF`. -/
-def prodTree (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (us : List R) :
+counted_def prodTree [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+    (us : List R) :
     Chapter2.Poly R :=
   if us.length ≤ 1 then prodLinear us
   else monicOfDegree us.length
@@ -92,7 +93,7 @@ theorem prodTree_spec [Nontrivial R] {mulF : Chapter2.Poly R → Chapter2.Poly R
 
 /-- **Algorithm 9.6.7** with the half-products computed by `prodF` and the reductions by
 `modF`. -/
-def multipointEvalWith (prodF : List R → Chapter2.Poly R)
+counted_def multipointEvalWith [MulCost R] (prodF : List R → Chapter2.Poly R)
     (modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (δ : ℕ)
     (x : Chapter2.Poly R) (T : List R) : List R :=
   if T.length ≤ max δ 1 then T.map (Poly.eval x)
@@ -130,7 +131,7 @@ theorem multipointEvalWith_eq [Nontrivial R] {prodF : List R → Chapter2.Poly R
 
 /-- **Algorithm 9.6.7 over `Z_n` with fast multiplication (Algorithm 9.6.1) and fast
 remainder (Algorithm 9.6.4).** -/
-def multipointEvalFast (n δ : ℕ) (x : Chapter2.Poly (ZMod n)) (T : List (ZMod n)) :
+counted_def multipointEvalFast (n δ : ℕ) (x : Chapter2.Poly (ZMod n)) (T : List (ZMod n)) :
     List (ZMod n) :=
   multipointEvalWith (prodTree (mulMod n)) (fastModMonic (mulMod n)) δ x T
 

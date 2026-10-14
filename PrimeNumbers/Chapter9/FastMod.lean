@@ -66,7 +66,7 @@ q = rev( rev(f) · rev(g)⁻¹ mod t^k );      // inverse by Newton iteration
 return f - q g;
 ```
 -/
-def fastModMonic (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+counted_def fastModMonic [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
     (f g : Chapter2.Poly R) : Chapter2.Poly R :=
   if f.length ≤ g.length - 1 then f
   else

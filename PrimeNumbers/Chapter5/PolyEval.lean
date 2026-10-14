@@ -239,7 +239,7 @@ section Fast
 open PrimeNumbers.Chapter9
 
 /-- The values `f(jB) mod n`, `j = 1, …, B`, by fast multipoint evaluation. -/
-def psValues (n B : ℕ) : List ℕ :=
+counted_def psValues (n B : ℕ) : List ℕ :=
   (multipointEvalFast n 4 (prodLinear ((List.range B).map ((↑) : ℕ → ZMod n)))
     ((List.range B).map fun j ↦ (((1 + j) * B : ℕ) : ZMod n))).map ZMod.val
 
@@ -249,7 +249,7 @@ counted_def findFirst (n : ℕ) : ℕ → List ℕ → Option ℕ
   | j, v :: vs => if euclid n v ≠ 1 then some j else findFirst n (j + 1) vs
 
 /-- **The Pollard–Strassen method with fast polynomial evaluation.** -/
-def pollardStrassenFast (n : ℕ) : Option ℕ :=
+counted_def pollardStrassenFast (n : ℕ) : Option ℕ :=
   let B := iroot 4 n + 1
   match findFirst n 1 (psValues n B) with
   | none => none

@@ -34,7 +34,7 @@ namespace Poly
 variable {R : Type} [CommRing R]
 
 /-- Horner's rule: `f(x) = c₀ + x (c₁ + x (c₂ + ⋯))`. -/
-def eval : Chapter2.Poly R → R → R
+counted_def eval [MulCost R] : Chapter2.Poly R → R → R
   | [], _ => 0
   | c :: f, x => c + x * eval f x
 
@@ -45,7 +45,8 @@ theorem eval_eq (f : Chapter2.Poly R) (x : R) : eval f x = (toPolynomial f).eval
 
 /-- **Division with remainder by a monic divisor** (`lead g = 1`): the same recursion as
 `Poly.divMod`, without the inverse of the leading coefficient. -/
-def divModMonic : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R × Chapter2.Poly R
+counted_def divModMonic [MulCost R] :
+    Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R × Chapter2.Poly R
   | [], _ => ([], [])
   | a :: f, g =>
     let qr := divModMonic f g
@@ -56,7 +57,8 @@ def divModMonic : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R × Cha
       (c :: qr.1, (sub s (smul c g)).dropLast)
 
 /-- The remainder `f mod g` for monic `g`. -/
-def modMonic (f g : Chapter2.Poly R) : Chapter2.Poly R := (divModMonic f g).2
+counted_def modMonic [MulCost R] (f g : Chapter2.Poly R) : Chapter2.Poly R :=
+  (divModMonic f g).2
 
 theorem length_divModMonic_snd_lt (f : Chapter2.Poly R) {g : Chapter2.Poly R} (hg : g ≠ []) :
     (divModMonic f g).2.length < g.length := by
@@ -163,7 +165,7 @@ section Multipoint
 variable {R : Type} [CommRing R]
 
 /-- `∏_{u ∈ us} (t - u)`, as a coefficient list (step [Assemble half-polynomials]). -/
-def prodLinear : List R → Chapter2.Poly R
+counted_def prodLinear [MulCost R] : List R → Chapter2.Poly R
   | [] => [1]
   | u :: us => Chapter2.Poly.mul [-u, 1] (prodLinear us)
 
@@ -193,7 +195,7 @@ eval(x, T) {
 }
 ```
 -/
-def multipointEval (δ : ℕ) (x : Chapter2.Poly R) (T : List R) : List R :=
+counted_def multipointEval [MulCost R] (δ : ℕ) (x : Chapter2.Poly R) (T : List R) : List R :=
   if T.length ≤ max δ 1 then T.map (Poly.eval x)
   else
     let u := T.take (T.length / 2)

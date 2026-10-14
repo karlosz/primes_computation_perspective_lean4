@@ -289,6 +289,10 @@ private def mkCountedCall (cc : Name) (m : Expr) (args : Array Expr) (charges : 
             cannot be charged (`{c}` has no counted version)"
       elabTerm (← `(pure ())) ety?
 
+private partial def stripParens : Syntax → Syntax
+  | `(($e)) => stripParens e
+  | e => e
+
 /-- `charge_of% (g a₁ … aₖ) [c₁, …, cₖ]`, for a function `g a₁ … aₖ` (possibly a partial
 application, whose arguments have the charge functions `cᵢ`): the charge function
 `fun x₁ … xⱼ ↦ cost of g a₁ … aₖ x₁ … xⱼ`, at the expected function type. -/
@@ -296,7 +300,7 @@ syntax (name := chargeOf) "charge_of% " term:max " [" term,* "]" : term
 
 @[term_elab chargeOf] private def elabChargeOf : TermElab := fun stx ety? => do
   let some ety := ety? | throwErrorAt stx "charge_of%: expected type unknown"
-  let fn := stx[1]
+  let fn := stripParens stx[1]
   let charges : Array Term := stx[3].getSepArgs.map (⟨·⟩)
   -- the head and the arguments given (tagged with the positions of their charges)
   let (head, given) : Syntax × Array Syntax := match fn with
@@ -415,10 +419,6 @@ private def sectionToFun? (stx : Syntax) : MacroM (Option Syntax) := do
     return mkIdent (← Macro.addMacroScope (Name.mkSimple s!"sec{i}"))
   let body := ((fillCDots xs stx[1]).run' 0)
   return some (← `(fun $xs* => $(⟨body⟩)))
-
-private partial def stripParens : Syntax → Syntax
-  | `(($e)) => stripParens e
-  | e => e
 
 mutual
 
@@ -580,6 +580,7 @@ function. -/
 private partial def chargeOfArg (ctx : Ctx) (a : Syntax) : MacroM (Option Term) := do
   if let some f ← sectionToFun? a then return ← chargeOfArg ctx f
   let a := stripParens a
+  if let `(($_ : $_)) := a then return some (← `(charge_of% $(⟨a⟩) []))
   if a.isIdent then
     if let some (_, c) := ctx.funs.find? (·.1 == a.getId) then return some c
     return some (← `(charge_of% $(⟨a⟩) []))
