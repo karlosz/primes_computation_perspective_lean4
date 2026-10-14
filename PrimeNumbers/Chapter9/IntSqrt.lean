@@ -84,10 +84,14 @@ def _root_.Nat.sqrt.counted {m : Type → Type} [Monad m] [NatArith m] (N : ℕ)
 
 /-! ## Running time -/
 
-/-- The number of Newton steps taken by `isqrtLoop N x` (each pass makes one division). -/
-def isqrtSteps (N x : ℕ) : ℕ :=
-  if (x + N / x) / 2 < x then isqrtSteps N ((x + N / x) / 2) + 1 else 0
-termination_by x
+/-- Each pass of `isqrtLoop` makes one division `N / x`: the number of divisions,
+`costOf divCount (isqrtLoop N x)`, is the number of Newton steps plus one. -/
+theorem isqrtLoop_divCount (N x : ℕ) :
+    costOf divCount (isqrtLoop N x) =
+      if (x + N / x) / 2 < x then costOf divCount (isqrtLoop N ((x + N / x) / 2)) + 1
+      else 1 := by
+  cost_unfold isqrtLoop.counted
+  split_ifs <;> omega
 
 theorem size_div_two_add_one_le {d : ℕ} (hd : 0 < d) : (d / 2).size + 1 ≤ d.size := by
   have hpos : 0 < d.size := Nat.size_pos.mpr hd
@@ -100,12 +104,13 @@ theorem size_div_two_add_one_le {d : ℕ} (hd : 0 < d) : (d / 2).size + 1 ≤ d.
   omega
 
 /-- Each Newton step at least halves the distance to `s = ⌊√N⌋`, so there are at most
-`size (x - s)` steps. -/
-theorem isqrtSteps_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) :
-    isqrtSteps N x ≤ (x - Nat.sqrt N).size := by
-  fun_induction isqrtSteps N x with
-  | case1 x hlt ih =>
-    -- here `x > s`: otherwise `N/x ≥ x` and the step would not decrease
+`size (x - s)` steps (and one more division). -/
+theorem isqrt_divs_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) :
+    costOf divCount (isqrtLoop N x) ≤ (x - Nat.sqrt N).size + 1 := by
+  induction x using Nat.strong_induction_on with | _ x ih =>
+  rw [isqrtLoop_divCount]
+  split_ifs with hlt
+  · -- here `x > s`: otherwise `N/x ≥ x` and the step would not decrease
     have hxs : Nat.sqrt N < x := by
       by_contra hle
       have h₁ : x * x ≤ N := (Nat.mul_le_mul (by omega) (by omega)).trans (Nat.sqrt_le N)
@@ -120,31 +125,34 @@ theorem isqrtSteps_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) 
     have hhalf : (x + N / x) / 2 - Nat.sqrt N ≤ (x - Nat.sqrt N) / 2 := by omega
     have hstep := size_div_two_add_one_le (d := x - Nat.sqrt N) (by omega)
     rcases Nat.eq_zero_or_pos ((x + N / x) / 2) with h0 | hpos
-    · rw [h0, isqrtSteps]
+    · rw [h0, isqrtLoop_divCount]
       simp only [Nat.zero_div, Nat.zero_add, Nat.div_zero, lt_self_iff_false, ↓reduceIte]
       omega
-    · have ih := ih hpos (lt_newton_succ_sq N hx)
+    · have ih := ih _ hlt hpos (lt_newton_succ_sq N hx)
       have := Nat.size_le_size hhalf
       omega
-  | case2 x hge => exact Nat.zero_le _
+  · omega
 
-/-- **Algorithm 9.2.11 makes at most `⌈k/2⌉ + 1` Newton steps**, `k` the bit length of `N`. -/
-theorem isqrtSteps_le (N : ℕ) : isqrtSteps N (2 ^ ((N.size + 1) / 2)) ≤ (N.size + 1) / 2 + 1 := by
+/-- **Algorithm 9.2.11 makes at most `⌈k/2⌉ + 1` Newton steps**, `k` the bit length of `N`:
+at most `⌈k/2⌉ + 2` divisions. -/
+theorem isqrt_divs_le (N : ℕ) :
+    costOf divCount (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤ (N.size + 1) / 2 + 2 := by
   have h₁ : N < 2 ^ N.size := Nat.lt_size_self N
   have h₂ : 2 ^ N.size ≤ 2 ^ ((N.size + 1) / 2) * 2 ^ ((N.size + 1) / 2) := by
     rw [← pow_add]; exact Nat.pow_le_pow_right (by norm_num) (by omega)
-  refine (isqrtSteps_le_size N _ (by positivity)
+  refine (isqrt_divs_le_size N _ (by positivity)
     (by nlinarith [Nat.zero_le (2 ^ ((N.size + 1) / 2))])).trans ?_
-  refine (Nat.size_le_size (Nat.sub_le _ _)).trans ?_
-  rw [Nat.size_pow]
+  have := (Nat.size_le_size (Nat.sub_le (2 ^ ((N.size + 1) / 2)) (Nat.sqrt N))).trans
+    (le_of_eq Nat.size_pow)
+  omega
 
 /-- Each pass costs one division by a number no longer than the starting value. -/
 theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
     (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (x : ℕ) (hx : x ≤ X) :
-    costOf C (isqrtLoop N x) ≤ (isqrtSteps N x + 1) * B := by
+    costOf C (isqrtLoop N x) ≤ costOf divCount (isqrtLoop N x) * B := by
   induction x using Nat.strong_induction_on with | _ x ih =>
   have := hB x.size (Nat.size_le_size hx)
-  rw [isqrtSteps]
+  rw [isqrtLoop_divCount]
   by_cases hlt : (x + N / x) / 2 < x
   · have ih := ih _ hlt (by omega)
     cost_unfold isqrtLoop.counted
@@ -157,10 +165,10 @@ theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
 theorem isqrtCost_school_le (N : ℕ) :
     costOf school (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤
       ((N.size + 1) / 2 + 2) * (N.size + 1) ^ 2 := by
-  have hsteps := isqrtSteps_le N
+  have hdivs := isqrt_divs_le N
   have hX : (2 ^ ((N.size + 1) / 2)).size = (N.size + 1) / 2 + 1 := Nat.size_pow
   refine (isqrtCost_le school (X := 2 ^ ((N.size + 1) / 2)) (B := (N.size + 1) ^ 2)
-    (fun b hb ↦ ?_) _ le_rfl).trans (Nat.mul_le_mul_right _ (by omega))
+    (fun b hb ↦ ?_) _ le_rfl).trans (Nat.mul_le_mul_right _ hdivs)
   rw [hX] at hb
   change (N.size - b + 1) * b ≤ (N.size + 1) ^ 2
   rw [sq]

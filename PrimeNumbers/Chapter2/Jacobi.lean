@@ -180,44 +180,39 @@ open PrimeNumbers.Chapter9
 
 /-! ### Number of loop passes -/
 
-/-- The number of passes of the inner loop of Algorithm 2.3.5, following `jacobiHalve`. -/
-def jacobiHalveSteps (a : ℕ) : ℕ :=
-  if a ≠ 0 ∧ a % 2 = 0 then jacobiHalveSteps (a / 2) + 1 else 0
-termination_by a
-decreasing_by omega
+/-- The inner loop is free: halvings and tests of the low bits are shifts and look-ups. -/
+@[cost_simps] theorem jacobiHalve_cost (C : Chapter9.CostModel) (a m : ℕ) (t : ℤ) :
+    CostM.cost C (jacobiHalve.counted a m t) = 0 := by
+  fun_induction jacobiHalve a m t with
+  | case1 a t h ih => cost_unfold jacobiHalve.counted; exact ih
+  | case2 a t h => cost_unfold jacobiHalve.counted
 
-theorem jacobiHalveSteps_le (a : ℕ) : jacobiHalveSteps a ≤ Nat.log 2 a := by
-  fun_induction jacobiHalveSteps a with
-  | case1 a h ih =>
-    have h₁ : Nat.log 2 (a / 2) = Nat.log 2 a - 1 := Nat.log_div_base 2 a
-    have h₂ : 0 < Nat.log 2 a := Nat.log_pos (by norm_num) (by omega)
-    omega
-  | case2 a h => omega
-
-/-- The number of passes of the outer loop of Algorithm 2.3.5, following `jacobiLoop`. -/
-def jacobiSteps (a m : ℕ) (t : ℤ) : ℕ :=
-  if a = 0 then 0
-  else
-    let r := jacobiHalve a m t
-    jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) + 1
-termination_by a
-decreasing_by
-  have := jacobiHalve_fst_le a m t
-  have := Nat.mod_lt m (Nat.pos_of_ne_zero (jacobiHalve_fst_pos ‹a ≠ 0› m t))
+/-- The number of passes of the outer loop of Algorithm 2.3.5 is its number of divisions,
+`costOf divCount (jacobiLoop a m t)` (the inner loop only shifts). -/
+theorem jacobiLoop_divCount {a : ℕ} (ha : a ≠ 0) (m : ℕ) (t : ℤ) :
+    costOf Chapter9.divCount (jacobiLoop a m t) =
+      costOf Chapter9.divCount (jacobiLoop (m % (jacobiHalve a m t).1) (jacobiHalve a m t).1
+        (if (jacobiHalve a m t).1 % 4 = 3 ∧ m % 4 = 3 then -(jacobiHalve a m t).2
+          else (jacobiHalve a m t).2)) + 1 := by
+  cost_unfold jacobiLoop.counted
   omega
 
 /-- Algorithm 2.3.5 makes at most `log₂ (a m) + 1` passes of its outer loop when `a < m`
 (as is the case after the initial `a = a mod m`): the product `a m` at least halves in
 each pass. -/
 theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
-    jacobiSteps a m t ≤ if a = 0 then 0 else Nat.log 2 (a * m) + 1 := by
-  fun_induction jacobiSteps a m t with
-  | case1 m t => simp
-  | case2 a m t ha r ih =>
+    costOf Chapter9.divCount (jacobiLoop a m t) ≤ if a = 0 then 0 else Nat.log 2 (a * m) + 1 := by
+  fun_induction jacobiLoop a m t with
+  | case1 t => cost_unfold jacobiLoop.counted
+  | case2 m t => cost_unfold jacobiLoop.counted
+  | case3 a m t ha r ih =>
+    rw [jacobiLoop_divCount ha]
+    show costOf divCount (jacobiLoop (m % r.1) r.1
+      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) + 1 ≤ _
     have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t
     have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
     have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
-    have ih' : jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) ≤
+    have ih' : costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) ≤
         if m % r.1 = 0 then 0 else Nat.log 2 (m % r.1 * r.1) + 1 := by
       simpa only [dite_eq_ite] using ih hlt
     simp only [ha, ↓reduceIte]
@@ -241,17 +236,10 @@ theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
 
 /-! ### Bit operations -/
 
-/-- The inner loop is free: halvings and tests of the low bits are shifts and look-ups. -/
-@[cost_simps] theorem jacobiHalve_cost (C : CostModel) (a m : ℕ) (t : ℤ) :
-    CostM.cost C (jacobiHalve.counted a m t) = 0 := by
-  fun_induction jacobiHalve a m t with
-  | case1 a t h ih => cost_unfold jacobiHalve.counted; exact ih
-  | case2 a t h => cost_unfold jacobiHalve.counted
-
 /-- As for Euclid, the quotient bits of all the divisions telescope: the total cost is at
 most `size a · (size m + passes)`. -/
 theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
-    costOf school (jacobiLoop a m t) ≤ a.size * (m.size + jacobiSteps a m t) := by
+    costOf school (jacobiLoop a m t) ≤ a.size * (m.size + costOf Chapter9.divCount (jacobiLoop a m t)) := by
   fun_induction jacobiLoop a m t with
   | case1 t => cost_unfold jacobiLoop.counted
   | case2 m t => cost_unfold jacobiLoop.counted
@@ -261,11 +249,11 @@ theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
     have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
     have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
     have ih := ih hlt
-    have hsteps : jacobiSteps a m t =
-        jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) + 1 := by
-      rw [jacobiSteps]; simp [ha, r]
+    have hsteps : costOf Chapter9.divCount (jacobiLoop a m t) =
+        costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) + 1 := by
+      exact jacobiLoop_divCount ha m t
     simp only [dite_eq_ite] at ih
-    generalize jacobiSteps (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2) = s
+    generalize costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = s
       at ih hsteps
     generalize CostM.cost school (jacobiLoop.counted (m % r.1) r.1
       (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = c at ih ⊢
@@ -290,7 +278,7 @@ theorem jacobiBitCost_school_le' (a m : ℕ) (t : ℤ) (ham : a < m) :
   refine (jacobiBitCost_school_le a m t ham).trans ?_
   have h₁ : a.size ≤ m.size := size_le_of_lt ham
   have h₂ := jacobiSteps_le a m t ham
-  have h₃ : jacobiSteps a m t ≤ 2 * m.size + 1 := by
+  have h₃ : costOf Chapter9.divCount (jacobiLoop a m t) ≤ 2 * m.size + 1 := by
     split_ifs at h₂ with h0
     · omega
     · have := log_two_le_size (a * m)

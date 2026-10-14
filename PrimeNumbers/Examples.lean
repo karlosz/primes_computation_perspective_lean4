@@ -44,7 +44,7 @@ open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3 PrimeNumbers.Chapter4 PrimeNumb
 #guard euclid 1071 462 = 21
 #guard extEuclid 1071 462 = (-3, 7, 21)          -- (-3)·1071 + 7·462 = 21
 #guard modInv 3 10 = 7                           -- the book's example before (2.4)
-#guard euclidSteps 89 55 = 9                     -- consecutive Fibonacci numbers: worst case
+#guard costOf Chapter9.divCount (euclid 89 55) = 9                     -- consecutive Fibonacci numbers: worst case
 
 /-! ## §2.1.2 Powers -/
 
@@ -90,7 +90,7 @@ def exG (R : Type) [Ring R] : Chapter2.Poly R := [1, 0, 7, 0, 0, -1, 0, -7]
 
 #guard Chapter9.CostM.cost Chapter9.mulCount (pow.counted (3 : ℕ) 1000000) = 25 ∧
   2 * Nat.log 2 1000000 = 38                       -- multiplications of Algorithm 2.1.5
-#guard euclidSteps 832040 514229 = 28              -- F₃₀, F₂₉
+#guard costOf Chapter9.divCount (euclid 832040 514229) = 28              -- F₃₀, F₂₉
 
 /-! ## §2.3.1 Jacobi symbol — the book's example `(2/15) = 1` -/
 
@@ -273,7 +273,7 @@ open PrimeNumbers.Chapter9 in
 open PrimeNumbers.Chapter9 in
 #guard isqrt (m521 * m521 + 12345) = m521
 open PrimeNumbers.Chapter9 in
-#guard isqrtSteps (m521 * m521) (2 ^ 521) ≤ 522
+#guard Chapter9.CostM.cost Chapter9.divCount (Chapter9.isqrtLoop.counted (m521 * m521) (2 ^ 521)) ≤ 523
 
 /-! ## §5.4 Second stage of `p - 1`
 

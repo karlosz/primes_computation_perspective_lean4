@@ -14,7 +14,7 @@ Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Section 5.1.
   theorem (`dirichlet_approximation`, from Mathlib) applied to `p/q` (`lehman_approx`),
   and the resulting `a = u q + v p` lies in the scanned range
   (`lehmanWitness_of_composite`).
-* `lehmanPasses_le_cuberoot` — step [Loop] makes at most `4 n^{1/3} + 2` passes.
+* `lehmanPassBound_le_cuberoot` — step [Loop] makes at most `4 n^{1/3} + 2` passes.
 
 Two deviations from the book, both noted where they occur: `k` runs to `⌊n^{1/3}⌋ + 1`
 (one further than printed; the book's own inequality gives only `k < n^{1/3} + 1`), and
@@ -208,49 +208,19 @@ theorem lehman_sound {n d : ℕ} (hn : 576 ≤ n) (h : lehman n = some d) :
 
 /-! ## Running time -/
 
-/-- The number of passes of the inner loop made by `lehmanInner`. -/
-def lehmanInnerPasses (n k a : ℕ) : ℕ → ℕ
-  | 0 => 0
-  | fuel + 1 =>
-    if Nat.sqrt (a * a - 4 * k * n) * Nat.sqrt (a * a - 4 * k * n) = a * a - 4 * k * n then 1
-    else lehmanInnerPasses n k (a + 1) fuel + 1
+/-- **The number of passes of step [Loop] of Algorithm 5.1.2**, bounded by the fuel of each
+inner loop: `∑_{k} (⌊n^{1/6}⌋ / (4⌊√k⌋) + 2)` over the `k` tried.  Each pass costs two
+multiplications, one integer square root and (once) a gcd; this is the sum the book bounds
+by `O(n^{1/3})`.  Step [Trial division] adds at most `⌊n^{1/3}⌋` divisions. -/
+def lehmanPassBound (r6 k fuel : ℕ) : ℕ :=
+  ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + i)) + 2)
 
-/-- The number of passes of the inner loop made by `lehmanOuter`. -/
-def lehmanPasses (n r6 : ℕ) : (k fuel : ℕ) → ℕ
-  | _, 0 => 0
-  | k, fuel + 1 =>
-    lehmanInnerPasses n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) +
-      match lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with
-      | some _ => 0
-      | none => lehmanPasses n r6 (k + 1) fuel
-
-theorem lehmanInnerPasses_le (n k a fuel : ℕ) : lehmanInnerPasses n k a fuel ≤ fuel := by
-  induction fuel generalizing a with
-  | zero => simp [lehmanInnerPasses]
-  | succ fuel ih =>
-    rw [lehmanInnerPasses]
-    split_ifs
-    · omega
-    · have := ih (a + 1); omega
-
-/-- **Running time of Algorithm 5.1.2**: step [Loop] makes at most
-`∑_{k} (⌊n^{1/6}⌋ / (4⌊√k⌋) + 2)` passes (over the `k` actually tried), each costing two
-multiplications, one integer square root and (once) a gcd.  This is the sum the book bounds
-by `O(n^{1/3})`; step [Trial division] adds at most `⌊n^{1/3}⌋` divisions. -/
-theorem lehmanPasses_le (n r6 k fuel : ℕ) :
-    lehmanPasses n r6 k fuel ≤
-      ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + i)) + 2) := by
-  induction fuel generalizing k with
-  | zero => simp [lehmanPasses]
-  | succ fuel ih =>
-    have h₁ := lehmanInnerPasses_le n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2)
-    have h₂ := ih (k + 1)
-    rw [Finset.sum_range_succ', add_zero]
-    have hcongr : ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + (i + 1))) + 2) =
-        ∑ i ∈ Finset.range fuel, (r6 / (4 * Nat.sqrt (k + 1 + i)) + 2) :=
-      Finset.sum_congr rfl fun i _ ↦ by rw [add_right_comm, add_assoc]
-    rw [hcongr, lehmanPasses]
-    split <;> omega
+theorem lehmanPassBound_succ (r6 k fuel : ℕ) :
+    lehmanPassBound r6 k (fuel + 1) =
+      (r6 / (4 * Nat.sqrt k) + 2) + lehmanPassBound r6 (k + 1) fuel := by
+  rw [lehmanPassBound, Finset.sum_range_succ', add_zero, add_comm, lehmanPassBound]
+  congr 1
+  exact Finset.sum_congr rfl fun i _ ↦ by rw [add_right_comm, add_assoc]
 
 /-! ## Completeness, reduced to the existence statement of Theorem 5.1.3 -/
 
@@ -371,11 +341,10 @@ theorem sqrt_le_two_mul_natSqrt {k : ℕ} (hk : 1 ≤ k) :
 /-- **Closed form for the running time of Algorithm 5.1.2**: with `c = ⌊n^{1/3}⌋` and
 `r6 = ⌊n^{1/6}⌋`, step [Loop] makes at most `r6 √c + 2c` passes.  Since `r6⁶ ≤ n` and
 `c³ ≤ n` this is at most `n^{1/3} + 2 n^{1/3}`: the book's `O(n^{1/3})`. -/
-theorem lehmanPasses_le_closed (n r6 c : ℕ) :
-    (lehmanPasses n r6 1 c : ℝ) ≤ r6 * Real.sqrt c + 2 * c := by
-  have h₁ : (lehmanPasses n r6 1 c : ℝ) ≤
-      ((∑ i ∈ Finset.range c, (r6 / (4 * Nat.sqrt (1 + i)) + 2) : ℕ) : ℝ) := by
-    exact_mod_cast lehmanPasses_le n r6 1 c
+theorem lehmanPassBound_le_closed (r6 c : ℕ) :
+    (lehmanPassBound r6 1 c : ℝ) ≤ r6 * Real.sqrt c + 2 * c := by
+  have h₁ : (lehmanPassBound r6 1 c : ℝ) ≤
+      ((∑ i ∈ Finset.range c, (r6 / (4 * Nat.sqrt (1 + i)) + 2) : ℕ) : ℝ) := le_rfl
   have hterm : ∀ i ∈ Finset.range c,
       (((r6 / (4 * Nat.sqrt (1 + i)) + 2 : ℕ)) : ℝ) ≤
         (r6 : ℝ) / 2 * (1 / Real.sqrt ((i : ℝ) + 1)) + 2 := by
@@ -650,11 +619,11 @@ theorem theorem_5_1_3_complete {n : ℕ} (hn : 1 < n) (h : lehman n = none) : n.
 
 /-- **Running time of Algorithm 5.1.2, in closed form**: step [Loop] makes at most
 `4 n^{1/3} + 2` passes — the book's `O(n^{1/3})`. -/
-theorem lehmanPasses_le_cuberoot {n : ℕ} (hn : 1 ≤ n) :
-    (lehmanPasses n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤ 4 * (n : ℝ) ^ (1 / 3 : ℝ) + 2 := by
+theorem lehmanPassBound_le_cuberoot {n : ℕ} (hn : 1 ≤ n) :
+    (lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) ≤ 4 * (n : ℝ) ^ (1 / 3 : ℝ) + 2 := by
   have hc3 : iroot 3 n ^ 3 ≤ n := iroot_pow_le (by norm_num) n
   have hr6 : iroot 6 n ^ 6 ≤ n := iroot_pow_le (by norm_num) n
-  have h := lehmanPasses_le_closed n (iroot 6 n) (iroot 3 n + 1)
+  have h := lehmanPassBound_le_closed (iroot 6 n) (iroot 3 n + 1)
   generalize iroot 3 n = c at hc3 h
   generalize iroot 6 n = r6 at hr6 h
   rw [show (1 / 3 : ℝ) = (((3 : ℕ) : ℝ)⁻¹) by norm_num]
@@ -714,13 +683,14 @@ abbrev lehmanSetupCost (C : CostModel) (n r6 k : ℕ) : ℕ :=
   C.mul (4 * k).size n.size + CostM.cost C (ceilSqrt.counted (4 * k * n)) +
     CostM.cost C (Nat.sqrt.counted k) + C.divMod r6.size (4 * Nat.sqrt k).size
 
-/-- The inner loop costs at most `W` per pass, plus the final gcd `G` if it succeeds. -/
+/-- The inner loop costs at most `W` per pass (at most `fuel` passes), plus the final gcd
+`G` if it succeeds. -/
 theorem lehmanInnerCost_le (C : CostModel) {n k A W G : ℕ}
     (hW : ∀ a ≤ A, lehmanPassCost C n k a ≤ W)
     (hG : ∀ a b, a ≤ A → b ≤ A → CostM.cost C (Nat.gcd.counted (a + b) n) ≤ G)
     (a fuel : ℕ) (h : a + fuel ≤ A + 1) :
     costOf C (lehmanInner n k a fuel) ≤
-      lehmanInnerPasses n k a fuel * W + if (lehmanInner n k a fuel).isSome then G else 0 := by
+      fuel * W + if (lehmanInner n k a fuel).isSome then G else 0 := by
   induction fuel generalizing a with
   | zero => cost_unfold lehmanInner.counted
   | succ fuel ih =>
@@ -733,21 +703,21 @@ theorem lehmanInnerCost_le (C : CostModel) {n k A W G : ℕ}
     have hgcd := hG a _ haA (hb.trans haA)
     unfold lehmanPassCost at hpass
     cost_unfold lehmanInner.counted
-    rw [lehmanInnerPasses]
     simp only [lehmanInner]
     split_ifs at ih ⊢ <;> (try simp only [Option.isSome_some, not_true_eq_false] at *) <;>
       nlinarith
 
 /-- **Bit complexity of step [Loop] of the Lehman method**, for any cost model: if every
 pass costs at most `W`, the work for each `k` at most `V`, and the final gcd at most `G`, then
-the loop costs at most `(passes) · W + (values of k) · V + G`. -/
+the loop costs at most `(passes) · W + (values of k) · V + G`, with the passes bounded by
+`lehmanPassBound`. -/
 theorem lehmanCost_le (C : CostModel) {n r6 A W V G : ℕ} (k fuel : ℕ)
     (hA : ∀ k', k ≤ k' → k' < k + fuel →
       ceilSqrt (4 * k' * n) + (r6 / (4 * Nat.sqrt k') + 2) ≤ A + 1)
     (hW : ∀ k' a, k ≤ k' → k' < k + fuel → a ≤ A → lehmanPassCost C n k' a ≤ W)
     (hV : ∀ k', k ≤ k' → k' < k + fuel → lehmanSetupCost C n r6 k' ≤ V)
     (hG : ∀ a b, a ≤ A → b ≤ A → CostM.cost C (Nat.gcd.counted (a + b) n) ≤ G) :
-    costOf C (lehmanOuter n r6 k fuel) ≤ lehmanPasses n r6 k fuel * W + fuel * V + G := by
+    costOf C (lehmanOuter n r6 k fuel) ≤ lehmanPassBound r6 k fuel * W + fuel * V + G := by
   induction fuel generalizing k with
   | zero => cost_unfold lehmanOuter.counted
   | succ fuel ih =>
@@ -758,7 +728,7 @@ theorem lehmanCost_le (C : CostModel) {n r6 A W V G : ℕ} (k fuel : ℕ)
       (fun k' hk₁ hk₂ ↦ hV k' (by omega) (by omega))
     have h₃ := hV k le_rfl (by omega)
     cost_unfold lehmanOuter.counted
-    rw [lehmanPasses]
+    rw [lehmanPassBound_succ]
     rcases hm : lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with _ | d
     · simp only [hm, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, add_zero] at h₁ ⊢
       cost_simp
@@ -852,14 +822,14 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
         have := Nat.lt_size_self A
         omega
       nlinarith)
-  have hpasses := lehmanPasses_le_cuberoot hn
+  have hpasses := lehmanPassBound_le_cuberoot hn
   have hc : (iroot 3 n : ℝ) ≤ (n : ℝ) ^ (1 / 3 : ℝ) := by
     have h3 : (iroot 3 n : ℝ) ^ (3 : ℕ) ≤ n := by exact_mod_cast iroot_pow_le (by norm_num) n
     rw [show (1 / 3 : ℝ) = (((3 : ℕ) : ℝ)⁻¹) by norm_num]
     exact (Real.le_rpow_inv_iff_of_pos (by positivity) (by positivity) (by norm_num)).mpr
       (by exact_mod_cast h3)
   have hcost' : (costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) : ℝ) ≤
-      (lehmanPasses n (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) * (3 * K ^ 2 + schoolSqrt (2 * K) : ℕ) +
+      (lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) * (3 * K ^ 2 + schoolSqrt (2 * K) : ℕ) +
         ((iroot 3 n + 1 : ℕ) : ℝ) * (3 * K ^ 2 + (K + 1) * K + 2 * schoolSqrt K : ℕ) +
         ((K + 1) * (3 * K + 5) : ℕ) := by
     exact_mod_cast hcost
