@@ -13,6 +13,7 @@ import PrimeNumbers.Chapter4.LucasLehmer
 import PrimeNumbers.Chapter3.Sieve
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter9.Multipoint
+import PrimeNumbers.Chapter9.FastMul
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter5.BabyGiant
@@ -305,5 +306,17 @@ open PrimeNumbers.Chapter9 in
     ((List.range 30).map fun j ↦ ((30 * j : ℕ) : ZMod 8051)) =
   (List.range 30).map fun j ↦ Poly.eval (prodLinear ((List.range 30).map ((↑) : ℕ → ZMod 8051)))
     ((30 * j : ℕ) : ZMod 8051)
+
+/-! ## §9.6.1 Binary segmentation agrees with schoolbook multiplication -/
+
+open PrimeNumbers.Chapter9 in
+#guard mulNatAuto [3, 1, 4, 1, 5, 9, 2, 6] [2, 7, 1, 8, 2, 8] =
+  Chapter2.Poly.mul [3, 1, 4, 1, 5, 9, 2, 6] [2, 7, 1, 8, 2, 8]
+
+open PrimeNumbers.Chapter9 in
+#guard mulMod 8051 ((List.range 300).map ((↑) : ℕ → ZMod 8051))
+    ((List.range 300).map fun i ↦ ((i * i + 7 : ℕ) : ZMod 8051)) =
+  Chapter2.Poly.mul ((List.range 300).map ((↑) : ℕ → ZMod 8051))
+    ((List.range 300).map fun i ↦ ((i * i + 7 : ℕ) : ZMod 8051))
 
 end PrimeNumbers.Examples
