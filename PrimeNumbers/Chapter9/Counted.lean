@@ -97,7 +97,7 @@ instance (C : CostModel) : NatArith (CostM C) where
   chargeMul a b := (⟨(), MulCost.mulCost C a b⟩ : Counted Unit)
   chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
   chargePow a e := (⟨(), PowCost.powCost C a e⟩ : Counted Unit)
-  charge k := (⟨(), k⟩ : Counted Unit)
+  charge k := (⟨(), k * C.unit⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -126,7 +126,7 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
 @[simp, cost_simps] theorem CostM.chargePow_cost {α} [PowCost α] (a : α) (e : ℕ) :
     CostM.cost C (NatArith.chargePow a e) = PowCost.powCost C a e := rfl
 @[simp, cost_simps] theorem CostM.charge_cost (k : ℕ) :
-    CostM.cost C (NatArith.charge k) = k := rfl
+    CostM.cost C (NatArith.charge k) = k * C.unit := rfl
 @[simp, cost_simps] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
 @[simp, cost_simps] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
 @[simp, cost_simps] theorem mulCost_int (a b : ℤ) :
@@ -211,9 +211,10 @@ section
 variable (C : CostModel) {α β : Type}
 
 @[cost_simps] theorem CostM.setIfInBounds_cost (xs : Array α) (i : ℕ) (v : α) :
-    CostM.cost C (Array.setIfInBounds.counted xs i v) = 1 := rfl
+    CostM.cost C (Array.setIfInBounds.counted xs i v) = C.unit := by
+  simp [Array.setIfInBounds.counted, CostM.cost, NatArith.charge]
 @[cost_simps] theorem CostM.replicate_cost (n : ℕ) (v : α) :
-    CostM.cost C (Array.replicate.counted n v) = n := rfl
+    CostM.cost C (Array.replicate.counted n v) = n * C.unit := rfl
 
 /-- `filter` pays the charge of its predicate at every element. -/
 @[cost_simps] theorem CostM.filter_cost (p : α → Bool) (l : List α) (pc : α → CostM C Unit) :
@@ -251,7 +252,10 @@ theorem CostM.foldl_cost_le {f : α → β → α} {fc : α → β → CostM C U
 
 end
 
-attribute [cost_simps] zero_add add_zero ite_self
+attribute [cost_simps] zero_add add_zero ite_self mul_one one_mul zero_mul mul_zero
+  mulCount_mul mulCount_divMod divCount_mul divCount_divMod opCount_mul opCount_divMod
+  writeCount_mul writeCount_divMod mulCount_unit divCount_unit opCount_unit writeCount_unit
+  school_unit mulCount_mulMod divCount_mulMod
 
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
 sum of the charges of its primitive calls (simp set `cost_simps`). -/
@@ -269,5 +273,13 @@ macro "cost_unfold " ids:ident,+ : tactic => `(tactic|
   (rw [$[$ids:ident],*]
    try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps, ↓reduceIte, zero_mul, mul_zero,
       Nat.zero_le]))
+
+/-- `cost_unfold_both f.counted`: unfold one step of `f.counted` on each side of an equation
+or inequality (e.g. a bit cost and the matching operation count), then as `cost_unfold`. -/
+macro "cost_unfold_both " ids:ident,+ : tactic => `(tactic|
+  ((conv_lhs => rw [$[$ids:ident],*])
+   (conv_rhs => rw [$[$ids:ident],*])
+   try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps,
+     ↓reduceIte, zero_mul, mul_zero, Nat.zero_le]))
 
 end PrimeNumbers.Chapter9

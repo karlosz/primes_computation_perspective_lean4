@@ -340,12 +340,12 @@ end
 
 /-- **Bit complexity of Pollard `p - 1`, grammar-school arithmetic**: with `k` the bit length
 of `n` and `K` that of `B`, at most
-`(B + 3 + sieveWrites B + (2B + 1)(size (B + 2))²) + π(B) · 2K²(K + 1) +
+`(B + 3 + costOf writeCount (sieveLoop B 2 (sieveInit B)) + (2B + 1)(size (B + 2))²) + π(B) · 2K²(K + 1) +
 pm1Steps B · (4 log₂ B + 1)(k + 1)² + 2k + k(3k + 2)` bit operations: the sieve,
 the exponents, the power ladders, the reduction and the gcd. -/
 theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
     costOf school (pollardPMinusOne n B c) ≤
-      (B + 3 + sieveWrites B + (2 * B + 1) * ((B + 2).size * (B + 2).size)) +
+      (B + 3 + costOf writeCount (sieveLoop B 2 (sieveInit B)) + (2 * B + 1) * ((B + 2).size * (B + 2).size)) +
       ((primesUpTo B).length * (B.size * (2 * ((B.size + 1) * B.size))) +
         pm1Steps B * ((4 * Nat.log 2 B + 1) * (n.size + 1) ^ 2)) +
       2 * n.size + n.size * (3 * n.size + 2) := by
@@ -368,7 +368,7 @@ theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
     rw [show n.size + 1 - n.size + 1 = 2 by omega]
   have hm : school.mul (B + 2).size (B + 2).size = (B + 2).size * (B + 2).size := rfl
   rw [hdiv] at h
-  rw [hm] at hs
+  rw [hm, school_unit, mul_one] at hs
   have := Nat.mul_le_mul_left (pm1Steps B) hpow
   omega
 

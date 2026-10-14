@@ -62,6 +62,9 @@ structure CostModel where
   mul_mono : ∀ {a a' b b' : ℕ}, a ≤ a' → b ≤ b' → mul a b ≤ mul a' b'
   /-- dividing a longer number (by the same divisor length) costs at least as much -/
   divMod_mono : ∀ {a a' : ℕ} (b : ℕ), a ≤ a' → divMod a b ≤ divMod a' b
+  /-- the cost of one elementary step that is neither a multiplication nor a division
+  (a memory write): one bit operation -/
+  unit : ℕ := 1
 
 /-- **The grammar-school cost model (§9.1).**  Long multiplication of an `a`-bit by a
 `b`-bit number takes `a b` bit operations; long division of an `a`-bit number by a `b`-bit
@@ -72,11 +75,65 @@ def school : CostModel where
   mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
   divMod_mono b h := Nat.mul_le_mul_right b (by omega)
 
+/-! ### Counting models
+
+An *operation count* is the cost under a model that charges `1` for the operations counted
+and `0` for the rest: so the number of multiplications, divisions or writes an algorithm
+performs is derived from its code exactly like its bit complexity. -/
+
+/-- Counts multiplications (a product of residues — multiply and reduce — counts once). -/
+def mulCount : CostModel where
+  mul _ _ := 1
+  divMod _ _ := 0
+  mul_mono _ _ := le_rfl
+  divMod_mono _ _ := le_rfl
+  unit := 0
+
+/-- Counts divisions with remainder. -/
+def divCount : CostModel where
+  mul _ _ := 0
+  divMod _ _ := 1
+  mul_mono _ _ := le_rfl
+  divMod_mono _ _ := le_rfl
+  unit := 0
+
+/-- Counts multiplications and divisions. -/
+def opCount : CostModel where
+  mul _ _ := 1
+  divMod _ _ := 1
+  mul_mono _ _ := le_rfl
+  divMod_mono _ _ := le_rfl
+  unit := 0
+
+/-- Counts elementary steps (memory writes). -/
+def writeCount : CostModel where
+  mul _ _ := 0
+  divMod _ _ := 0
+  mul_mono _ _ := le_rfl
+  divMod_mono _ _ := le_rfl
+
+@[simp] theorem mulCount_mul (a b : ℕ) : mulCount.mul a b = 1 := rfl
+@[simp] theorem mulCount_divMod (a b : ℕ) : mulCount.divMod a b = 0 := rfl
+@[simp] theorem divCount_mul (a b : ℕ) : divCount.mul a b = 0 := rfl
+@[simp] theorem divCount_divMod (a b : ℕ) : divCount.divMod a b = 1 := rfl
+@[simp] theorem opCount_mul (a b : ℕ) : opCount.mul a b = 1 := rfl
+@[simp] theorem opCount_divMod (a b : ℕ) : opCount.divMod a b = 1 := rfl
+@[simp] theorem writeCount_mul (a b : ℕ) : writeCount.mul a b = 0 := rfl
+@[simp] theorem writeCount_divMod (a b : ℕ) : writeCount.divMod a b = 0 := rfl
+@[simp] theorem mulCount_unit : mulCount.unit = 0 := rfl
+@[simp] theorem divCount_unit : divCount.unit = 0 := rfl
+@[simp] theorem opCount_unit : opCount.unit = 0 := rfl
+@[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
+@[simp] theorem school_unit : school.unit = 1 := rfl
+
 /-- One "multiply two residues and reduce" modulo a `k`-bit modulus: the unit of work of
 all modular algorithms. -/
 def CostModel.mulMod (C : CostModel) (k : ℕ) : ℕ := C.mul k k + C.divMod (2 * k) k
 
 /-- In the grammar-school model a modular multiplication costs `2k² + k ≤ 2 (k + 1)²`. -/
+@[simp] theorem mulCount_mulMod (k : ℕ) : mulCount.mulMod k = 1 := rfl
+@[simp] theorem divCount_mulMod (k : ℕ) : divCount.mulMod k = 1 := rfl
+
 theorem school_mulMod (k : ℕ) : school.mulMod k = 2 * k ^ 2 + k := by
   simp only [CostModel.mulMod, school]
   rw [show 2 * k - k + 1 = k + 1 by omega]

@@ -143,53 +143,60 @@ section RunningTime
 
 open PrimeNumbers.Chapter9
 
-/-! ### Number of multiplications -/
+/-! ### Number of multiplications
 
-/-- The number of multiplications performed by `pow x n` (and of multiply-and-reduce
-steps performed by `powMod x n m`): one squaring in the even branch, a squaring and a
-multiplication in the odd branch. -/
-def powMults (n : ℕ) : ℕ :=
-  if n ≤ 1 then 0
-  else if n % 2 = 0 then powMults (n / 2) + 1
-  else powMults ((n - 1) / 2) + 2
-termination_by n
-decreasing_by all_goals omega
+The number of multiplications of Algorithm 2.1.5 is its cost under the counting model
+`mulCount`, in any structure whose products count once (`ℕ`, `ZMod n`, …). -/
+
+section
+variable {M : Type} [Mul M] [MulCost M] (h₁ : ∀ a b : M, MulCost.mulCost mulCount a b = 1)
+include h₁
 
 /-- Algorithm 2.1.5 uses at most `2 log₂ n` multiplications. -/
-theorem powMults_le (n : ℕ) : powMults n ≤ 2 * Nat.log 2 n := by
-  fun_induction powMults n with
-  | case1 n h => omega
-  | case2 n h heven ih =>
-    have h₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
-    have h₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
-    omega
-  | case3 n h hodd ih =>
-    have h₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
-    have h₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
-    rw [show (n - 1) / 2 = n / 2 by omega] at ih ⊢
-    omega
+theorem pow_mults_le (x : M) (n : ℕ) : costOf mulCount (pow x n) ≤ 2 * Nat.log 2 n := by
+  fun_induction pow x n with
+  | case1 n h => cost_unfold pow.counted
+  | case2 n h heven y ih =>
+    have e₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
+    have e₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
+    cost_unfold pow.counted
+    rw [h₁]; omega
+  | case3 n h hodd y ih =>
+    have e₁ : Nat.log 2 (n / 2) = Nat.log 2 n - 1 := Nat.log_div_base 2 n
+    have e₂ : 0 < Nat.log 2 n := Nat.log_pos (by norm_num) (by omega)
+    rw [show (n - 1) / 2 = n / 2 by omega] at ih
+    cost_unfold pow.counted
+    rw [h₁, h₁, show (n - 1) / 2 = n / 2 by omega]; omega
 
 /-- In a structure where every product costs `K` bit operations (e.g. `ZMod p`, with
-`K = C.mulMod (size p)`), Algorithm 2.1.5 costs `powMults n · K`. -/
-theorem pow_cost (C : CostModel) {M : Type} [Mul M] [MulCost M] {K : ℕ}
-    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
-    costOf C (pow x n) = powMults n * K := by
+`K = C.mulMod (size p)`), Algorithm 2.1.5 costs its number of multiplications times `K`. -/
+theorem pow_cost (C : CostModel) {K : ℕ} (hK : ∀ a b : M, MulCost.mulCost C a b = K)
+    (x : M) (n : ℕ) : costOf C (pow x n) = costOf mulCount (pow x n) * K := by
   fun_induction pow x n with
-  | case1 n h => cost_unfold pow.counted; rw [powMults, if_pos h, zero_mul]
+  | case1 n h => cost_unfold_both pow.counted
   | case2 n h heven y ih =>
-    cost_unfold pow.counted
-    rw [powMults, if_neg h, if_pos heven, ih, hK, add_mul, one_mul]
+    cost_unfold_both pow.counted
+    rw [ih, hK, h₁]; ring
   | case3 n h hodd y ih =>
-    cost_unfold pow.counted
-    rw [powMults, if_neg h, if_neg hodd, ih, hK, hK]; ring
+    cost_unfold_both pow.counted
+    rw [ih, hK, hK, h₁, h₁]; ring
 
-theorem power_cost (C : CostModel) {M : Type} [Mul M] [One M] [MulCost M] {K : ℕ}
-    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
-    costOf C (power x n) = powMults n * K := by
+theorem power_mults_le [One M] (x : M) (n : ℕ) :
+    costOf mulCount (power x n) ≤ 2 * Nat.log 2 n := by
   cost_unfold power.counted
-  split_ifs with h
-  · subst h; rw [powMults, if_pos (by omega), zero_mul]
-  · exact pow_cost C hK x n
+  split_ifs
+  · exact Nat.zero_le _
+  · exact pow_mults_le h₁ x n
+
+theorem power_cost [One M] (C : CostModel) {K : ℕ}
+    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
+    costOf C (power x n) = costOf mulCount (power x n) * K := by
+  cost_unfold_both power.counted
+  split_ifs
+  · rw [zero_mul]
+  · exact pow_cost h₁ C hK x n
+
+end
 
 /-! ### Bit operations -/
 
