@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.Jacobi
@@ -44,7 +45,7 @@ end Euler
 /-! ## Algorithm 2.3.8 (Square roots (mod p)), Tonelli -/
 
 /-- "Represent `n = 2^s t`, with `t` odd": returns `(s, t)`. -/
-def oddPart (n : ℕ) : ℕ × ℕ :=
+counted_def oddPart (n : ℕ) : ℕ × ℕ :=
   if n ≠ 0 ∧ n % 2 = 0 then
     let r := oddPart (n / 2)
     (r.1 + 1, r.2)
@@ -70,7 +71,7 @@ theorem oddPart_spec {n : ℕ} (hn : n ≠ 0) :
 for (i ≤ ... < s) { if ((A D^m)^(2^(s-1-i)) ≡ -1 (mod p)) m = m + 2^i; }
 ```
 -/
-def tonelliLoop {p : ℕ} (A D : ZMod p) (s i m : ℕ) : ℕ :=
+counted_def tonelliLoop {p : ℕ} (A D : ZMod p) (s i m : ℕ) : ℕ :=
   if i < s then
     if power (A * power D m) (2 ^ (s - 1 - i)) = -1 then tonelliLoop A D s (i + 1) (m + 2 ^ i)
     else tonelliLoop A D s (i + 1) m
@@ -90,7 +91,7 @@ x = a^((t+1)/2) D^(m/2) mod p;
 return x;
 ```
 -/
-def tonelli {p : ℕ} (a d : ZMod p) : ZMod p :=
+counted_def tonelli {p : ℕ} (a d : ZMod p) : ZMod p :=
   let st := oddPart (p - 1)
   let s := st.1
   let t := st.2
@@ -101,7 +102,7 @@ def tonelli {p : ℕ} (a d : ZMod p) : ZMod p :=
 
 /-- Deterministic stand-in for the book's "find a random integer with property `P`":
 try `d, d + 1, …` (at most `fuel` candidates) and return the first that passes. -/
-def searchFrom (P : ℕ → Bool) : (fuel d : ℕ) → ℕ
+counted_def searchFrom (P : ℕ → Bool) : (fuel d : ℕ) → ℕ
   | 0, d => d
   | fuel + 1, d => if P d then d else searchFrom P fuel (d + 1)
 
@@ -119,7 +120,7 @@ theorem searchFrom_spec (P : ℕ → Bool) (fuel d : ℕ) (h : ∃ e, d ≤ e �
 
 /-- A quadratic nonresidue modulo the odd prime `p`: the least `d ≥ 2` with `(d/p) = -1`,
 tested with Algorithm 2.3.5.  (The book picks `d` at random; half of all residues work.) -/
-def findNonresidue (p : ℕ) : ℕ :=
+counted_def findNonresidue (p : ℕ) : ℕ :=
   searchFrom (fun d ↦ jacobi d p = -1) p 2
 
 /-- **Algorithm 2.3.8 (Square roots (mod p)).**  Given an odd prime `p` and `a` with
@@ -135,7 +136,7 @@ if (p ≡ 5 (mod 8)) {
 [Case p ≡ 1 (mod 8)]  …
 ```
 -/
-def sqrtMod (p : ℕ) (a : ZMod p) : ZMod p :=
+counted_def sqrtMod (p : ℕ) (a : ZMod p) : ZMod p :=
   if p % 8 = 3 ∨ p % 8 = 7 then
     power a ((p + 1) / 4)
   else if p % 8 = 5 then
@@ -273,6 +274,11 @@ end Correctness
 with the book's multiplication rule `(x, y) * (u, v) = (xu + yvw, xv + yu)`. -/
 abbrev Fp2 (p : ℕ) (w : ZMod p) : Type := QuadraticAlgebra (ZMod p) w 0
 
+/-- A product in `F_{p²}`, `(a + bω)(c + dω) = (ac + w bd) + (ad + bc)ω`: five products of
+residues modulo `p`. -/
+instance (p : ℕ) (w : ZMod p) : Chapter9.MulCost (Fp2 p w) :=
+  ⟨fun C _ _ => 5 * C.mulMod p.size⟩
+
 /-- **Algorithm 2.3.9 (Cipolla).**  Given an odd prime `p`, a quadratic residue `a`
 modulo `p`, and `t` such that `t² - a` is a quadratic nonresidue (the book finds `t` at
 random, testing with Algorithm 2.3.5):
@@ -282,7 +288,7 @@ return x;
 ```
 The arithmetic is that of `Fp2 p (t² - a)` (Mathlib's `QuadraticAlgebra`).  The result
 lies in `F_p`, so we return its first coordinate. -/
-def cipolla {p : ℕ} (a t : ZMod p) : ZMod p :=
+counted_def cipolla {p : ℕ} (a t : ZMod p) : ZMod p :=
   (power (⟨t, 1⟩ : Fp2 p (t * t - a)) ((p + 1) / 2)).re
 
 section Correctness
@@ -362,11 +368,11 @@ theorem cipolla_sq (hp : p ≠ 2) {a t : ZMod p} (ha : IsSquare a) (ht : ¬IsSqu
 
 /-- Step 1 of Algorithm 2.3.9 [Find a certain quadratic nonresidue]: the least `t ≥ 0`
 with `((t² - a)/p) = -1`.  (The book picks `t` at random.) -/
-def findCipolla (p a : ℕ) : ℕ :=
+counted_def findCipolla (p a : ℕ) : ℕ :=
   searchFrom (fun t ↦ jacobi ((t : ℤ) * t - a) p = -1) p 0
 
 /-- **Algorithm 2.3.9 (Cipolla)**, both steps. -/
-def cipollaSqrt (p : ℕ) (a : ZMod p) : ZMod p :=
+counted_def cipollaSqrt (p : ℕ) (a : ZMod p) : ZMod p :=
   cipolla a (findCipolla p a.val : ℕ)
 
 /-- For a nonzero square `a` there is a `t` with `t² - a` a nonresidue: with `a = r²` and

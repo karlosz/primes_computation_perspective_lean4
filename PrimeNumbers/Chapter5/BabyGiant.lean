@@ -1,4 +1,5 @@
 import PrimeNumbers.Chapter9.CountedDef
+import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 
@@ -44,7 +45,7 @@ A = {gⁱ : i = 0, 1, …, b - 1};   B = {t hʲ : j = 0, 1, …, b - 1};
 Find an intersection, say gⁱ = t hʲ;   return l = i + j b;
 ```
 -/
-def bsgs (p g t n : ℕ) : Option ℕ :=
+counted_def bsgs (p g t n : ℕ) : Option ℕ :=
   let b := Nat.sqrt n + 1
   let h := powMod (modInv g p) b p
   let m := babyTable p g 0 (1 % p) b ∅

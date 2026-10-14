@@ -253,8 +253,8 @@ most `size a · (size m + passes)`. -/
 theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
     costOf school (jacobiLoop a m t) ≤ a.size * (m.size + jacobiSteps a m t) := by
   fun_induction jacobiLoop a m t with
-  | case1 t => cost_unfold jacobiLoop.counted; simp
-  | case2 m t => cost_unfold jacobiLoop.counted; simp
+  | case1 t => cost_unfold jacobiLoop.counted
+  | case2 m t => cost_unfold jacobiLoop.counted
   | case3 a m t ha r ih =>
     cost_unfold jacobiLoop.counted
     have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t

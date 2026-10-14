@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter5.PollardRho
@@ -35,7 +36,7 @@ open PrimeNumbers.Chapter2
 
 /-- One step of the pseudorandom walk on `(x, a, b)` with `x = g^a t^b`:
 `x ↦ t x`, `x²` or `g x` according to `x mod 3`; the exponents are kept modulo `N`. -/
-def rhoLogStep (p N g t : ℕ) (s : ℕ × ℕ × ℕ) : ℕ × ℕ × ℕ :=
+counted_def rhoLogStep (p N g t : ℕ) (s : ℕ × ℕ × ℕ) : ℕ × ℕ × ℕ :=
   let (x, a, b) := s
   if x % 3 = 0 then (x * x % p, 2 * a % N, 2 * b % N)
   else if x % 3 = 1 then (t * x % p, a, (b + 1) % N)
@@ -43,11 +44,11 @@ def rhoLogStep (p N g t : ℕ) (s : ℕ × ℕ × ℕ) : ℕ × ℕ × ℕ :=
 
 /-- From a collision `g^a t^b = g^A t^B`, the candidate logarithm
 `l = (A - a) (b - B)⁻¹ mod N`. -/
-def rhoLogSolve (N a b A B : ℕ) : ℕ :=
+counted_def rhoLogSolve (N a b A B : ℕ) : ℕ :=
   (A + N - a % N) % N * modInv ((b + N - B % N) % N) N % N
 
 /-- Floyd's cycle search for the walk; on a collision, return the candidate if it checks. -/
-def rhoLogLoop (p N g t : ℕ) : (u v : ℕ × ℕ × ℕ) → ℕ → Option ℕ
+counted_def rhoLogLoop (p N g t : ℕ) : (u v : ℕ × ℕ × ℕ) → ℕ → Option ℕ
   | _, _, 0 => none
   | u, v, fuel + 1 =>
     let u' := rhoLogStep p N g t u
@@ -58,7 +59,7 @@ def rhoLogLoop (p N g t : ℕ) : (u v : ℕ × ℕ × ℕ) → ℕ → Option �
     else rhoLogLoop p N g t u' v' fuel
 
 /-- **Pollard rho for discrete logarithms** in `Z_p^*`: `g` of order `N`, target `t`. -/
-def rhoLog (p N g t fuel : ℕ) : Option ℕ :=
+counted_def rhoLog (p N g t fuel : ℕ) : Option ℕ :=
   rhoLogLoop p N g t (1 % p, 0, 0) (1 % p, 0, 0) fuel
 
 theorem rhoLogLoop_sound {p N g t : ℕ} {u v : ℕ × ℕ × ℕ} {fuel l : ℕ}

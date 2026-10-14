@@ -63,6 +63,17 @@ instance : DivCost ℤ := ⟨fun C a b => C.divMod a.natAbs.size b.natAbs.size�
 out — e.g. with `modInv` — so that it is charged.) -/
 instance (n : ℕ) : MulCost (ZMod n) := ⟨fun C _ _ => C.mulMod n.size⟩
 
+/-- The cost of a power `a ^ e` computed by repeated multiplication. -/
+class PowCost (α : Type) where
+  /-- bit operations to compute `a ^ e` under the cost model `C` -/
+  powCost : CostModel → α → ℕ → ℕ
+
+/-- `a ^ e = ((a · a) · a) ⋯`: the `i`-th product multiplies `a^i` by `a`. -/
+instance : PowCost ℕ := ⟨fun C a e => ∑ i ∈ Finset.range (e - 1), C.mul (a ^ (i + 1)).size a.size⟩
+instance : PowCost ℤ :=
+  ⟨fun C a e => ∑ i ∈ Finset.range (e - 1), C.mul (a.natAbs ^ (i + 1)).size a.natAbs.size⟩
+instance (n : ℕ) : PowCost (ZMod n) := ⟨fun C _ e => (e - 1) * C.mulMod n.size⟩
+
 /-- The big-number primitives an algorithm may use: charges for a multiplication and for a
 division with remainder.  Everything else (comparisons, additions, shifts) is free, as in
 the cost model. -/
@@ -71,11 +82,14 @@ class NatArith (m : Type → Type) where
   chargeMul {α : Type} [MulCost α] : α → α → m Unit
   /-- record the cost of dividing `a` by `b` with remainder -/
   chargeMod {α : Type} [DivCost α] : α → α → m Unit
+  /-- record the cost of the power `a ^ e` -/
+  chargePow {α : Type} [PowCost α] : α → ℕ → m Unit
 
 /-- Plain execution. -/
 instance : NatArith Id where
   chargeMul _ _ := pure ()
   chargeMod _ _ := pure ()
+  chargePow _ _ := pure ()
 
 /-- Counted execution under the cost model `C`. -/
 def CostM (_C : CostModel) (α : Type) : Type := Counted α
@@ -85,6 +99,7 @@ instance (C : CostModel) : Monad (CostM C) := inferInstanceAs (Monad Counted)
 instance (C : CostModel) : NatArith (CostM C) where
   chargeMul a b := (⟨(), MulCost.mulCost C a b⟩ : Counted Unit)
   chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
+  chargePow a e := (⟨(), PowCost.powCost C a e⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -110,6 +125,8 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.cost C (NatArith.chargeMul a b) = MulCost.mulCost C a b := rfl
 @[simp, cost_simps] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
     CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
+@[simp, cost_simps] theorem CostM.chargePow_cost {α} [PowCost α] (a : α) (e : ℕ) :
+    CostM.cost C (NatArith.chargePow a e) = PowCost.powCost C a e := rfl
 @[simp, cost_simps] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
 @[simp, cost_simps] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
 @[simp, cost_simps] theorem mulCost_int (a b : ℤ) :
@@ -120,6 +137,62 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
   rfl
 
 end
+
+/-- `List.prod` multiplies from the right, `[a, b, c].prod = a * (b * (c * 1))`: a call of
+`List.prod` in a `counted_def` is charged with these products. -/
+def _root_.List.prod.counted {m : Type → Type} [Monad m] [NatArith m] {α : Type} [Mul α]
+    [One α] (l : List α) [MulCost α] : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do List.prod.counted l; NatArith.chargeMul a l.prod
+
+/-! ### Counted list combinators
+
+A call of one of these in a `counted_def` is charged with the charges of the function it
+applies (its *charge function*), at every element it is applied to — and only there:
+`all`, `any` and `find?` stop where the plain functions stop. -/
+
+section ListCombinators
+variable {m : Type → Type} [Monad m] [NatArith m] {α β : Type}
+
+def _root_.List.foldl.counted (f : α → β → α) (init : α) (l : List β)
+    (f_charge : α → β → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | b :: l => do f_charge init b; List.foldl.counted f (f init b) l f_charge
+
+def _root_.List.foldr.counted (f : α → β → β) (init : β) (l : List α)
+    (f_charge : α → β → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do List.foldr.counted f init l f_charge; f_charge a (l.foldr f init)
+
+def _root_.List.map.counted (f : α → β) (l : List α) (f_charge : α → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do f_charge a; List.map.counted f l f_charge
+
+def _root_.List.all.counted (l : List α) (p : α → Bool) (p_charge : α → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do p_charge a; if p a then List.all.counted l p p_charge else pure ()
+
+def _root_.List.any.counted (l : List α) (p : α → Bool) (p_charge : α → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do p_charge a; if p a then pure () else List.any.counted l p p_charge
+
+def _root_.List.filter.counted (p : α → Bool) (l : List α) (p_charge : α → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do p_charge a; List.filter.counted p l p_charge
+
+def _root_.List.find?.counted (p : α → Bool) (l : List α) (p_charge : α → m Unit) : m Unit :=
+  match l with
+  | [] => pure ()
+  | a :: l => do p_charge a; if p a then pure () else List.find?.counted p l p_charge
+
+end ListCombinators
 
 attribute [cost_simps] zero_add add_zero ite_self
 
@@ -137,6 +210,7 @@ conditions select (decided from the hypotheses, by `assumption` or `omega`), and
 bookkeeping. -/
 macro "cost_unfold " ids:ident,+ : tactic => `(tactic|
   (rw [$[$ids:ident],*]
-   try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps, ↓reduceIte]))
+   try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps, ↓reduceIte, zero_mul, mul_zero,
+      Nat.zero_le]))
 
 end PrimeNumbers.Chapter9

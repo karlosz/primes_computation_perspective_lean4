@@ -51,6 +51,10 @@ charged as `euclid`. -/
 def _root_.Nat.gcd.counted {m : Type → Type} [Monad m] [Chapter9.NatArith m] (x y : ℕ) : m ℕ :=
   euclid.counted x y
 
+/-- `Int.gcd` is the gcd of the absolute values, computed by Algorithm 2.1.2. -/
+def _root_.Int.gcd.counted {m : Type → Type} [Monad m] [Chapter9.NatArith m] (a b : ℤ) : m ℕ :=
+  euclid.counted a.natAbs b.natAbs
+
 /-! ## Theorem 2.1.3 (Lamé) -/
 
 /-- The number of iterations of the loop in Algorithm 2.1.2 on input `(x, y)`. -/
@@ -240,7 +244,7 @@ theorem euclidBitCost_school_le {x y : ℕ} (hyx : y ≤ x) :
       _ = y.size * (x.size - y.size + 1 + y.size + euclidSteps y (x % y)) := by ring
       _ = y.size * (x.size + (euclidSteps y (x % y) + 1)) := by
           rw [show x.size - y.size + 1 + y.size = x.size + 1 by omega]; ring
-  | case2 x y hy => cost_unfold euclid.counted; simp
+  | case2 x y hy => cost_unfold euclid.counted
 
 /-- **Bit complexity of the Euclid algorithm (Exercise 2.6).**  For `y < x ≤ N`, with `N`
 of `k` bits, Algorithm 2.1.2 takes at most `k (3k + 1)` bit operations in the
@@ -272,7 +276,7 @@ theorem euclidBitCost_school_le_of_le {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N
   · have := euclidBitCost_school_le' h hx
     nlinarith
   · rcases Nat.eq_zero_or_pos y with rfl | hy0
-    · cost_unfold euclid.counted; simp
+    · cost_unfold euclid.counted
     · cost_unfold euclid.counted
       rw [Nat.mod_self]
       cost_unfold euclid.counted
@@ -381,7 +385,7 @@ theorem extEuclidCost_school_le {k X Y : ℕ} (hX : X.size ≤ k) (hY : Y.size �
             · rw [max_eq_left h]; omega
           omega)
   | case2 a b g u v w hw =>
-    cost_unfold extEuclidLoop.counted; simp
+    cost_unfold extEuclidLoop.counted
 
 /-- The Euclid loop runs at most `2 size N + 2` times on any `x, y ≤ N`. -/
 theorem euclidSteps_le' {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N) :

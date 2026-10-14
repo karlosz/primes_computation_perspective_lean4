@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.SquareRoot
@@ -43,7 +44,7 @@ if (b == 1) return "n is a probable prime base a";
 return "n is composite";
 ```
 -/
-def probablePrime (n a : ℕ) : Bool :=
+counted_def probablePrime (n a : ℕ) : Bool :=
   powMod a (n - 1) n = 1
 
 /-- Algorithm 3.4.3 decides the Fermat congruence (3.3), `a^(n-1) ≡ 1 (mod n)`. -/
@@ -98,7 +99,7 @@ b = b² mod n;
 if (b == n - 1) return "n is a strong probable prime base a";
 ```
 -/
-def sprpLoop (n b : ℕ) : ℕ → Bool
+counted_def sprpLoop (n b : ℕ) : ℕ → Bool
   | 0 => false
   | j + 1 =>
     let b' := b * b % n
@@ -117,14 +118,14 @@ for (j ∈ [1, s - 1]) {
 return "n is composite";
 ```
 -/
-def strongProbablePrime (n a : ℕ) : Bool :=
+counted_def strongProbablePrime (n a : ℕ) : Bool :=
   let st := oddPart (n - 1)
   let b := powMod a st.2 n
   if b = 1 ∨ b = n - 1 then true else sprpLoop n b (st.1 - 1)
 
 /-- Several rounds of Algorithm 3.5.2 (the Miller–Rabin test, Algorithm 3.5.6 with the
 "random" bases supplied by the caller). -/
-def millerRabin (n : ℕ) (bases : List ℕ) : Bool :=
+counted_def millerRabin (n : ℕ) (bases : List ℕ) : Bool :=
   bases.all (strongProbablePrime n)
 
 /-- `b ≡ -1 (mod n)` for a reduced residue `b` means `b = n - 1`. -/

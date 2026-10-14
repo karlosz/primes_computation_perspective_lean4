@@ -24,12 +24,12 @@ soundness is proved for `n ≥ 576` rather than `n > 21`.
 namespace PrimeNumbers.Chapter5
 
 /-- Search upward for `⌊n^(1/e)⌋`: the largest `c` (within `fuel` steps) with `c^e ≤ n`. -/
-def rootLoop (e n : ℕ) : (c fuel : ℕ) → ℕ
+counted_def rootLoop (e n : ℕ) : (c fuel : ℕ) → ℕ
   | c, 0 => c
   | c, fuel + 1 => if (c + 1) ^ e ≤ n then rootLoop e n (c + 1) fuel else c
 
 /-- `⌊n^(1/e)⌋`. -/
-def iroot (e n : ℕ) : ℕ := rootLoop e n 0 n
+counted_def iroot (e n : ℕ) : ℕ := rootLoop e n 0 n
 
 theorem rootLoop_pow_le {e n c : ℕ} (hc : c ^ e ≤ n) (fuel : ℕ) :
     rootLoop e n c fuel ^ e ≤ n := by
@@ -84,7 +84,7 @@ nontrivial factor of `n` or reports nothing (the book: "proves `n` prime").
 The book's proof of Theorem 5.1.3 bounds the `k` it needs by `k < n^(1/3) + 1`, which for
 integers gives `k ≤ ⌊n^(1/3)⌋ + 1`, not `k ≤ n^(1/3)`; the extra value makes the
 completeness theorem below true as proved. -/
-def lehman (n : ℕ) : Option ℕ :=
+counted_def lehman (n : ℕ) : Option ℕ :=
   let c := iroot 3 n
   match smallDivisor n 2 (c - 1) with
   | some d => some d
@@ -722,7 +722,7 @@ theorem lehmanInnerCost_le (C : CostModel) {n k A W G : ℕ}
     costOf C (lehmanInner n k a fuel) ≤
       lehmanInnerPasses n k a fuel * W + if (lehmanInner n k a fuel).isSome then G else 0 := by
   induction fuel generalizing a with
-  | zero => cost_unfold lehmanInner.counted; simp [lehmanInner]
+  | zero => cost_unfold lehmanInner.counted
   | succ fuel ih =>
     have haA : a ≤ A := by omega
     have hb : Nat.sqrt (a * a - 4 * k * n) ≤ a := by
@@ -749,7 +749,7 @@ theorem lehmanCost_le (C : CostModel) {n r6 A W V G : ℕ} (k fuel : ℕ)
     (hG : ∀ a b, a ≤ A → b ≤ A → CostM.cost C (Nat.gcd.counted (a + b) n) ≤ G) :
     costOf C (lehmanOuter n r6 k fuel) ≤ lehmanPasses n r6 k fuel * W + fuel * V + G := by
   induction fuel generalizing k with
-  | zero => cost_unfold lehmanOuter.counted; simp
+  | zero => cost_unfold lehmanOuter.counted
   | succ fuel ih =>
     have h₁ := lehmanInnerCost_le C (k := k) (hW k · le_rfl (by omega)) hG
       (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) (hA k le_rfl (by omega))

@@ -128,7 +128,7 @@ theorem theorem_2_2_8 {K : Type*} [Field K] [Finite K] {f : K[X]} (hk : 0 < f.na
 
 namespace Poly
 
-variable {F : Type*} [Field F] [DecidableEq F]
+variable {F : Type} [Field F] [DecidableEq F]
 
 /-- Multiplication in `F[x]/(f)`: multiply, then reduce modulo `f`. -/
 def mulMod (f a b : Poly F) : Poly F := trim (mod (mul a b) f)

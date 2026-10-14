@@ -146,7 +146,7 @@ theorem trialDivision_perm {n : ℕ} (hn : 0 < n) :
   Nat.primeFactorsList_unique (trialDivision_spec hn).1 (trialDivision_spec hn).2
 
 /-- Primality by trial division: `n` is prime iff its factorization is `{n}`. -/
-def isPrimeTD (n : ℕ) : Bool := trialDivision n = [n]
+counted_def isPrimeTD (n : ℕ) : Bool := trialDivision n = [n]
 
 theorem isPrimeTD_iff {n : ℕ} (hn : 1 < n) : isPrimeTD n = true ↔ n.Prime := by
   rw [isPrimeTD, decide_eq_true_iff]
@@ -262,9 +262,11 @@ theorem divideOutCost_le {d N : ℕ} (hd : d ≤ n) (hN : N ≤ n) (F : List ℕ
     simp only [h, and_self, ↓reduceIte, add_mul]
     omega
   | case2 N F h =>
+    have := hdiv N hN
     cost_unfold divideOut.counted
     rw [divideOutOps]
-    simpa [h] using hdiv N hN
+    simp only [h, ↓reduceIte]
+    split_ifs <;> omega
 
 theorem trialCost_le {d N : ℕ} (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d) (hdn : d ≤ n) :
     costOf C (trialLoop d N F) ≤ trialOps d N F * B := by

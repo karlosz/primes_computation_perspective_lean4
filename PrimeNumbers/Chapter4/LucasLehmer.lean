@@ -87,7 +87,7 @@ open PrimeNumbers.Chapter9
 theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
     costOf C (lucasLehmerLoop M v k) ≤ k * C.mulMod M.size := by
   induction k generalizing v with
-  | zero => cost_unfold lucasLehmerLoop.counted; simp
+  | zero => cost_unfold lucasLehmerLoop.counted
   | succ k ih =>
     have ih := ih (v := (v * v + M - 2) % M) (Nat.mod_lt _ (by omega))
     -- `v² + M - 2 < M²`, so it has at most `2 size M` bits

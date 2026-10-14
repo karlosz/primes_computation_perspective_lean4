@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter9.BitCost
@@ -31,19 +32,19 @@ namespace PrimeNumbers.Chapter5
 open PrimeNumbers.Chapter2
 
 /-- `m (m - 1) ⋯ (m - i + 1) mod n`; for `m = jB`, `i = B` this is `f(jB) mod n`. -/
-def blockProd (n m : ℕ) : ℕ → ℕ
+counted_def blockProd (n m : ℕ) : ℕ → ℕ
   | 0 => 1 % n
   | i + 1 => blockProd n m i * (m - i) % n
 
 /-- The least `j` (among `fuel` values from `j` on) with `gcd(f(jB), n) > 1`. -/
-def findBlock (n B : ℕ) : (j fuel : ℕ) → Option ℕ
+counted_def findBlock (n B : ℕ) : (j fuel : ℕ) → Option ℕ
   | _, 0 => none
   | j, fuel + 1 =>
     if euclid n (blockProd n (j * B) B) ≠ 1 then some j else findBlock n B (j + 1) fuel
 
 /-- **The Pollard–Strassen polynomial evaluation method** (§5.5): find the least `j` with
 `gcd(f(jB), n) > 1`, then the first divisor of `n` in the interval `((j - 1)B, jB]`. -/
-def pollardStrassen (n : ℕ) : Option ℕ :=
+counted_def pollardStrassen (n : ℕ) : Option ℕ :=
   let B := iroot 4 n + 1
   match findBlock n B 1 B with
   | none => none
@@ -249,7 +250,7 @@ def psValues (n B : ℕ) : List ℕ :=
     ((List.range B).map fun j ↦ (((1 + j) * B : ℕ) : ZMod n))).map ZMod.val
 
 /-- The first index (counting from `j`) whose value has a nontrivial gcd with `n`. -/
-def findFirst (n : ℕ) : ℕ → List ℕ → Option ℕ
+counted_def findFirst (n : ℕ) : ℕ → List ℕ → Option ℕ
   | _, [] => none
   | j, v :: vs => if euclid n v ≠ 1 then some j else findFirst n (j + 1) vs
 

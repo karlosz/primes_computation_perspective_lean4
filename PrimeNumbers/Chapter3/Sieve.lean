@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Assumed
 
 /-!
@@ -20,7 +21,7 @@ this procedure and are not formalized.
 namespace PrimeNumbers.Chapter3
 
 /-- Bit `i` of a Boolean array (`false` outside the array). -/
-def bit (bits : Array Bool) (i : ℕ) : Bool := bits.getD i false
+@[cost_free] def bit (bits : Array Bool) (i : ℕ) : Bool := bits.getD i false
 
 theorem bit_eq_false_of_size_le {bits : Array Bool} {i : ℕ} (h : bits.size ≤ i) :
     bit bits i = false := by
@@ -36,7 +37,7 @@ theorem bit_setIfInBounds (bits : Array Bool) (j i : ℕ) (v : Bool) :
     simp [hij, this]
 
 /-- Clear the bits `j, j + p, j + 2p, …`. -/
-def markMultiples (p : ℕ) (bits : Array Bool) (j : ℕ) : Array Bool :=
+counted_def markMultiples (p : ℕ) (bits : Array Bool) (j : ℕ) : Array Bool :=
   if j < bits.size ∧ 0 < p then markMultiples p (bits.setIfInBounds j false) (j + p) else bits
 termination_by bits.size - j
 decreasing_by simp only [Array.size_setIfInBounds]; omega
@@ -76,7 +77,7 @@ theorem markMultiples_spec (p : ℕ) (bits : Array Bool) (j : ℕ) (hp : 0 < p) 
 
 /-- The main loop of the sieve: for `p = 2, 3, …` while `p² ≤ N`, if `p` is still marked
 prime, clear its multiples starting at `p²`. -/
-def sieveLoop (N p : ℕ) (bits : Array Bool) : Array Bool :=
+counted_def sieveLoop (N p : ℕ) (bits : Array Bool) : Array Bool :=
   if p * p ≤ N ∧ 0 < p then
     sieveLoop N (p + 1) (if bit bits p then markMultiples p bits (p * p) else bits)
   else bits
@@ -87,11 +88,11 @@ decreasing_by
 
 /-- **The sieve of Eratosthenes**: a Boolean array of length `N + 1` whose `i`-th entry
 tells whether `i` is prime. -/
-def sieve (N : ℕ) : Array Bool :=
+counted_def sieve (N : ℕ) : Array Bool :=
   sieveLoop N 2 (((Array.replicate (N + 1) true).setIfInBounds 0 false).setIfInBounds 1 false)
 
 /-- The primes up to `N`, read off the sieve. -/
-def sievePrimes (N : ℕ) : List ℕ :=
+counted_def sievePrimes (N : ℕ) : List ℕ :=
   let bits := sieve N        -- computed once
   (List.range (N + 1)).filter fun i ↦ bit bits i
 

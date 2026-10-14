@@ -1,5 +1,7 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
+import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
@@ -43,12 +45,12 @@ theorem theorem_4_1_1 {a n : ℕ} (h1 : a ^ (n - 1) ≡ 1 [MOD n])
 
 /-- The check (4.1) for a given list `qs` of primes:
 `a^(n-1) mod n = 1` and `a^((n-1)/q) mod n ≠ 1` for each `q` in the list. -/
-def lucasCheck (n a : ℕ) (qs : List ℕ) : Bool :=
+counted_def lucasCheck (n a : ℕ) (qs : List ℕ) : Bool :=
   powMod a (n - 1) n = 1 && qs.all fun q ↦ powMod a ((n - 1) / q) n ≠ 1
 
 /-- A primality proof by the Lucas theorem: factor `n - 1` by trial division
 (Algorithm 3.1.1) and check (4.1) for the base `a`. -/
-def lucasTest (n a : ℕ) : Bool :=
+counted_def lucasTest (n a : ℕ) : Bool :=
   lucasCheck n a (trialDivision (n - 1))
 
 /-- If `lucasCheck` succeeds with a list containing every prime factor of `n - 1`, then
@@ -108,7 +110,7 @@ theorem theorem_4_1_2 {k : ℕ} (hk : 1 ≤ k) :
   exact_mod_cast this
 
 /-- The Pepin test, executably: `3^((F_k - 1)/2) mod F_k == F_k - 1`. -/
-def pepin (k : ℕ) : Bool :=
+counted_def pepin (k : ℕ) : Bool :=
   let F := 2 ^ 2 ^ k + 1
   powMod 3 ((F - 1) / 2) F = F - 1
 
@@ -180,7 +182,7 @@ theorem corollary_4_1_4 {n F a : ℕ} (hn : 1 < n) (hF : F ∣ n - 1) (hFn : n �
 
 /-- Check the Pocklington conditions (4.3) for a list `qs` of primes:
 `a^(n-1) mod n = 1` and `gcd(a^((n-1)/q) - 1, n) = 1` for each `q` in the list. -/
-def pocklingtonCheck (n a : ℕ) (qs : List ℕ) : Bool :=
+counted_def pocklingtonCheck (n a : ℕ) (qs : List ℕ) : Bool :=
   powMod a (n - 1) n = 1 &&
     qs.all fun q ↦ Int.gcd ((powMod a ((n - 1) / q) n : ℤ) - 1) n = 1
 

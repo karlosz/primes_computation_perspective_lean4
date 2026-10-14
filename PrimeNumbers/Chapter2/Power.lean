@@ -27,7 +27,7 @@ pow(x, n) {
 ```
 Only a multiplication is required of the type `M`.  (For the out-of-spec input `n = 0`
 the function returns `x`.) -/
-def pow {M : Type*} [Mul M] (x : M) (n : ℕ) : M :=
+counted_def pow {M : Type} [Mul M] [Chapter9.MulCost M] (x : M) (n : ℕ) : M :=
   if n ≤ 1 then x
   else if n % 2 = 0 then
     let y := pow x (n / 2)
@@ -39,7 +39,7 @@ termination_by n
 decreasing_by all_goals omega
 
 /-- **Correctness of Algorithm 2.1.5**: `pow x n = xⁿ` for every positive `n`. -/
-theorem pow_eq {M : Type*} [Monoid M] (x : M) {n : ℕ} (hn : 0 < n) : pow x n = x ^ n := by
+theorem pow_eq {M : Type} [Monoid M] (x : M) {n : ℕ} (hn : 0 < n) : pow x n = x ^ n := by
   fun_induction pow x n with
   | case1 n h =>
     obtain rfl : n = 1 := by omega
@@ -55,7 +55,7 @@ theorem pow_eq {M : Type*} [Monoid M] (x : M) {n : ℕ} (hn : 0 < n) : pow x n =
 runs in and a monoid `N`: if `x` is related to `x'` then `pow x n` is related to `x' ^ n`.
 This is how powering in a *representation* (say, lists of coefficients reduced modulo `f`)
 is shown to compute powers in the structure represented. -/
-theorem pow_rel {M N : Type*} [Mul M] [Monoid N] (R : M → N → Prop)
+theorem pow_rel {M : Type} {N : Type*} [Mul M] [Monoid N] (R : M → N → Prop)
     (hmul : ∀ a b a' b', R a a' → R b b' → R (a * b) (a' * b')) {x : M} {x' : N} (hx : R x x')
     {n : ℕ} (hn : 0 < n) : R (pow x n) (x' ^ n) := by
   fun_induction pow x n with
@@ -73,11 +73,11 @@ theorem pow_rel {M N : Type*} [Mul M] [Monoid N] (R : M → N → Prop)
 
 /-- Algorithm 2.1.5 extended to the exponent `n = 0` when the semigroup has an identity.
 This is the powering routine used by the later algorithms of the chapter. -/
-def power {M : Type*} [Mul M] [One M] (x : M) (n : ℕ) : M :=
+counted_def power {M : Type} [Mul M] [One M] [Chapter9.MulCost M] (x : M) (n : ℕ) : M :=
   if n = 0 then 1 else pow x n
 
 @[simp]
-theorem power_eq {M : Type*} [Monoid M] (x : M) (n : ℕ) : power x n = x ^ n := by
+theorem power_eq {M : Type} [Monoid M] (x : M) (n : ℕ) : power x n = x ^ n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp [power]
   · simp [power, hn.ne', pow_eq x hn]

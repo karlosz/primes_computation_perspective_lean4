@@ -1,3 +1,4 @@
+import PrimeNumbers.Chapter9.CountedDef
 import PrimeNumbers.Chapter2.Euclid
 
 /-!
@@ -83,7 +84,7 @@ end Theorem
 /-- The table built by the [Precomputation] step of Algorithm 2.1.7: for each `i ≥ 1`
 the triple `(mᵢ, μᵢ, cᵢ)` with `μᵢ = ∏_{j<i} mⱼ` and `cᵢ = μᵢ⁻¹ mod mᵢ`.
 The argument `μ` is the product of the moduli already processed. -/
-def garnerTable (μ : ℕ) : List ℕ → List (ℕ × ℕ × ℕ)
+counted_def garnerTable (μ : ℕ) : List ℕ → List (ℕ × ℕ × ℕ)
   | [] => []
   | m :: ms => (m, μ, modInv μ m) :: garnerTable (μ * m) ms
 
@@ -100,7 +101,7 @@ for (1 ≤ i < r) { μᵢ = ∏_{j<i} mⱼ;  cᵢ = μᵢ⁻¹ mod mᵢ; }
 M = μ_{r-1} m_{r-1};
 ```
 -/
-def Garner.precompute : List ℕ → Garner
+counted_def Garner.precompute : List ℕ → Garner
   | [] => ⟨1, []⟩
   | m₀ :: ms => ⟨(m₀ :: ms).prod, garnerTable m₀ ms⟩
 
@@ -109,20 +110,20 @@ def Garner.precompute : List ℕ → Garner
 for (1 ≤ i < r) { u = ((nᵢ - n) cᵢ) mod mᵢ;  n = n + u μᵢ; }
 ```
 -/
-def garnerLoop (n : ℕ) : List (ℕ × ℕ × ℕ) → List ℕ → ℕ
+counted_def garnerLoop (n : ℕ) : List (ℕ × ℕ × ℕ) → List ℕ → ℕ
   | (m, μ, c) :: table, nᵢ :: ns =>
     let u := (((nᵢ : ℤ) - n) * c % m).toNat
     garnerLoop (n + u * μ) table ns
   | _, _ => n
 
 /-- **Algorithm 2.1.7, step 2 [Reentry point for given input residues `{nᵢ}`].** -/
-def Garner.reconstruct (G : Garner) : List ℕ → ℕ
+counted_def Garner.reconstruct (G : Garner) : List ℕ → ℕ
   | [] => 0
   | n₀ :: ns => garnerLoop n₀ G.table ns % G.M
 
 /-- **Algorithm 2.1.7 (Garner)**, both steps: for moduli `ms` and residues `ns` return
 the `n ∈ [0, M-1]` with `n ≡ nᵢ (mod mᵢ)`. -/
-def garner (ms ns : List ℕ) : ℕ :=
+counted_def garner (ms ns : List ℕ) : ℕ :=
   (Garner.precompute ms).reconstruct ns
 
 /-- One pass through the Garner loop makes `n` correct modulo the new modulus `m` … -/

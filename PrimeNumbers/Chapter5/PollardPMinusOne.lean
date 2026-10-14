@@ -29,13 +29,13 @@ open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3
 
 /-- **Algorithm 5.4.1, step 1 [Establish prime-power base]**: the primes `p ≤ B`, found
 with the sieve of Eratosthenes of §3.2. -/
-def primesUpTo (B : ℕ) : List ℕ := sievePrimes B
+counted_def primesUpTo (B : ℕ) : List ℕ := sievePrimes B
 
 theorem mem_primesUpTo {B q : ℕ} : q ∈ primesUpTo B ↔ q.Prime ∧ q ≤ B := mem_sievePrimes
 
 /-- The exponent `M(B) = ∏_{p ≤ B} p^(a_p)`, where `a_p = ⌊log_p B⌋` is the maximum integer
 with `p^(a_p) ≤ B`.  This is `lcm(1, …, B)`. -/
-def pm1Exponent (B : ℕ) : ℕ :=
+counted_def pm1Exponent (B : ℕ) : ℕ :=
   ((primesUpTo B).map fun p ↦ p ^ Nat.log p B).prod
 
 /-- The inner loop of step 2: `for (1 ≤ j ≤ a) c = c^p mod n`. -/
@@ -48,7 +48,7 @@ counted_def ladder (n p : ℕ) (c : ℕ) : ℕ → ℕ
 for (1 ≤ i ≤ m) { for (1 ≤ j ≤ aᵢ) c = c^(pᵢ) mod n; }
 ```
 -/
-def ladders (n B c : ℕ) : ℕ :=
+counted_def ladders (n B c : ℕ) : ℕ :=
   (primesUpTo B).foldl (fun c p ↦ ladder n p c (Nat.log p B)) c
 
 /-- **Algorithm 5.4.1 (Basic Pollard `p - 1` method).**  Given a composite odd `n` and a
@@ -58,7 +58,7 @@ book takes `c = 2`).
 3. [Test gcd]   g = gcd(c - 1, n);   return g;      // We hope for a success 1 < g < n.
 ```
 -/
-def pollardPMinusOne (n B : ℕ) (c : ℕ := 2) : ℕ :=
+counted_def pollardPMinusOne (n B : ℕ) (c : ℕ := 2) : ℕ :=
   euclid n ((ladders n B c + n - 1) % n)
 
 theorem pollardPMinusOne_dvd (n B c : ℕ) : pollardPMinusOne n B c ∣ n := by
@@ -156,11 +156,11 @@ counted_def stage2Loop (n c₁ : ℕ) : (prevQ h P : ℕ) → List ℕ → ℕ
     stage2Loop n c₁ Q h' (P * (h' + n - 1) % n) Qs
 
 /-- The primes `Q` with `B < Q ≤ B'`. -/
-def stage2Primes (B B' : ℕ) : List ℕ := (primesUpTo B').filter (B < ·)
+counted_def stage2Primes (B B' : ℕ) : List ℕ := (primesUpTo B').filter (B < ·)
 
 /-- **The second stage of the Pollard `p - 1` method**: `gcd(∏_Q (c^(Q M(B)) - 1), n)` over
 the primes `Q ∈ (B, B']`. -/
-def pollardStage2 (n B B' : ℕ) (c : ℕ := 2) : ℕ :=
+counted_def pollardStage2 (n B B' : ℕ) (c : ℕ := 2) : ℕ :=
   euclid n (stage2Loop n (ladders n B c % n) 0 (1 % n) (1 % n) (stage2Primes B B'))
 
 theorem pollardStage2_dvd (n B B' c : ℕ) : pollardStage2 n B B' c ∣ n := by

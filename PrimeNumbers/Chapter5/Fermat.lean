@@ -171,7 +171,7 @@ theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
     (h : a + fuel ≤ A + 1) :
     costOf C (fermatLoop n a fuel) ≤ fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
   induction fuel generalizing a with
-  | zero => cost_unfold fermatLoop.counted; simp
+  | zero => cost_unfold fermatLoop.counted
   | succ fuel ih =>
     have haA : a ≤ A := by omega
     have ih := ih (a := a + 1) (by omega)
@@ -203,7 +203,7 @@ theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
       ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sq (2 * n.size)) := by
   rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
   · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]
-    cost_unfold fermatLoop.counted; simp
+    cost_unfold fermatLoop.counted
   · refine (fermatCost_le C hsq hS (A := (n + 9) / 6) _ (by omega)).trans
       (Nat.mul_le_mul_left _ ?_)
     have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)

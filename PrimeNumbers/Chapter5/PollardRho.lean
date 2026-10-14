@@ -52,7 +52,7 @@ counted_def pollardRhoLoop (n a : ℕ) (U V : ℕ) : ℕ → Option ℕ
 attempts to find a nontrivial factor of `n`, from seeds `a ∈ [1, n - 3]` and
 `s ∈ [0, n - 1]`.  Returns `none` on a [Bad seed] (`g = n`) or if `fuel` passes of
 [Factor search] were not enough. -/
-def pollardRho (n a s fuel : ℕ) : Option ℕ :=
+counted_def pollardRho (n a s fuel : ℕ) : Option ℕ :=
   match pollardRhoLoop n a s s fuel with
   | some g => if g = n then none else some g     -- 3. [Bad seed] / 4. [Success]
   | none => none
@@ -235,25 +235,9 @@ open PrimeNumbers.Chapter9
 
 /-! ### Bit operations -/
 
-/-- The bit operations of one evaluation `F(x) = (x² + a) mod n`. -/
-def rhoFCost (C : CostModel) (n a x : ℕ) : ℕ :=
-  C.mul x.size x.size + C.divMod (x * x + a).size n.size
-
-/-- The bit operations of `pollardRhoLoop n a U V fuel`: three evaluations of `F` and one
-gcd per pass. -/
-def pollardRhoCost (C : CostModel) (n a : ℕ) (U V : ℕ) : ℕ → ℕ
-  | 0 => 0
-  | fuel + 1 =>
-    let U' := rhoF n a U
-    let V₁ := rhoF n a V
-    let V' := rhoF n a V₁
-    rhoFCost C n a U + rhoFCost C n a V + rhoFCost C n a V₁ +
-      costOf C (euclid n (absDiff U' V')) +
-      if euclid n (absDiff U' V') = 1 then pollardRhoCost C n a U' V' fuel else 0
-
 /-- One evaluation of `F` on a residue costs at most one modular multiplication. -/
 theorem rhoFCost_le (C : CostModel) {n a x : ℕ} (ha : a < n) (hx : x < n) :
-    rhoFCost C n a x ≤ C.mulMod n.size := by
+    costOf C (rhoF n a x) ≤ C.mulMod n.size := by
   have hlt : x * x + a < n * n := by
     obtain ⟨c, rfl⟩ : ∃ c, n = c + 1 := ⟨n - 1, by omega⟩
     have h₁ : x * x ≤ c * c := Nat.mul_le_mul (by omega) (by omega)
@@ -263,20 +247,21 @@ theorem rhoFCost_le (C : CostModel) {n a x : ℕ} (ha : a < n) (hx : x < n) :
     have := size_le_of_lt hlt
     have := size_mul_le n n
     omega
+  cost_unfold rhoF.counted
   exact Nat.add_le_add (C.mul_mono (size_le_of_lt hx) (size_le_of_lt hx))
     (C.divMod_mono _ hsize)
 
 theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := by
-  unfold absDiff; split_ifs <;> omega
+  unfold absDiff ; split_ifs <;> omega
 
 /-- **Bit complexity of Pollard rho**, for any cost model: each pass costs at most three
 modular multiplications and one gcd with `n` (bounded by `G`). -/
 theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
     (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
-    pollardRhoCost C n a U V fuel ≤ fuel * (3 * C.mulMod n.size + G) := by
+    costOf C (pollardRhoLoop n a U V fuel) ≤ fuel * (3 * C.mulMod n.size + G) := by
   have hn : 0 < n := by omega
   induction fuel generalizing U V with
-  | zero => simp [pollardRhoCost]
+  | zero => cost_unfold pollardRhoLoop.counted
   | succ fuel ih =>
     have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
     have h₁ := rhoFCost_le C ha hU
@@ -284,14 +269,15 @@ theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
     have h₃ := rhoFCost_le C ha (hF V)
     have h₄ := hG _ (absDiff_lt (hF U) (hF (rhoF n a V)))
     have ih := ih (hF U) (hF (rhoF n a V))
-    simp only [pollardRhoCost, add_mul, one_mul]
+    cost_unfold pollardRhoLoop.counted
+    simp only [add_mul, one_mul]
     split_ifs <;> omega
 
 /-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 4k` bit
 operations per pass of [Factor search]. -/
 theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV : V < n)
     (fuel : ℕ) :
-    pollardRhoCost school n a U V fuel ≤ fuel * (9 * n.size ^ 2 + 4 * n.size) := by
+    costOf school (pollardRhoLoop n a U V fuel) ≤ fuel * (9 * n.size ^ 2 + 4 * n.size) := by
   refine (pollardRhoCost_le school ha
     (fun d hd ↦ euclidBitCost_school_le' hd le_rfl) hU hV fuel).trans (le_of_eq ?_)
   rw [school_mulMod]
@@ -325,7 +311,7 @@ counted_def pollardRhoAccLoop (n a k : ℕ) (U V : ℕ) : ℕ → Option ℕ
 
 /-- **Pollard rho with accumulated gcd's.**  Returns `none` if a batch ends with `g = n`
 (then one should redo that batch with a gcd at every pass, i.e. call `pollardRho`). -/
-def pollardRhoAcc (n a s k fuel : ℕ) : Option ℕ :=
+counted_def pollardRhoAcc (n a s k fuel : ℕ) : Option ℕ :=
   match pollardRhoAccLoop n a k s s fuel with
   | some g => if g = n then none else some g
   | none => none
@@ -359,28 +345,15 @@ section RunningTimeAcc
 
 open PrimeNumbers.Chapter9
 
-/-- The bit operations of `rhoBatch`: per pass three evaluations of `F` and one more
-modular multiplication. -/
-def rhoBatchCost (C : CostModel) (n a : ℕ) : (U V Q count : ℕ) → ℕ
-  | _, _, _, 0 => 0
-  | U, V, Q, count + 1 =>
-    let U' := rhoF n a U
-    let V₁ := rhoF n a V
-    let V' := rhoF n a V₁
-    let d := absDiff U' V'
-    rhoFCost C n a U + rhoFCost C n a V + rhoFCost C n a V₁ +
-      (C.mul Q.size d.size + C.divMod (Q * d).size n.size) +
-      rhoBatchCost C n a U' V' (Q * d % n) count
-
 /-- **Cost of a batch**: "one generic loop consists of 3 modular squarings and one modular
 multiplication" — at most `4 · C.mulMod k` bit operations per pass, and the gcd is paid
 only once per batch. -/
 theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ} (hU : U < n)
     (hV : V < n) (hQ : Q < n) (count : ℕ) :
-    rhoBatchCost C n a U V Q count ≤ count * (4 * C.mulMod n.size) := by
+    costOf C (rhoBatch n a U V Q count) ≤ count * (4 * C.mulMod n.size) := by
   have hn : 0 < n := by omega
   induction count generalizing U V Q with
-  | zero => simp [rhoBatchCost]
+  | zero => cost_unfold rhoBatch.counted
   | succ count ih =>
     have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
     have h₁ := rhoFCost_le C ha hU
@@ -389,7 +362,8 @@ theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ} (
     have h₄ := mul_add_divMod_le C hQ (absDiff_lt (hF U) (hF (rhoF n a V)))
     have ih := ih (hF U) (hF (rhoF n a V))
       (Q := Q * absDiff (rhoF n a U) (rhoF n a (rhoF n a V)) % n) (Nat.mod_lt _ hn)
-    simp only [rhoBatchCost, add_mul, one_mul]
+    cost_unfold rhoBatch.counted
+    simp only [add_mul, one_mul]
     omega
 
 end RunningTimeAcc
@@ -412,7 +386,7 @@ counted_def pollardBrentLoop (n a : ℕ) : (saved cur i limit fuel : ℕ) → Op
     else some g
 
 /-- **Pollard rho with Brent's cycle-finding.** -/
-def pollardBrent (n a s fuel : ℕ) : Option ℕ :=
+counted_def pollardBrent (n a s fuel : ℕ) : Option ℕ :=
   match pollardBrentLoop n a s s 0 1 fuel with
   | some g => if g = n then none else some g
   | none => none
@@ -561,33 +535,23 @@ section RunningTimeBrent
 
 open PrimeNumbers.Chapter9
 
-/-- The bit operations of `pollardBrentLoop`: one evaluation of `F` and one gcd per step. -/
-def pollardBrentCost (C : CostModel) (n a : ℕ) : (saved cur i limit fuel : ℕ) → ℕ
-  | _, _, _, _, 0 => 0
-  | saved, cur, i, limit, fuel + 1 =>
-    let cur' := rhoF n a cur
-    rhoFCost C n a cur + costOf C (euclid n (absDiff cur' saved)) +
-      if euclid n (absDiff cur' saved) = 1 then
-        if i + 1 = limit then pollardBrentCost C n a cur' cur' 0 (2 * limit) fuel
-        else pollardBrentCost C n a saved cur' (i + 1) limit fuel
-      else 0
-
 /-- **Bit complexity of Brent's variant**: each step costs one modular multiplication and
 one gcd — against three and one for Algorithm 5.2.1. -/
 theorem pollardBrentCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
     (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {saved cur : ℕ} (hs : saved < n) (hc : cur < n)
     (i limit fuel : ℕ) :
-    pollardBrentCost C n a saved cur i limit fuel ≤ fuel * (C.mulMod n.size + G) := by
+    costOf C (pollardBrentLoop n a saved cur i limit fuel) ≤ fuel * (C.mulMod n.size + G) := by
   have hn : 0 < n := by omega
   induction fuel generalizing saved cur i limit with
-  | zero => simp [pollardBrentCost]
+  | zero => cost_unfold pollardBrentLoop.counted
   | succ fuel ih =>
     have hF : rhoF n a cur < n := Nat.mod_lt _ hn
     have h₁ := rhoFCost_le C ha hc
     have h₂ := hG _ (absDiff_lt hF hs)
     have ih₁ := ih hF hF 0 (2 * limit)
     have ih₂ := ih hs hF (i + 1) limit
-    simp only [pollardBrentCost, add_mul, one_mul]
+    cost_unfold pollardBrentLoop.counted
+    simp only [add_mul, one_mul]
     split_ifs <;> omega
 
 end RunningTimeBrent
