@@ -217,4 +217,159 @@ theorem mulNatCost_le (C : CostModel) {b : ℕ} (hb : 0 < b) {f g : List ℕ}
     C.mul (pack b f).size (pack b g).size ≤ C.mul (b * f.length) (b * g.length) :=
   C.mul_mono (size_pack_le hb hf) (size_pack_le hb hg)
 
+/-- Digits below `2^w` in base `2^b ≤ 2^w` give a number of at most `w · len` bits. -/
+theorem ofDigits_lt_of_le {b w : ℕ} (hbw : b ≤ w) (L : List ℕ) (hL : ∀ x ∈ L, x < 2 ^ w) :
+    Nat.ofDigits (2 ^ b) L < 2 ^ (w * L.length) := by
+  induction L with
+  | nil => simp
+  | cons c L ih =>
+    have hc := hL c (by simp)
+    have ih := ih fun x hx ↦ hL x (by simp [hx])
+    have hb : 2 ^ b ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num) hbw
+    rw [Nat.ofDigits_cons, List.length_cons, Nat.mul_succ, pow_add]
+    nlinarith [Nat.zero_le (Nat.ofDigits (2 ^ b) L)]
+
+theorem size_pack_le_of_le {b w : ℕ} (hbw : b ≤ w) {L : List ℕ} (hL : ∀ x ∈ L, x < 2 ^ w) :
+    (pack b L).size ≤ w * L.length := by
+  rw [Nat.size_le, pack_eq]; exact ofDigits_lt_of_le hbw L hL
+
+/-- Packing costs one small product `b · (len/2)` per node of the splitting. -/
+theorem pack_cost_le (C : CostModel) {b X : ℕ} (L : List ℕ)
+    (hX : C.mul b.size (L.length / 2).size ≤ X) :
+    costOf C (pack b L) ≤ (L.length - 1) * X := by
+  fun_induction pack b L with
+  | case1 L h => cost_unfold pack.counted
+  | case2 L h ih₁ ih₂ =>
+    have hmono : ∀ M : List ℕ, M.length ≤ L.length → C.mul b.size (M.length / 2).size ≤ X :=
+      fun M hM ↦ (C.mul_mono le_rfl (Nat.size_le_size (by omega))).trans hX
+    have ih₁ := ih₁ (hmono _ (by simp))
+    have ih₂ := ih₂ (hmono _ (by simp))
+    simp only [List.length_take, List.length_drop] at ih₁ ih₂
+    rw [min_eq_left (by omega)] at ih₁
+    cost_unfold pack.counted
+    rw [show L.length - 1 = (L.length / 2 - 1) + (L.length - L.length / 2 - 1) + 1 by omega,
+      add_mul, add_mul, one_mul]
+    omega
+
+/-- Unpacking costs two small products `b · (count/2)` per node of the splitting. -/
+theorem unpack_cost_le (C : CostModel) {b X : ℕ} (N count : ℕ)
+    (hX : C.mul b.size (count / 2).size ≤ X) :
+    costOf C (unpack b N count) ≤ (count - 1) * (2 * X) := by
+  fun_induction unpack b N count with
+  | case1 N => cost_unfold unpack.counted
+  | case2 N h => cost_unfold unpack.counted
+  | case3 N count h₀ h₁ ih₁ ih₂ =>
+    have hmono : ∀ m, m ≤ count → C.mul b.size (m / 2).size ≤ X :=
+      fun m hm ↦ (C.mul_mono le_rfl (Nat.size_le_size (by omega))).trans hX
+    have ih₁ := ih₁ (hmono _ (by omega))
+    have ih₂ := ih₂ (hmono _ (by omega))
+    cost_unfold unpack.counted
+    rw [show count - 1 = (count / 2 - 1) + (count - count / 2 - 1) + 1 by omega,
+      add_mul, add_mul, one_mul]
+    omega
+
+/-- A schoolbook product with an empty factor costs nothing. -/
+theorem mul_nil_cost (C : CostModel) (f : List ℕ) : costOf C (Chapter2.Poly.mul f []) = 0 := by
+  induction f with
+  | nil => cost_unfold Chapter2.Poly.mul.counted
+  | cons a f ih =>
+    cost_unfold Chapter2.Poly.mul.counted
+    cost_unfold Chapter2.Poly.smul.counted
+    simpa using ih
+
+theorem nil_mul_cost (C : CostModel) (g : List ℕ) : costOf C (Chapter2.Poly.mul [] g) = 0 := by
+  cost_unfold Chapter2.Poly.mul.counted
+
+/-- The width of one coefficient in binary segmentation over `Z_n`, for polynomials with at
+most `d` coefficients: enough for the coefficients of the product. -/
+def segWidth (n d : ℕ) : ℕ := 2 * n.size + 3 * d.size + 2
+
+/-- **Cost of a product in `Z_n[t]` by binary segmentation** (Algorithm 9.6.1), for
+polynomials with at most `d` coefficients: one multiplication of two integers of at most
+`segWidth n d · d` bits, and `6d + 2` small products (of numbers of at most
+`2 segWidth n d` bits) for choosing the width, packing and unpacking.  With a
+quasi-linear integer multiplication this is quasi-linear in `d log n`. -/
+theorem mulMod_cost_le (C : CostModel) {n d : ℕ} [NeZero n] (f g : Chapter2.Poly (ZMod n))
+    (hf : f.length ≤ d) (hg : g.length ≤ d) :
+    costOf C (mulMod n f g) ≤
+      C.mul (segWidth n d * d) (segWidth n d * d) +
+        (6 * d + 2) * C.mul (2 * segWidth n d) (2 * segWidth n d) := by
+  set β := segWidth n d with hβ
+  have hβv : β = 2 * n.size + 3 * d.size + 2 := rfl
+  set X := C.mul (2 * β) (2 * β)
+  set F := f.map ZMod.val with hFdef
+  set G := g.map ZMod.val with hGdef
+  have hF : ∀ x ∈ F, x < n := by simp only [hFdef, List.mem_map]; rintro _ ⟨a, -, rfl⟩; exact ZMod.val_lt a
+  have hG : ∀ x ∈ G, x < n := by simp only [hGdef, List.mem_map]; rintro _ ⟨a, -, rfl⟩; exact ZMod.val_lt a
+  have hlF : F.length ≤ d := by simp [hFdef, hf]
+  have hlG : G.length ≤ d := by simp [hGdef, hg]
+  have hn2 : n < 2 ^ n.size := Nat.lt_size_self n
+  -- the coefficient sums, and the width `b` chosen
+  have hsum : ∀ L : List ℕ, (∀ x ∈ L, x < n) → L.length ≤ d → L.sum.size ≤ d.size + n.size :=
+    fun L hL hl ↦ by
+      have : L.sum ≤ d * n := by
+        have := List.sum_le_card_nsmul L n (fun x hx ↦ (hL x hx).le)
+        simp only [smul_eq_mul] at this
+        exact this.trans (Nat.mul_le_mul_right n hl)
+      exact (Nat.size_le_size this).trans (size_mul_le d n)
+  have hsF := hsum F hF hlF
+  have hsG := hsum G hG hlG
+  have hprod : (F.sum * G.sum).size ≤ 2 * β := by
+    have := size_mul_le F.sum G.sum; omega
+  have hb : (F.length * (F.sum * G.sum)).size + 1 ≤ β := by
+    have := size_mul_le F.length (F.sum * G.sum)
+    have := Nat.size_le_size hlF
+    have := size_mul_le F.sum G.sum
+    omega
+  have hβ2 : ∀ x ∈ F ++ G, x < 2 ^ β := fun x hx ↦ by
+    have hx : x < n := by
+      rcases List.mem_append.mp hx with h | h
+      · exact hF x h
+      · exact hG x h
+    exact hx.trans (hn2.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega)))
+  -- the small products
+  have hsmall : ∀ x y : ℕ, x ≤ 2 * β → y ≤ 2 * β → C.mul x y ≤ X := fun x y hx hy ↦
+    C.mul_mono hx hy
+  have hbs : ((F.length * (F.sum * G.sum)).size + 1).size ≤ 2 * β :=
+    (Nat.size_le.mpr Nat.lt_two_pow_self).trans (by omega)
+  have hds : ∀ m, m ≤ 2 * d → (m / 2).size ≤ 2 * β := fun m hm ↦
+    (Nat.size_le_size (show m / 2 ≤ d by omega)).trans (by omega)
+  have p₁ := pack_cost_le C (X := X) (b := (F.length * (F.sum * G.sum)).size + 1) F
+    (hsmall _ _ hbs (hds _ (by omega)))
+  have p₂ := pack_cost_le C (X := X) (b := (F.length * (F.sum * G.sum)).size + 1) G
+    (hsmall _ _ hbs (hds _ (by omega)))
+  have u := unpack_cost_le C (X := X) (b := (F.length * (F.sum * G.sum)).size + 1)
+    (pack ((F.length * (F.sum * G.sum)).size + 1) F *
+      pack ((F.length * (F.sum * G.sum)).size + 1) G) (F.length + G.length - 1)
+    (hsmall _ _ hbs (hds _ (by omega)))
+  have i₁ := hsmall F.sum.size G.sum.size (by omega) (by omega)
+  have i₂ := hsmall F.length.size (F.sum * G.sum).size
+    ((Nat.size_le_size hlF).trans (by omega)) hprod
+  -- the big product
+  have hbig : C.mul (pack ((F.length * (F.sum * G.sum)).size + 1) F).size
+      (pack ((F.length * (F.sum * G.sum)).size + 1) G).size ≤ C.mul (β * d) (β * d) :=
+    C.mul_mono
+      ((size_pack_le_of_le hb fun x hx ↦ hβ2 x (List.mem_append_left _ hx)).trans
+        (Nat.mul_le_mul_left β hlF))
+      ((size_pack_le_of_le hb fun x hx ↦ hβ2 x (List.mem_append_right _ hx)).trans
+        (Nat.mul_le_mul_left β hlG))
+  cost_unfold mulMod.counted
+  cost_unfold mulNatAuto.counted
+  cost_unfold mulNat.counted
+  rw [← hFdef, ← hGdef]
+  have hX : (F.length - 1) * X + (G.length - 1) * X +
+      (F.length + G.length - 1 - 1) * (2 * X) ≤ 6 * d * X := by
+    have : (F.length - 1) + (G.length - 1) + (F.length + G.length - 1 - 1) * 2 ≤ 6 * d := by
+      omega
+    nlinarith
+  have hz : ∀ A B : List ℕ, A = [] ∨ B = [] → costOf C (Chapter2.Poly.mul A B) = 0 := by
+    rintro A B (rfl | rfl)
+    · exact nil_mul_cost C B
+    · exact mul_nil_cost C A
+  have e : (6 * d + 2) * X = 6 * d * X + 2 * X := by ring
+  have hXv : X = C.mul (2 * β) (2 * β) := rfl
+  split_ifs with hnil
+  · rw [hz F G hnil]; omega
+  · omega
+
 end PrimeNumbers.Chapter9
