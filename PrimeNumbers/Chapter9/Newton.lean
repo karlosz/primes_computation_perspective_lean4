@@ -98,4 +98,56 @@ theorem invNewton_spec {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.
     linear_combination (-A) * h₂ + (A * H) * h₁ -
       (2 * X ^ 2 ^ k * Q + (A * H - 1 - X ^ 2 ^ k * Q)) * hQ
 
+/-! ## Running time -/
+
+theorem length_invNewton_le (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+    (a : Chapter2.Poly R) (u : R) (k : ℕ) : (invNewton mulF a u k).length ≤ 2 ^ k := by
+  cases k with
+  | zero => simp [invNewton]
+  | succ k => simp [invNewton]
+
+/-- The cost of scaling a polynomial: one product per coefficient. -/
+theorem smul_cost_le [MulCost R] (C : CostModel) {s : ℕ}
+    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (c : R) (f : Chapter2.Poly R) :
+    costOf C (Chapter2.Poly.smul c f) ≤ f.length * s := by
+  cost_unfold Chapter2.Poly.smul.counted
+  exact sum_map_le_length_mul _ _ fun x _ ↦ hs c x
+
+/-- **Cost of Newton inversion (Algorithm 9.6.2)**: `k` iterations, each with two products
+(by the routine `mulF`, whose charge `mc` is at most `M` on inputs of length `≤ D`) and at
+most `2D` scalar products (each at most `s`), as long as `2^k ≤ D`. -/
+theorem invNewton_cost_le [MulCost R] (C : CostModel)
+    {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
+    (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {M s D : ℕ}
+    (hM : ∀ f g : Chapter2.Poly R, f.length ≤ D → g.length ≤ D → CostM.cost C (mc f g) ≤ M)
+    (hlen : ∀ f g : Chapter2.Poly R, (mulF f g).length ≤ f.length + g.length)
+    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s)
+    (a : Chapter2.Poly R) (ha : a.length ≤ D) (u : R) (k : ℕ) (hk : 2 ^ k ≤ D) :
+    CostM.cost C (invNewton.counted mulF a u k mc) ≤ k * (2 * M + 2 * D * s) := by
+  induction k with
+  | zero => cost_unfold invNewton.counted
+  | succ k ih =>
+    have h2 : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
+    have ih := ih (by omega)
+    have hh := length_invNewton_le mulF a u k
+    have hm₁ := hM a (invNewton mulF a u k) ha (by omega)
+    have hm₂ := hM (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))
+      (by omega) (by simp only [List.length_take]; omega)
+    have hs₁ := smul_cost_le C hs 2 (invNewton mulF a u k)
+    have hl := hlen (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))
+    have hs₂ := smul_cost_le C hs (-1) (mulF (invNewton mulF a u k)
+      ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1))))
+    simp only [List.length_take] at hl
+    cost_unfold invNewton.counted
+    cost_unfold Chapter2.Poly.sub.counted
+    have : (invNewton mulF a u k).length * s +
+        (mulF (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))).length
+          * s ≤ 2 * D * s := by
+      have : (invNewton mulF a u k).length +
+          (mulF (invNewton mulF a u k)
+            ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))).length ≤ 2 * D := by omega
+      nlinarith
+    rw [add_mul]
+    omega
+
 end PrimeNumbers.Chapter9

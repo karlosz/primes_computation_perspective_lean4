@@ -228,4 +228,73 @@ theorem length_fastModMonic_prodTree_le (mulF : Chapter2.Poly R → Chapter2.Pol
   have h₂ := length_prodTree_le mulF us
   omega
 
+/-! ### The product tree -/
+
+/-- A leaf of the product tree, `t - u`, costs two scalar products. -/
+theorem prodLinear_cost_le [MulCost R] (C : CostModel) {s : ℕ}
+    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (us : List R) (h : us.length ≤ 1) :
+    costOf C (prodLinear us) ≤ us.length * (2 * s) := by
+  match us, h with
+  | [], _ => cost_unfold prodLinear.counted
+  | [u], _ =>
+    have h₁ := hs (-u) 1
+    have h₂ := hs 1 1
+    cost_unfold prodLinear.counted
+    cost_unfold prodLinear.counted
+    cost_unfold Chapter2.Poly.mul.counted
+    cost_unfold Chapter2.Poly.smul.counted
+    cost_unfold Chapter2.Poly.mul.counted
+    cost_unfold Chapter2.Poly.smul.counted
+    have h₀ : CostM.cost C (Chapter2.Poly.mul.counted ([] : Chapter2.Poly R) [1]) = 0 := by
+      cost_unfold Chapter2.Poly.mul.counted
+    simp only [prodLinear, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+      List.length_singleton, h₀]
+    omega
+
+/-- **Cost of the product tree**: if a product of inputs of length `≤ m` costs at most
+`Mf m`, with `Mf` monotone and superadditive, the tree over `d` points costs at most
+`(⌈log₂ d⌉ + 1) · Mf d` for the products and `2s` for each leaf. -/
+theorem prodTree_cost_le [MulCost R] (C : CostModel)
+    {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
+    (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {Mf : ℕ → ℕ} {s : ℕ}
+    (hMf : Monotone Mf) (hsup : ∀ a b, Mf a + Mf b ≤ Mf (a + b))
+    (hM : ∀ (m : ℕ) (f g : Chapter2.Poly R), f.length ≤ m → g.length ≤ m →
+      CostM.cost C (mc f g) ≤ Mf m)
+    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (us : List R) :
+    CostM.cost C (prodTree.counted mulF us mc) ≤
+      (Nat.clog 2 us.length + 1) * Mf us.length + us.length * (2 * s) := by
+  fun_induction prodTree mulF us with
+  | case1 us h =>
+    cost_unfold prodTree.counted
+    have := prodLinear_cost_le C hs us h
+    omega
+  | case2 us h ih₁ ih₂ =>
+    set u := us.take (us.length / 2)
+    set v := us.drop (us.length / 2)
+    have hu : u.length = us.length / 2 := by simp [u]; omega
+    have hv : v.length = us.length - us.length / 2 := by simp [v]
+    have hnode := hM us.length (prodTree mulF u) (prodTree mulF v)
+      ((length_prodTree_le mulF u).trans (by omega))
+      ((length_prodTree_le mulF v).trans (by omega))
+    have hclog : ∀ m, m ≤ (us.length + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 us.length := by
+      intro m hm
+      have := Nat.clog_mono_right 2 hm
+      have hc : Nat.clog 2 us.length = Nat.clog 2 ((us.length + 1) / 2) + 1 :=
+        Nat.clog_of_two_le (by norm_num) (by omega)
+      omega
+    have hcu := hclog u.length (by omega)
+    have hcv := hclog v.length (by omega)
+    have hsplit : Mf u.length + Mf v.length ≤ Mf us.length :=
+      (hsup _ _).trans (hMf (by omega))
+    have e₁ : (Nat.clog 2 u.length + 1) * Mf u.length ≤ Nat.clog 2 us.length * Mf u.length :=
+      Nat.mul_le_mul_right _ hcu
+    have e₂ : (Nat.clog 2 v.length + 1) * Mf v.length ≤ Nat.clog 2 us.length * Mf v.length :=
+      Nat.mul_le_mul_right _ hcv
+    have e₃ : Nat.clog 2 us.length * (Mf u.length + Mf v.length) ≤
+        Nat.clog 2 us.length * Mf us.length := Nat.mul_le_mul_left _ hsplit
+    cost_unfold prodTree.counted
+    rw [add_mul, one_mul, show us.length * (2 * s) = u.length * (2 * s) + v.length * (2 * s) by
+      rw [← add_mul]; congr 1; omega]
+    nlinarith
+
 end PrimeNumbers.Chapter9

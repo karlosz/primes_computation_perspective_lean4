@@ -247,6 +247,11 @@ theorem CostM.foldl_cost_le {f : α → β → α} {fc : α → β → CostM C U
     change CostM.cost C (fc init b) + CostM.cost C (List.foldl.counted f (f init b) l fc) ≤ _
     omega
 
+/-- Per-element charges bounded by `s` sum to at most `length · s`. -/
+theorem sum_map_le_length_mul (l : List α) (f : α → ℕ) {s : ℕ} (h : ∀ x ∈ l, f x ≤ s) :
+    (l.map f).sum ≤ l.length * s := by
+  simpa using List.sum_le_card_nsmul (l.map f) s (by simpa using h)
+
 @[cost_simps] theorem sum_map_zero (l : List α) : (l.map fun _ => (0 : ℕ)).sum = 0 := by
   induction l <;> simp_all
 

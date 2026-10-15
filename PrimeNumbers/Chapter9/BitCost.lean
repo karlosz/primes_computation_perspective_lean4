@@ -112,6 +112,10 @@ theorem CostModel.divMod_le_divBound (C : CostModel) {a b k : ℕ} (ha : a ≤ k
     C.divMod a b ≤ C.divBound k :=
   (C.divMod_mono b ha).trans (Finset.le_sup (f := C.divMod k) (Finset.mem_range.mpr (by omega)))
 
+theorem CostModel.divBound_mono (C : CostModel) : Monotone C.divBound := fun a b h ↦
+  Finset.sup_le fun c hc ↦ C.divMod_le_divBound (Nat.le_refl a |>.trans h)
+    (by have := Finset.mem_range.mp hc; omega)
+
 theorem CostModel.mul_le_mul_bound (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb : b ≤ k) :
     C.mul a b ≤ C.mul k k := C.mul_mono ha hb
 
