@@ -303,7 +303,7 @@ the unproved assumption that `x ↦ x² + a mod p` behaves like a random map.  T
 assumption is stated as a definition, `RhoCollision p a s T` ("the sequence modulo `p`
 repeats within `T` steps"; for a random map `T ≈ √(πp/2)` is expected), and the theorem is
 proved *conditionally* on it: `RhoCollision p a s T` ⇒ at most `T` passes ⇒ at most
-`T·(9k² + 4k)` bit operations.  Unconditionally `RhoCollision p a s p` holds
+`T·(9k² + 5k)` bit operations.  Unconditionally `RhoCollision p a s p` holds
 (`rhoCollision_self`), giving the rigorous `O(p ln² n)`.  A [Bad seed] (`g = n`) is
 reported as `none`.
 
