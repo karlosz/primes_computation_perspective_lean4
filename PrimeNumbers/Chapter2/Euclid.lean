@@ -237,7 +237,7 @@ theorem euclidBitCost_school_le' {x y N : ℕ} (hxy : y < x) (hN : x ≤ N) :
   exact Nat.mul_le_mul h₁ (by omega)
 
 /-- The cost charged for a call of `Nat.gcd` in a counted algorithm. -/
-theorem gcd_counted_cost (C : CostModel) (x y : ℕ) :
+@[cost_simps] theorem gcd_counted_cost (C : CostModel) (x y : ℕ) :
     CostM.cost C (Nat.gcd.counted x y) = costOf C (euclid x y) := rfl
 
 /-- **Bit complexity of the Euclid algorithm**, in either order of the arguments: for
@@ -265,6 +265,25 @@ theorem euclidBitCost_school_le_of_le {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N
     have h₁ := hs x y h.le hy
     have h₂ := euclidBitCost_school_le' h hy
     nlinarith
+
+/-- **The worst cost of a gcd** (Algorithm 2.1.2) of numbers of at most `k` bits. -/
+def gcdCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits₂ k fun x y ↦ costOf C (euclid x y)
+
+theorem gcd_cost_le (C : CostModel) {x y k : ℕ} (hx : x.size ≤ k) (hy : y.size ≤ k) :
+    costOf C (euclid x y) ≤ gcdCost C k :=
+  le_maxOnBits₂ (fun x y ↦ costOf C (euclid x y)) hx hy
+
+theorem gcdCost_mono (C : CostModel) : Monotone (gcdCost C) := maxOnBits₂_mono _
+
+/-- In the grammar-school model a gcd of `k`-bit numbers costs at most `k (3k + 2)`. -/
+theorem gcdCost_school_le (k : ℕ) : gcdCost school k ≤ k * (3 * k + 2) :=
+  maxOnBits₂_le fun x y hx hy ↦ by
+    have := Nat.one_le_two_pow (n := k)
+    have hx' : x ≤ 2 ^ k - 1 := by have := Nat.size_le.mp hx; omega
+    have hy' : y ≤ 2 ^ k - 1 := by have := Nat.size_le.mp hy; omega
+    have hs : (2 ^ k - 1).size ≤ k := Nat.size_le.mpr (by omega)
+    refine (euclidBitCost_school_le_of_le hx' hy').trans ?_
+    exact Nat.mul_le_mul hs (by omega)
 
 /-! ### Extended Euclid and the modular inverse: bit operations -/
 

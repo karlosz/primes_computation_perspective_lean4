@@ -75,11 +75,11 @@ theorem logGo_fst_le (n b fuel : ℕ) : (logGo n b fuel).1 ≤ n := by
       · exact this
       · exact (Nat.div_le_self _ _).trans this
 
-/-- Each level of `logGo` squares the base once and divides once, by numbers `≤ n` (each
-such operation costing at most `W`); there are at most `k` levels when `n < b^(2^k)`. -/
-theorem logGo_cost_le (C : CostModel) {n W : ℕ}
-    (hW : ∀ a c, a ≤ n.size → c ≤ n.size → C.mul a c ≤ W ∧ C.divMod a c ≤ W) (fuel : ℕ) :
-    ∀ (b k : ℕ), 2 ≤ b → n < b ^ 2 ^ k → costOf C (logGo n b fuel) ≤ k * (2 * W) := by
+/-- Each level of `logGo` squares the base once and divides once, by numbers `≤ n`; there
+are at most `k` levels when `n < b^(2^k)`. -/
+theorem logGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
+    ∀ (b k : ℕ), 2 ≤ b → n < b ^ 2 ^ k →
+      costOf C (logGo n b fuel) ≤ k * (C.mul n.size n.size + C.divBound n.size) := by
   induction fuel with
   | zero => intro b k _ _; cost_unfold logGo.counted
   | succ fuel ih =>
@@ -98,19 +98,18 @@ theorem logGo_cost_le (C : CostModel) {n W : ℕ}
       rcases h : logGo n (b * b) fuel with ⟨q, e⟩
       rw [h] at hq
       simp only at hq
-      have hW₁ := (hW b.size b.size hbn hbn).1
-      have hW₂ := (hW q.size b.size (Nat.size_le_size hq) hbn).2
+      have hW₁ := C.mul_le_mul_bound hbn hbn
+      have hW₂ := C.divMod_le_divBound (Nat.size_le_size hq) hbn
       simp only [cost_simps]
       split_ifs <;> nlinarith
 
 /-- The charge for `Nat.log b n` (`b ≥ 2`): at most `size n` levels, each a squaring and a
 division of numbers `≤ n`. -/
-theorem ilog_cost_le (C : CostModel) {b n W : ℕ} (hb : 2 ≤ b)
-    (hW : ∀ a c, a ≤ n.size → c ≤ n.size → C.mul a c ≤ W ∧ C.divMod a c ≤ W) :
-    costOf C (Nat.log b n) ≤ n.size * (2 * W) := by
+theorem ilog_cost_le (C : CostModel) {b n : ℕ} (hb : 2 ≤ b) :
+    costOf C (Nat.log b n) ≤ n.size * (C.mul n.size n.size + C.divBound n.size) := by
   show CostM.cost C (ilog.counted b n) ≤ _
   cost_unfold ilog.counted
-  refine logGo_cost_le C hW n b n.size hb ?_
+  refine logGo_cost_le C n b n.size hb ?_
   calc n < 2 ^ n.size := Nat.lt_size_self n
     _ ≤ b ^ n.size := Nat.pow_le_pow_left hb _
     _ ≤ b ^ 2 ^ n.size := Nat.pow_le_pow_right (by omega) (Nat.lt_two_pow_self).le

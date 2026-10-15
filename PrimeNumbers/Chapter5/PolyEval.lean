@@ -204,21 +204,22 @@ theorem blockProdCost_le (C : CostModel) {n M : ℕ} (hn : 0 < n) {m : ℕ} (hm 
 /-- **Bit complexity of the polynomial evaluation method with block-by-block evaluation**,
 for any cost model: with `B = ⌊n^{1/4}⌋ + 1`, searching the blocks costs at most
 `B · (B · (C.mul + C.divMod) + G + …)` — `B² ≈ √n` multiplications of an `n`-residue by a
-number of at most `2 log₂ B` bits, and `B` gcds with `n` (each bounded by `G`), besides
+number of at most `2 log₂ B` bits, and `B` gcds with `n`, besides
 the products `j B` and the reductions `1 mod n`.  The
 final scan of one interval adds at most `B` divisions.  With Algorithm 9.6.7 in place of
 `blockProd` the `B²` would become `O(B ln² B)`; that is not formalized. -/
-theorem findBlockCost_le (C : CostModel) {n B G : ℕ} (hn : 0 < n)
-    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) (j fuel : ℕ) (hj : j + fuel ≤ B + 1) :
+theorem findBlockCost_le (C : CostModel) {n B : ℕ} (hn : 0 < n)
+    (j fuel : ℕ) (hj : j + fuel ≤ B + 1) :
     costOf C (findBlock n B j fuel) ≤
-      fuel * (B * (C.mul n.size (B * B).size + C.divMod (n.size + (B * B).size) n.size) + G +
+      fuel * (B * (C.mul n.size (B * B).size + C.divMod (n.size + (B * B).size) n.size) +
+        gcdCost C n.size +
         C.mul (B + 1).size B.size + C.divMod (1 : ℕ).size n.size) := by
   induction fuel generalizing j with
   | zero => cost_unfold findBlock.counted
   | succ fuel ih =>
     have h₁ := blockProdCost_le C hn (M := B * B) (m := j * B)
       (Nat.mul_le_mul_right B (by omega)) B
-    have h₂ := hG _ (blockProd_lt hn (j * B) B)
+    have h₂ := gcd_cost_le C le_rfl (Nat.size_le_size (blockProd_lt hn (j * B) B).le)
     have ih := ih (j + 1) (by omega)
     have h₃ : C.mul j.size B.size ≤ C.mul (B + 1).size B.size :=
       C.mul_mono (Nat.size_le_size (by omega)) le_rfl

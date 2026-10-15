@@ -675,25 +675,28 @@ theorem ceilSqrt_counted_cost (C : CostModel) (m : ℕ) :
     costOf C (ceilSqrt m) = costOf C (Nat.sqrt m) + C.mul (Nat.sqrt m).size (Nat.sqrt m).size := by
   cost_unfold ceilSqrt.counted
 
-section Bounds
+/-- Bounds on the primitives, on numbers up to `A` of `K` bits. -/
+private theorem size_add_le_succ {a b A : ℕ} (ha : a ≤ A) (hb : b ≤ A) :
+    (a + b).size ≤ A.size + 1 := by
+  rw [Nat.size_le, pow_succ]
+  have := Nat.lt_size_self A
+  omega
 
-/-! The bounds assume bounds on the primitive operations — multiplications `≤ M`, integer
-square roots `≤ S`, divisions `≤ D`, on numbers up to `A` (square roots of numbers up to
-`A²`) — and the final gcd `≤ G`; which operations the loops perform is read off the code. -/
+private theorem size_sub_mul_le {a A : ℕ} (c : ℕ) (ha : a ≤ A) :
+    (a * a - c).size ≤ 2 * A.size := by
+  have := Nat.size_le_size (Nat.sub_le (a * a) c)
+  have := size_mul_le a a
+  have := Nat.size_le_size ha
+  omega
 
-variable (C : CostModel) {n A M S D G : ℕ}
-  (hM : ∀ a b, a ≤ A → b ≤ A → C.mul a.size b.size ≤ M)
-  (hS : ∀ t, t ≤ A * A → costOf C (Nat.sqrt t) ≤ S)
-  (hG : ∀ a b, a ≤ A → b ≤ A → costOf C (Nat.gcd (a + b) n) ≤ G)
-
-include hM hS hG in
-/-- The inner loop costs at most `3M + S` per pass (at most `fuel` passes: the squaring
-`a²`, the product `4k · n`, the square root `b` and the check `b²`), plus the final gcd if
-it succeeds. -/
-theorem lehmanInnerCost_le {k : ℕ} (h4k : 4 * k ≤ A) (hn : n ≤ A)
+/-- The inner loop costs at most `3 M + S` per pass (at most `fuel` passes: the squaring
+`a²`, the product `4k · n`, the square root `b` and the check `b²`; `M` a multiplication and
+`S` a square root of the sizes involved), plus the final gcd if it succeeds. -/
+theorem lehmanInnerCost_le (C : CostModel) {n k A : ℕ} (h4k : 4 * k ≤ A) (hn : n ≤ A)
     (a fuel : ℕ) (h : a + fuel ≤ A + 1) :
     costOf C (lehmanInner n k a fuel) ≤
-      fuel * (3 * M + S) + if (lehmanInner n k a fuel).isSome then G else 0 := by
+      fuel * (3 * C.mul A.size A.size + sqrtCost C (2 * A.size)) +
+        if (lehmanInner n k a fuel).isSome then gcdCost C (A.size + 1) else 0 := by
   induction fuel generalizing a with
   | zero => cost_unfold lehmanInner.counted
   | succ fuel ih =>
@@ -701,44 +704,49 @@ theorem lehmanInnerCost_le {k : ℕ} (h4k : 4 * k ≤ A) (hn : n ≤ A)
     have hb : Nat.sqrt (a * a - 4 * k * n) ≤ a := by
       have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) (4 * k * n))
       rwa [Nat.sqrt_eq] at this
-    have h₁ := hM a a haA haA
-    have h₂ := hM (4 * k) n h4k hn
-    have h₃ := hM _ _ (hb.trans haA) (hb.trans haA)
-    have h₄ := hS (a * a - 4 * k * n) ((Nat.sub_le _ _).trans (Nat.mul_le_mul haA haA))
+    have hs := Nat.size_le_size haA
+    have h₁ := C.mul_le_mul_bound hs hs
+    have h₂ := C.mul_le_mul_bound (Nat.size_le_size h4k) (Nat.size_le_size hn)
+    have h₃ := C.mul_le_mul_bound (Nat.size_le_size (hb.trans haA))
+      (Nat.size_le_size (hb.trans haA))
+    have h₄ := sqrt_cost_le C (size_sub_mul_le (4 * k * n) haA)
     have ih := ih (a + 1) (by omega)
-    have hgcd := hG a _ haA (hb.trans haA)
+    have hgcd := gcd_cost_le C (size_add_le_succ haA (hb.trans haA))
+      ((Nat.size_le_size hn).trans (Nat.le_succ _))
     cost_unfold lehmanInner.counted
     simp only [lehmanInner]
     split_ifs at ih ⊢ <;> (try simp only [Option.isSome_some, not_true_eq_false] at *) <;>
       nlinarith
 
-include hM hS hG in
-/-- **Bit complexity of step [Loop] of the Lehman method**, for any cost model: at most
-`3M + S` per pass, with the passes bounded by `lehmanPassBound`; `2M + 2S + D` per value of
-`k` (the product `4k · n`, `⌈√(4kn)⌉`, `⌊√k⌋` and one division); and the final gcd. -/
-theorem lehmanCost_le {r6 : ℕ}
-    (hD : ∀ a b, a ≤ A → b ≤ A → C.divMod a.size b.size ≤ D) (hr6 : r6 ≤ A) (hn : n ≤ A)
-    (k fuel : ℕ)
+/-- **Bit complexity of step [Loop] of the Lehman method**, for any cost model, all numbers
+being at most `A` (of `K` bits): at most `3 M + S` per pass, with the passes bounded by
+`lehmanPassBound`; `2 M + 2 S + D` per value of `k` (the product `4k · n`, `⌈√(4kn)⌉`,
+`⌊√k⌋` and one division); and the final gcd — `M = C.mul K K`, `S = sqrtCost C (2K)`,
+`D = C.divBound K`. -/
+theorem lehmanCost_le (C : CostModel) {n r6 A : ℕ} (hr6 : r6 ≤ A) (hn : n ≤ A) (k fuel : ℕ)
     (hA : ∀ k', k ≤ k' → k' < k + fuel →
       ceilSqrt (4 * k' * n) + (r6 / (4 * Nat.sqrt k') + 2) ≤ A + 1 ∧ 4 * k' * n ≤ A ∧
         4 * k' ≤ A) :
     costOf C (lehmanOuter n r6 k fuel) ≤
-      lehmanPassBound r6 k fuel * (3 * M + S) + fuel * (2 * M + 2 * S + D) + G := by
+      lehmanPassBound r6 k fuel * (3 * C.mul A.size A.size + sqrtCost C (2 * A.size)) +
+        fuel * (2 * C.mul A.size A.size + 2 * sqrtCost C (2 * A.size) + C.divBound A.size) +
+        gcdCost C (A.size + 1) := by
   induction fuel generalizing k with
   | zero => cost_unfold lehmanOuter.counted
   | succ fuel ih =>
     obtain ⟨hk₁, hk₂, hk₃⟩ := hA k le_rfl (by omega)
-    have h₁ := lehmanInnerCost_le C hM hS hG hk₃ hn
+    have h₁ := lehmanInnerCost_le C hk₃ hn
       (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) hk₁
     have h₂ := ih (k + 1) (fun k' hk₁ hk₂ ↦ hA k' (by omega) (by omega))
     -- the work for this `k`
     have hs : Nat.sqrt (4 * k * n) ≤ A := (Nat.sqrt_le_self _).trans hk₂
     have hsk : 4 * Nat.sqrt k ≤ A := by have := Nat.sqrt_le_self k; omega
-    have e₁ := hM (4 * k) n hk₃ hn
-    have e₂ := hS (4 * k * n) (hk₂.trans (Nat.le_mul_self A))
-    have e₃ := hM _ _ hs hs
-    have e₄ := hS k ((show k ≤ A by omega).trans (Nat.le_mul_self A))
-    have e₅ := hD r6 (4 * Nat.sqrt k) hr6 hsk
+    have hA2 : A.size ≤ 2 * A.size := by omega
+    have e₁ := C.mul_le_mul_bound (Nat.size_le_size hk₃) (Nat.size_le_size hn)
+    have e₂ := sqrt_cost_le C ((Nat.size_le_size hk₂).trans hA2)
+    have e₃ := C.mul_le_mul_bound (Nat.size_le_size hs) (Nat.size_le_size hs)
+    have e₄ := sqrt_cost_le C ((Nat.size_le_size (show k ≤ A by omega)).trans hA2)
+    have e₅ := C.divMod_le_divBound (Nat.size_le_size hr6) (Nat.size_le_size hsk)
     have hceil := ceilSqrt_counted_cost C (4 * k * n)
     cost_unfold lehmanOuter.counted
     rw [lehmanPassBound_succ]
@@ -749,8 +757,6 @@ theorem lehmanCost_le {r6 : ℕ}
     · simp only [hm, Option.isSome_some, ↓reduceIte] at h₁ ⊢
       cost_simp
       nlinarith
-
-end Bounds
 
 /-- **Bit complexity of the Lehman method, grammar-school arithmetic**, with integer square
 roots by Algorithm 9.2.11.  With `A = 4 (⌊n^{1/3}⌋ + 1) n + n + 2` of `K` bits
@@ -770,33 +776,20 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
     (Nat.le_self_pow (by norm_num) _).trans (iroot_pow_le (by norm_num) n)
   have hc3 : iroot 3 n ≤ n :=
     (Nat.le_self_pow (by norm_num) _).trans (iroot_pow_le (by norm_num) n)
-  have hsz : ∀ x ≤ A, x.size ≤ K := fun x hx ↦ Nat.size_le_size hx
   have hkn : ∀ k', k' < 1 + (iroot 3 n + 1) → 4 * k' * n ≤ 4 * (iroot 3 n + 1) * n :=
     fun k' hk ↦ Nat.mul_le_mul_right n (Nat.mul_le_mul_left 4 (by omega))
-  have hcost := lehmanCost_le school (A := A) (n := n) (r6 := iroot 6 n)
-    (M := K * K) (S := schoolSqrt (2 * K)) (D := (K + 1) * K) (G := (K + 1) * (3 * K + 5))
-    (fun a b ha hb ↦ Nat.mul_le_mul (hsz a ha) (hsz b hb))
-    (fun t ht ↦ (sqrt_counted_cost_school_le t).trans (schoolSqrt_mono (by
-      have := Nat.size_le_size ht
-      have := size_mul_le A A
-      have hK : A.size = K := rfl
-      omega)))
-    (fun a b ha hb ↦ by
-      rw [gcd_counted_cost]
-      refine (euclidBitCost_school_le_of_le (N := 2 * A) (by omega) (by omega)).trans ?_
-      have : (2 * A).size ≤ K + 1 := by
-        rw [show K = A.size from rfl, Nat.size_le, pow_succ]
-        have := Nat.lt_size_self A
-        omega
-      nlinarith)
-    (fun a b ha hb ↦ (Nat.mul_le_mul (by have := hsz a ha; omega) (hsz b hb) :
-      (a.size - b.size + 1) * b.size ≤ _))
-    (by omega) (by omega) 1 (iroot 3 n + 1)
-    (fun k' hk₁ hk₂ ↦ by
+  have hcost := lehmanCost_le school (A := A) (n := n) (r6 := iroot 6 n) (by omega) (by omega)
+    1 (iroot 3 n + 1) (fun k' hk₁ hk₂ ↦ by
       have h₁ : ceilSqrt (4 * k' * n) ≤ 4 * k' * n := ceilSqrt_le (Nat.le_mul_self _)
       have h₂ := hkn k' hk₂
       have h₃ : iroot 6 n / (4 * Nat.sqrt k') ≤ iroot 6 n := Nat.div_le_self _ _
       refine ⟨by omega, by omega, by nlinarith⟩)
+  have hK : A.size = K := rfl
+  have hS := sqrtCost_school_le (2 * K)
+  have hD := school_divBound_le K
+  have hG : gcdCost school (K + 1) ≤ (K + 1) * (3 * K + 5) :=
+    (gcdCost_school_le (K + 1)).trans (le_of_eq (by ring))
+  rw [hK, school_mul] at hcost
   have hpasses := lehmanPassBound_le_cuberoot hn
   have hc : (iroot 3 n : ℝ) ≤ (n : ℝ) ^ (1 / 3 : ℝ) := by
     have h3 : (iroot 3 n : ℝ) ^ (3 : ℕ) ≤ n := by exact_mod_cast iroot_pow_le (by norm_num) n
@@ -808,7 +801,13 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
           (3 * (K * K) + schoolSqrt (2 * K) : ℕ) +
         ((iroot 3 n + 1 : ℕ) : ℝ) * (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K : ℕ) +
         ((K + 1) * (3 * K + 5) : ℕ) := by
-    exact_mod_cast hcost
+    have : costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) ≤
+        lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) * (3 * (K * K) + schoolSqrt (2 * K)) +
+        (iroot 3 n + 1) * (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K) +
+        (K + 1) * (3 * K + 5) := by
+      refine hcost.trans ?_
+      gcongr
+    exact_mod_cast this
   have hW0 : (0 : ℝ) ≤ ((3 * (K * K) + schoolSqrt (2 * K) : ℕ) : ℝ) := Nat.cast_nonneg _
   have hV0 : (0 : ℝ) ≤ ((2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K : ℕ) : ℝ) :=
     Nat.cast_nonneg _

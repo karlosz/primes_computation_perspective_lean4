@@ -183,9 +183,8 @@ open PrimeNumbers.Chapter9
 /-- The inner loop is free: halvings and tests of the low bits are shifts and look-ups. -/
 @[cost_simps] theorem jacobiHalve_cost (C : Chapter9.CostModel) (a m : ℕ) (t : ℤ) :
     CostM.cost C (jacobiHalve.counted a m t) = 0 := by
-  fun_induction jacobiHalve a m t with
-  | case1 a t h ih => cost_unfold jacobiHalve.counted; exact ih
-  | case2 a t h => cost_unfold jacobiHalve.counted
+  cost_induction jacobiHalve a m t
+  assumption
 
 /-- The number of passes of the outer loop of Algorithm 2.3.5 is its number of divisions,
 `costOf divCount (jacobiLoop a m t)` (the inner loop only shifts). -/

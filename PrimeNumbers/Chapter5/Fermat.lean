@@ -165,11 +165,10 @@ section RunningTime
 open PrimeNumbers.Chapter9
 
 /-- Each pass costs two multiplications of numbers `≤ A` and a square root of a number of at
-most `2 size A` bits; the cost of a square root of a `k`-bit number is bounded by `sq k`. -/
-theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
-    (hS : ∀ t, CostM.cost C (Nat.sqrt.counted t) ≤ sq t.size) {n a A : ℕ} (fuel : ℕ)
-    (h : a + fuel ≤ A + 1) :
-    costOf C (fermatLoop n a fuel) ≤ fuel * (2 * C.mul A.size A.size + sq (2 * A.size)) := by
+most `2 size A` bits. -/
+theorem fermatCost_le (C : CostModel) {n a A : ℕ} (fuel : ℕ) (h : a + fuel ≤ A + 1) :
+    costOf C (fermatLoop n a fuel) ≤
+      fuel * (2 * C.mul A.size A.size + sqrtCost C (2 * A.size)) := by
   induction fuel generalizing a with
   | zero => cost_unfold fermatLoop.counted
   | succ fuel ih =>
@@ -178,17 +177,14 @@ theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
     have hb : Nat.sqrt (a * a - n) ≤ a := by
       have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) n)
       rwa [Nat.sqrt_eq] at this
-    have h₁ : C.mul a.size a.size ≤ C.mul A.size A.size :=
-      C.mul_mono (Nat.size_le_size haA) (Nat.size_le_size haA)
-    have h₂ : C.mul (Nat.sqrt (a * a - n)).size (Nat.sqrt (a * a - n)).size ≤
-        C.mul A.size A.size :=
-      C.mul_mono (Nat.size_le_size (hb.trans haA)) (Nat.size_le_size (hb.trans haA))
-    have h₃ : sq (a * a - n).size ≤ sq (2 * A.size) := hsq (by
+    have h₁ := C.mul_le_mul_bound (Nat.size_le_size haA) (Nat.size_le_size haA)
+    have h₂ := C.mul_le_mul_bound (Nat.size_le_size (hb.trans haA))
+      (Nat.size_le_size (hb.trans haA))
+    have h₃ := sqrt_cost_le C (t := a * a - n) (k := 2 * A.size) (by
       have := Nat.size_le_size (Nat.sub_le (a * a) n)
       have := size_mul_le a a
       have := Nat.size_le_size haA
       omega)
-    have h₄ := hS (a * a - n)
     cost_unfold fermatLoop.counted
     simp only [add_mul, one_mul]
     split_ifs <;> omega
@@ -197,26 +193,25 @@ theorem fermatCost_le (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
 `(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications and one integer square
 root of numbers no longer than `n` squared: `O(n)` passes in the worst case — "much more
 tedious than trial division", as the book says. -/
-theorem fermatCost_le' (C : CostModel) {sq : ℕ → ℕ} (hsq : Monotone sq)
-    (hS : ∀ t, CostM.cost C (Nat.sqrt.counted t) ≤ sq t.size) {n : ℕ} (hn : 2 ≤ n) :
+theorem fermatCost_le' (C : CostModel) {n : ℕ} (hn : 2 ≤ n) :
     costOf C (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
-      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sq (2 * n.size)) := by
+      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sqrtCost C (2 * n.size)) := by
   rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
   · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]
     cost_unfold fermatLoop.counted
-  · refine (fermatCost_le C hsq hS (A := (n + 9) / 6) _ (by omega)).trans
-      (Nat.mul_le_mul_left _ ?_)
+  · refine (fermatCost_le C (A := (n + 9) / 6) _ (by omega)).trans (Nat.mul_le_mul_left _ ?_)
     have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
-    exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (hsq (by omega))
+    exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (sqrtCost_mono C (by omega))
 
 /-- **Bit complexity of the Fermat method, grammar-school arithmetic**, with the integer
-square roots computed by Algorithm 9.2.11 (`isqrtCost_school_le`): at most
+square roots computed by Algorithm 9.2.11 (`sqrtCost_school_le`): at most
 `((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k))` bit operations, `k` the bit length of
 `n` — that is `O(n ln³ n)` in the worst case. -/
 theorem fermatCost_school_le {n : ℕ} (hn : 2 ≤ n) :
     costOf school (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
       ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * (n.size * n.size) + schoolSqrt (2 * n.size)) :=
-  fermatCost_le' school schoolSqrt_mono sqrt_counted_cost_school_le hn
+  (fermatCost_le' school hn).trans (Nat.mul_le_mul_left _
+    (Nat.add_le_add_left (sqrtCost_school_le _) _))
 
 end RunningTime
 

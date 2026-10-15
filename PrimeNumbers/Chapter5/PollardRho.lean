@@ -255,10 +255,11 @@ theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := 
   unfold absDiff ; split_ifs <;> omega
 
 /-- **Bit complexity of Pollard rho**, for any cost model: each pass costs at most three
-modular multiplications and one gcd with `n` (bounded by `G`). -/
-theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
-    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
-    costOf C (pollardRhoLoop n a U V fuel) ≤ fuel * (3 * C.mulMod n.size + G) := by
+modular multiplications and one gcd with `n`. -/
+theorem pollardRhoCost_le (C : CostModel) {n a : ℕ} (ha : a < n)
+    {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
+    costOf C (pollardRhoLoop n a U V fuel) ≤
+      fuel * (3 * C.mulMod n.size + gcdCost C n.size) := by
   have hn : 0 < n := by omega
   induction fuel generalizing U V with
   | zero => cost_unfold pollardRhoLoop.counted
@@ -267,21 +268,22 @@ theorem pollardRhoCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
     have h₁ := rhoFCost_le C ha hU
     have h₂ := rhoFCost_le C ha hV
     have h₃ := rhoFCost_le C ha (hF V)
-    have h₄ := hG _ (absDiff_lt (hF U) (hF (rhoF n a V)))
+    have h₄ := gcd_cost_le C le_rfl
+      (Nat.size_le_size (absDiff_lt (hF U) (hF (rhoF n a V))).le)
     have ih := ih (hF U) (hF (rhoF n a V))
     cost_unfold pollardRhoLoop.counted
     simp only [add_mul, one_mul]
     split_ifs <;> omega
 
-/-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 4k` bit
+/-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 5k` bit
 operations per pass of [Factor search]. -/
 theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV : V < n)
     (fuel : ℕ) :
-    costOf school (pollardRhoLoop n a U V fuel) ≤ fuel * (9 * n.size ^ 2 + 4 * n.size) := by
-  refine (pollardRhoCost_le school ha
-    (fun d hd ↦ euclidBitCost_school_le' hd le_rfl) hU hV fuel).trans (le_of_eq ?_)
+    costOf school (pollardRhoLoop n a U V fuel) ≤ fuel * (9 * n.size ^ 2 + 5 * n.size) := by
+  refine (pollardRhoCost_le school ha hU hV fuel).trans (Nat.mul_le_mul_left _ ?_)
+  have := gcdCost_school_le n.size
   rw [school_mulMod]
-  ring
+  nlinarith
 
 end RunningTime
 
@@ -537,17 +539,17 @@ open PrimeNumbers.Chapter9
 
 /-- **Bit complexity of Brent's variant**: each step costs one modular multiplication and
 one gcd — against three and one for Algorithm 5.2.1. -/
-theorem pollardBrentCost_le (C : CostModel) {n a G : ℕ} (ha : a < n)
-    (hG : ∀ d < n, costOf C (euclid n d) ≤ G) {saved cur : ℕ} (hs : saved < n) (hc : cur < n)
-    (i limit fuel : ℕ) :
-    costOf C (pollardBrentLoop n a saved cur i limit fuel) ≤ fuel * (C.mulMod n.size + G) := by
+theorem pollardBrentCost_le (C : CostModel) {n a : ℕ} (ha : a < n)
+    {saved cur : ℕ} (hs : saved < n) (hc : cur < n) (i limit fuel : ℕ) :
+    costOf C (pollardBrentLoop n a saved cur i limit fuel) ≤
+      fuel * (C.mulMod n.size + gcdCost C n.size) := by
   have hn : 0 < n := by omega
   induction fuel generalizing saved cur i limit with
   | zero => cost_unfold pollardBrentLoop.counted
   | succ fuel ih =>
     have hF : rhoF n a cur < n := Nat.mod_lt _ hn
     have h₁ := rhoFCost_le C ha hc
-    have h₂ := hG _ (absDiff_lt hF hs)
+    have h₂ := gcd_cost_le C le_rfl (Nat.size_le_size (absDiff_lt hF hs).le)
     have ih₁ := ih hF hF 0 (2 * limit)
     have ih₂ := ih hs hF (i + 1) limit
     cost_unfold pollardBrentLoop.counted

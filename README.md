@@ -198,7 +198,13 @@ algorithm's own code, so the two cannot drift apart.
   writes are `costOf writeCount`.  Bounds take hypotheses on the cost of primitive
   operations (a multiplication `≤ M`, a square root `≤ S`, …), never a hand-written list
   of the operations an algorithm performs.
-* **Proofs.**  `cost_unfold f.counted` unfolds one step of a counted algorithm and selects
+* **Worst cases.**  Theorems are stated with the worst cost of the primitives on inputs of a
+  given bit length, read off the code: `C.mul k k`, `C.divBound k` (a division),
+  `sqrtCost C k` (an integer square root), `gcdCost C k` (a gcd) — e.g. Pollard rho costs
+  at most `fuel · (3 C.mulMod k + gcdCost C k)`.  The grammar-school corollaries follow from
+  `school_divBound_le`, `sqrtCost_school_le`, `gcdCost_school_le`.
+* **Proofs.**  `cost_induction f args` inducts along the recursion of `f` with one step of
+  `f.counted` unfolded in every case; `cost_unfold f.counted` unfolds one step of a counted algorithm and selects
   the branches its hypotheses decide; `cost_simp` does the bookkeeping.  Bounds are proved
   for an arbitrary cost model where that makes sense, then specialized to `school`.
 
@@ -289,7 +295,7 @@ Bit complexity (in the same files), `k` the bit length of `n`:
 
 | Algorithm | Bound | Theorem |
 |---|---|---|
-| 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd (any model); ≤ `9k² + 4k` grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school_le` |
+| 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd (any model: `3 C.mulMod k + gcdCost C k`); ≤ `9k² + 5k` grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school_le` |
 | 5.4.1 Pollard `p − 1` | the sieve for the primes `≤ B`, the exponents `⌊log_p B⌋`, `pm1Steps B` modular powers with exponents ≤ `B`, a reduction and 1 gcd (any model); `pm1Steps B ≤ π(B)·log₂ B` | `laddersCost_le`, `pm1Cost_le`, `pm1Cost_school_le`, `pm1Steps_le` |
 
 **Heuristics as explicit hypotheses.**  The `O(√p)` running time of Pollard rho rests on

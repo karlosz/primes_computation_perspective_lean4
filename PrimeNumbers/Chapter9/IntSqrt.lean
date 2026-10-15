@@ -192,4 +192,16 @@ theorem sqrt_counted_cost_school_le (N : ℕ) :
     CostM.cost school (Nat.sqrt.counted N) ≤ schoolSqrt N.size := by
   rw [sqrt_counted_cost]; exact isqrtCost_school_le N
 
+/-- **The worst cost of an integer square root** of a number of at most `k` bits. -/
+def sqrtCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits k fun t ↦ costOf C (Nat.sqrt t)
+
+theorem sqrt_cost_le (C : CostModel) {t k : ℕ} (ht : t.size ≤ k) :
+    costOf C (Nat.sqrt t) ≤ sqrtCost C k :=
+  le_maxOnBits (fun t ↦ costOf C (Nat.sqrt t)) ht
+
+theorem sqrtCost_mono (C : CostModel) : Monotone (sqrtCost C) := maxOnBits_mono _
+
+theorem sqrtCost_school_le (k : ℕ) : sqrtCost school k ≤ schoolSqrt k :=
+  maxOnBits_le fun t ht ↦ (sqrt_counted_cost_school_le t).trans (schoolSqrt_mono ht)
+
 end PrimeNumbers.Chapter9

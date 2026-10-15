@@ -274,6 +274,17 @@ macro "cost_unfold " ids:ident,+ : tactic => `(tactic|
    try simp (disch := first | assumption | omega) only [ite_of_pos, ite_of_neg, cost_simps, ↓reduceIte, zero_mul, mul_zero,
       Nat.zero_le]))
 
+/-- `cost_induction f a₁ … aₙ`: induction following the recursion of the algorithm `f`
+(`fun_induction`), with one step of its counted version unfolded in every case
+(`cost_unfold f.counted`).  Cases that this closes disappear; the others remain, named
+`case1`, `case2`, … as by `fun_induction`. -/
+syntax "cost_induction " term : tactic
+
+macro_rules
+  | `(tactic| cost_induction $f:ident $args*) => do
+    let fc := Lean.mkIdentFrom f (f.getId ++ `counted)
+    `(tactic| fun_induction $f $args* <;> cost_unfold $fc:ident)
+
 /-- `cost_unfold_both f.counted`: unfold one step of `f.counted` on each side of an equation
 or inequality (e.g. a bit cost and the matching operation count), then as `cost_unfold`. -/
 macro "cost_unfold_both " ids:ident,+ : tactic => `(tactic|

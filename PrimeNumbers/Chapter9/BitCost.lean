@@ -75,6 +75,52 @@ def school : CostModel where
   mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
   divMod_mono b h := Nat.mul_le_mul_right b (by omega)
 
+/-! ### Worst cases over the inputs of a given bit length -/
+
+/-- The largest value of `g` on the numbers of at most `k` bits. -/
+def maxOnBits (k : ℕ) (g : ℕ → ℕ) : ℕ := (Finset.range (2 ^ k)).sup g
+
+theorem le_maxOnBits {k x : ℕ} (g : ℕ → ℕ) (hx : x.size ≤ k) : g x ≤ maxOnBits k g :=
+  Finset.le_sup (f := g) (Finset.mem_range.mpr (Nat.size_le.mp hx))
+
+theorem maxOnBits_mono (g : ℕ → ℕ) : Monotone (maxOnBits · g) := fun _ _ h ↦
+  Finset.sup_mono (Finset.range_subset_range.mpr (Nat.pow_le_pow_right (by norm_num) h))
+
+theorem maxOnBits_le {k B : ℕ} {g : ℕ → ℕ} (h : ∀ x, x.size ≤ k → g x ≤ B) :
+    maxOnBits k g ≤ B :=
+  Finset.sup_le fun x hx ↦ h x (Nat.size_le.mpr (Finset.mem_range.mp hx))
+
+/-- The largest value of `g` on pairs of numbers of at most `k` bits. -/
+def maxOnBits₂ (k : ℕ) (g : ℕ → ℕ → ℕ) : ℕ := maxOnBits k fun x ↦ maxOnBits k (g x)
+
+theorem le_maxOnBits₂ {k x y : ℕ} (g : ℕ → ℕ → ℕ) (hx : x.size ≤ k) (hy : y.size ≤ k) :
+    g x y ≤ maxOnBits₂ k g :=
+  (le_maxOnBits (g x) hy).trans (le_maxOnBits (fun x ↦ maxOnBits k (g x)) hx)
+
+theorem maxOnBits₂_le {k B : ℕ} {g : ℕ → ℕ → ℕ}
+    (h : ∀ x y, x.size ≤ k → y.size ≤ k → g x y ≤ B) : maxOnBits₂ k g ≤ B :=
+  maxOnBits_le fun x hx ↦ maxOnBits_le fun y hy ↦ h x y hx hy
+
+theorem maxOnBits₂_mono (g : ℕ → ℕ → ℕ) : Monotone (maxOnBits₂ · g) := fun _ _ h ↦
+  maxOnBits₂_le fun _ _ hx hy ↦ le_maxOnBits₂ g (hx.trans h) (hy.trans h)
+
+/-- The worst cost of a division of numbers of at most `k` bits (a division is not more
+expensive for a longer dividend, but may be for a shorter divisor). -/
+def CostModel.divBound (C : CostModel) (k : ℕ) : ℕ := (Finset.range (k + 1)).sup (C.divMod k)
+
+theorem CostModel.divMod_le_divBound (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb : b ≤ k) :
+    C.divMod a b ≤ C.divBound k :=
+  (C.divMod_mono b ha).trans (Finset.le_sup (f := C.divMod k) (Finset.mem_range.mpr (by omega)))
+
+theorem CostModel.mul_le_mul_bound (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb : b ≤ k) :
+    C.mul a b ≤ C.mul k k := C.mul_mono ha hb
+
+theorem school_divBound_le (k : ℕ) : school.divBound k ≤ (k + 1) * k :=
+  Finset.sup_le fun b hb ↦ by
+    have := Finset.mem_range.mp hb
+    show (k - b + 1) * b ≤ _
+    exact Nat.mul_le_mul (by omega) (by omega)
+
 /-! ### Counting models
 
 An *operation count* is the cost under a model that charges `1` for the operations counted
@@ -111,6 +157,10 @@ def writeCount : CostModel where
   divMod _ _ := 0
   mul_mono _ _ := le_rfl
   divMod_mono _ _ := le_rfl
+
+@[simp] theorem school_mul (a b : ℕ) : school.mul a b = a * b := rfl
+@[simp] theorem school_divMod (a b : ℕ) : school.divMod a b = (a - b + 1) * b := rfl
+theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 
 @[simp] theorem mulCount_mul (a b : ℕ) : mulCount.mul a b = 1 := rfl
 @[simp] theorem mulCount_divMod (a b : ℕ) : mulCount.divMod a b = 0 := rfl

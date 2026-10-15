@@ -56,9 +56,8 @@ decreasing_by omega
 /-- Splitting off the powers of two is free: tests and halvings are shifts. -/
 @[cost_simps] theorem oddPart_cost (C : Chapter9.CostModel) (n : ℕ) :
     Chapter9.CostM.cost C (oddPart.counted n) = 0 := by
-  fun_induction oddPart n with
-  | case1 n h r ih => cost_unfold oddPart.counted; exact ih
-  | case2 n h => cost_unfold oddPart.counted
+  cost_induction oddPart n
+  assumption
 
 theorem oddPart_spec {n : ℕ} (hn : n ≠ 0) :
     n = 2 ^ (oddPart n).1 * (oddPart n).2 ∧ (oddPart n).2 % 2 = 1 := by
