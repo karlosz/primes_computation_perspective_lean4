@@ -3,27 +3,48 @@
 This is an attempt at a formalization of Crandall & Pomerance, *Prime
 Numbers: A Computational Perspective* (2nd ed.), with the book's
 algorithms written as ordinary, efficient Lean 4 functions and their
-correctness theorems proved on those functions. The idea is to use as
-much of Mathlib where it exists but otherwise to follow the structure
-of the textbook.
+correctness theorems _and complexities_ proven on those functions. The
+idea is to use as much of Mathlib where it exists but otherwise to
+follow the structure of the textbook. Notably, mathlib is missing most
+of algorithms in the book and does not (explicitly) have any theorems
+about complexity. But this way we can freely use advanced theorems
+available in Mathlib which are simply stated in the book as
+needed. The theorems (and statements like ERH) that are not available
+but are still useful hypotheses are used as such.
 
-I am trying to still figure out the right way to formalize the
-algorithmic complexities of many of the results. One way is to use the
-bit complexities in Chapter 9, but also to try and keep the abstract
-operation counts so the cost models are more generic.
+The big innovation in this project is that the algorithm
+formalizations all come with formalizations of their algorithmic
+complexities directly proven against the code for the algorithms we
+are proving correctness for. I achieve this in -- to my knowledge -- a
+novel way by using meta-programming to allow people to just write
+efficient algorithms as normal definitions. The cost-related macros
+and tactics then automatically generate parallel versions of these
+definitions that use a cost monad which counts the operations used in
+the code being macroexpanded (the idea of using cost monad itself is
+already used in e.g. the strategy used by someone working on CSLib, I
+forgot who XXX). These operation counts are used to prove theorems
+about algebraic complexities, and from formalizing the cost model
+presented in Chapter 9, we can directly state and prove the bit
+complexity results in the book via cost model substitution directly
+from the algebraic complexities.
 
-The initial part of this effort was generated with Claude Opus
-5.5. This README will be updated as more parts of the book are
-formalized. Most stuff outside of this section was only lightly
-edited, so beware slop.
+Almost all of the code in this repository outside this section is
+generated with Claude Opus 5.5, though so far I have heavily audited
+what is generated and lightly edited some things. Still, beware
+slop. This README will be updated as more parts of the book are
+formalized.
 
 I thought this could also be a good foundation to do the exercises by
 hand in Lean to learn the material better, but it may also be good to
 try and use an LLM to solve and formalize the exercises. There have
-also been significant advancements in some parts of the algorithm,
-especially regarding deterministic factoring (Harvey & Hittmeir) and
+also been significant advancements in some parts of the book,
+especially regarding deterministic factoring algorithms (e.g. Harvey &
+Hittmeir, unconditional deterministic factoring in O(n^1/5) time) and
 with the pseudo-polynomial time algorithms for discrete logarithm that
 may be worth formalizing as add-ons.
+
+I also plan to add some kind of benchmark suite to add empirical data
+to complement the asympototic time complexity bounds.
 
 ## Quickstart
 
