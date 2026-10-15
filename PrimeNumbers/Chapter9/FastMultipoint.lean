@@ -157,20 +157,20 @@ for the fast routines this is the book's `O(M(D) log² D)`. -/
 theorem multipointEval_cost_le [MulCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
     {modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (pc : List R → CostM C Unit) (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit)
-    {S : ℕ → ℕ} (hS : Monotone S) (hsup : ∀ a b, S a + S b ≤ S (a + b))
+    (δ : ℕ) {S : ℕ → ℕ} (hS : Monotone S) (hsup : ∀ a b, S a + S b ≤ S (a + b))
     (hmodLen : ∀ x us, (modF x (prodF us)).length ≤ us.length + 1)
     (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length →
       CostM.cost C (pc (T.take (T.length / 2))) + CostM.cost C (pc (T.drop (T.length / 2))) +
         CostM.cost C (mc x (prodF (T.take (T.length / 2)))) +
         CostM.cost C (mc x (prodF (T.drop (T.length / 2)))) ≤ S T.length)
-    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 →
+    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 → T.length ≤ max δ 1 →
       (T.map fun (t : R) ↦ costOf C (Poly.eval x t)).sum ≤ S T.length)
-    (δ : ℕ) (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) :
+    (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) :
     CostM.cost C (multipointEvalWith.counted prodF modF δ x T pc mc) ≤
       (Nat.clog 2 T.length + 1) * S T.length := by
   fun_induction multipointEvalWith prodF modF δ x T with
   | case1 x T h =>
-    have := hleaf x T hx
+    have := hleaf x T hx h
     cost_unfold multipointEvalWith.counted
     nlinarith
   | case2 x T h u v ih₁ ih₂ =>
@@ -258,7 +258,7 @@ theorem prodTree_cost_le [MulCost R] (C : CostModel)
     {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {Mf : ℕ → ℕ} {s : ℕ}
     (hMf : Monotone Mf) (hsup : ∀ a b, Mf a + Mf b ≤ Mf (a + b))
-    (hM : ∀ (m : ℕ) (f g : Chapter2.Poly R), f.length ≤ m → g.length ≤ m →
+    (hM : ∀ (m : ℕ), 1 ≤ m → ∀ (f g : Chapter2.Poly R), f.length ≤ m → g.length ≤ m →
       CostM.cost C (mc f g) ≤ Mf m)
     (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (us : List R) :
     CostM.cost C (prodTree.counted mulF us mc) ≤
@@ -273,7 +273,7 @@ theorem prodTree_cost_le [MulCost R] (C : CostModel)
     set v := us.drop (us.length / 2)
     have hu : u.length = us.length / 2 := by simp [u]; omega
     have hv : v.length = us.length - us.length / 2 := by simp [v]
-    have hnode := hM us.length (prodTree mulF u) (prodTree mulF v)
+    have hnode := hM us.length (by omega) (prodTree mulF u) (prodTree mulF v)
       ((length_prodTree_le mulF u).trans (by omega))
       ((length_prodTree_le mulF v).trans (by omega))
     have hclog : ∀ m, m ≤ (us.length + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 us.length := by

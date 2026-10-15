@@ -38,6 +38,18 @@ counted_def eval [MulCost R] : Chapter2.Poly R → R → R
   | [], _ => 0
   | c :: f, x => c + x * eval f x
 
+/-- Horner's rule costs one product per coefficient. -/
+theorem eval_cost_le [MulCost R] (C : CostModel) {s : ℕ}
+    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (f : Chapter2.Poly R) (x : R) :
+    costOf C (eval f x) ≤ f.length * s := by
+  induction f with
+  | nil => cost_unfold eval.counted
+  | cons c f ih =>
+    have := hs x (eval f x)
+    cost_unfold eval.counted
+    rw [List.length_cons, add_mul, one_mul]
+    omega
+
 theorem eval_eq (f : Chapter2.Poly R) (x : R) : eval f x = (toPolynomial f).eval x := by
   induction f with
   | nil => simp [eval]
