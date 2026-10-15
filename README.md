@@ -212,7 +212,7 @@ With `k` the bit length of the modulus / input:
 
 | Algorithm | Bit operations (grammar-school) | Theorem |
 |---|---|---|
-| 2.1.2 Euclid | ≤ `k(3k + 1)` — `O(ln² N)`, Exercise 2.6; ≤ `k(3k + 2)` in either argument order | `euclidBitCost_school_le'`, `euclidBitCost_school_le_of_le` |
+| 2.1.2 Euclid | ≤ `k(3k + 1)` — `O(ln² N)`, Exercise 2.6; ≤ `k(3k + 2)` for any `k`-bit inputs (worst case `gcdCost`) | `euclidBitCost_school_le'`, `gcdCost_school_le` |
 | 2.1.5 `xⁿ mod m` | ≤ `(4 log₂ n + 1)(k + 1)²` — `O(ln n · ln² m)`, Exercise 2.17 | `powModCost_school_le` (any model: `powModCost_le`) |
 | 2.1.5 in any structure | at most `2 log₂ n` multiplications (`costOf mulCount`); bit cost = multiplications × `K` when every product costs `K` | `pow_mults_le`, `pow_cost`, `power_cost` |
 | 2.3.5 Jacobi symbol | ≤ `k(3k + 1)` — `O(ln² m)` | `jacobiBitCost_school_le'` |
