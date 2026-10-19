@@ -12,6 +12,7 @@ import PrimeNumbers.Chapter9.Newton
 import PrimeNumbers.Chapter9.FastMod
 import PrimeNumbers.Chapter9.FastMultipoint
 import PrimeNumbers.Chapter9.FastMultipointCost
+import PrimeNumbers.Chapter9.Nussbaumer
 import PrimeNumbers.Chapter1.Primes
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power

@@ -188,6 +188,12 @@ def _root_.List.map.counted (f : α → β) (l : List α) (f_charge : α → m U
   | [] => pure ()
   | a :: l => do f_charge a; List.map.counted f l f_charge
 
+def _root_.List.zipWith.counted {γ : Type} (f : α → β → γ) (l : List α) (l' : List β)
+    (f_charge : α → β → m Unit) : m Unit :=
+  match l, l' with
+  | a :: l, b :: l' => do f_charge a b; List.zipWith.counted f l l' f_charge
+  | _, _ => pure ()
+
 def _root_.List.all.counted (l : List α) (p : α → Bool) (p_charge : α → m Unit) : m Unit :=
   match l with
   | [] => pure ()
@@ -239,6 +245,18 @@ variable (C : CostModel) {α β : Type}
   | nil => rfl
   | cons a l ih =>
     simp only [List.filter.counted, List.map_cons, List.sum_cons, ← ih]; rfl
+
+/-- `zipWith` pays the charge of its function at every pair. -/
+@[cost_simps] theorem CostM.zipWith_cost {γ : Type} (f : α → β → γ) (l : List α) (l' : List β)
+    (fc : α → β → CostM C Unit) :
+    CostM.cost C (List.zipWith.counted f l l' fc) =
+      (List.zipWith (fun a b => CostM.cost C (fc a b)) l l').sum := by
+  induction l generalizing l' with
+  | nil => rfl
+  | cons a l ih =>
+    cases l' with
+    | nil => rfl
+    | cons b l' => simp only [List.zipWith.counted, List.zipWith_cons_cons, List.sum_cons, ← ih]; rfl
 
 /-- `map` pays the charge of its function at every element. -/
 @[cost_simps] theorem CostM.map_cost (f : α → β) (l : List α) (fc : α → CostM C Unit) :

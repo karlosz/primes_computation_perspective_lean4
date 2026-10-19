@@ -388,6 +388,8 @@ private structure Ctx where
   funs : Array (Name × Ident)
   /-- the positions of the function parameters among the explicit arguments -/
   funPos : Array Nat
+  /-- its number of explicit arguments -/
+  arity : Nat
 
 /-- Charges, in evaluation order. -/
 private abbrev HoistM := StateT (Array Term) MacroM
@@ -586,6 +588,8 @@ function), anything else is charged in place. -/
 private partial def hoistArg (ctx : Ctx) (a : Syntax) : HoistM Syntax := do
   if (funBody? (stripParens a)).isSome then return a
   if (← sectionToFun? a).isSome then return a
+  if let `($g:ident $as*) := stripParens a then
+    if g.getId == ctx.self && as.size < ctx.arity then return a
   hoist ctx a
 
 /-- The charge function of an argument passed for a function parameter: for a `fun`, the
@@ -602,6 +606,13 @@ private partial def chargeOfArg (ctx : Ctx) (a : Syntax) : MacroM (Option Term) 
     let (_, c) ← (hoist ctx body).run #[]
     return some ⟨a.setArg 1 (a[1].setArg 3 (← wrap c (← `(pure ()))))⟩
   if let `($g:ident $as*) := a then
+    if g.getId == ctx.self && ctx.funPos.isEmpty && as.size < ctx.arity then
+      -- a partial application of the function being defined: its counted version, applied
+      -- to the remaining arguments
+      let xs ← (Array.range (ctx.arity - as.size)).mapM fun i => do
+        return mkIdent (← Macro.addMacroScope (Name.mkSimple s!"selfArg{i}"))
+      let call := Syntax.mkApp (mkIdent (ctx.self ++ `counted)) (as ++ xs.map (⟨·.raw⟩))
+      return some (← `(fun $xs* => bind $call fun _ => pure ()))
     unless g.getId == ctx.self || ctx.funs.any (·.1 == g.getId) do
       let cs ← as.mapM fun b => do return (← chargeOfArg ctx b).getD (← `(_))
       return some (← `(charge_of% ($(⟨a⟩)) [$cs,*]))
@@ -725,7 +736,7 @@ private def expandCounted (doc? : Option (TSyntax ``Lean.Parser.Command.docComme
             chargeBsC := chargeBsC.push (← `(bracketedBinder| ($c : $tyC)))
           args := args.push x
     | _ => pure ()
-  let ctx : Ctx := { self := f.getId, funs, funPos }
+  let ctx : Ctx := { self := f.getId, funs, funPos, arity := args.size }
   let tbody ← translate ctx body
   -- cost-class instances (`[MulCost M]`, …) are needed by the counted version only
   let plainBs : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := bs.filter fun b =>
