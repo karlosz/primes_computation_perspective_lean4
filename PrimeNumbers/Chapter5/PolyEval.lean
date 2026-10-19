@@ -2,7 +2,7 @@ import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter9.BitCost
-import PrimeNumbers.Chapter9.FastMultipoint
+import PrimeNumbers.Chapter9.FastMultipointCost
 
 /-!
 # §5.5 Polynomial evaluation method (Pollard–Strassen)
@@ -241,7 +241,7 @@ open PrimeNumbers.Chapter9
 
 /-- The values `f(jB) mod n`, `j = 1, …, B`, by fast multipoint evaluation. -/
 counted_def psValues (n B : ℕ) : List ℕ :=
-  (multipointEvalFast n 4 (prodLinear ((List.range B).map ((↑) : ℕ → ZMod n)))
+  (multipointEvalFast n 4 (prodTree (mulMod n) ((List.range B).map ((↑) : ℕ → ZMod n)))
     ((List.range B).map fun j ↦ (((1 + j) * B : ℕ) : ZMod n))).map ZMod.val
 
 /-- The first index (counting from `j`) whose value has a nontrivial gcd with `n`. -/
@@ -283,7 +283,7 @@ theorem psValues_eq {n : ℕ} (hn : 1 < n) (B : ℕ) :
   rw [psValues, multipointEvalFast_eq, List.map_map, List.map_map]
   refine List.map_congr_left fun j _ ↦ ?_
   simp only [Function.comp_apply]
-  rw [← Poly.eval_eq, Poly.eval_eq, eval_prodLinear, List.map_map]
+  rw [(prodTree_spec (mulCorrect_mulMod n) _).1, eval_prodLinear, List.map_map]
   have hcast : ((List.range B).map ((fun u ↦ (((1 + j) * B : ℕ) : ZMod n) - u) ∘
       ((↑) : ℕ → ZMod n))).prod = ((blockProd n ((1 + j) * B) B : ℕ) : ZMod n) := by
     rw [cast_blockProd]
@@ -307,5 +307,109 @@ theorem pollardStrassenFast_eq_minFac {n : ℕ} (hn : 1 < n) (hnp : ¬n.Prime) :
   rw [pollardStrassenFast_eq hn, pollardStrassen_eq hn hnp]
 
 end Fast
+
+/-! ## Running time of the fast method: the book's `O(n^{1/4})` -/
+
+section RunningTimeFast
+
+open PrimeNumbers.Chapter9
+
+theorem findFirst_lt {n j : ℕ} {vs : List ℕ} {i : ℕ} (h : findFirst n j vs = some i) :
+    i < j + vs.length := by
+  induction vs generalizing j with
+  | nil => simp [findFirst] at h
+  | cons v vs ih =>
+    rw [findFirst] at h
+    split_ifs at h
+    · cases h; simp
+    · have := ih h; simp only [List.length_cons]; omega
+
+/-- The gcd scan: one gcd with `n` per value. -/
+theorem findFirst_cost_le (C : CostModel) {n K : ℕ} (hn : n.size ≤ K) (j : ℕ) (vs : List ℕ)
+    (hv : ∀ v ∈ vs, v.size ≤ K) : costOf C (findFirst n j vs) ≤ vs.length * gcdCost C K := by
+  induction vs generalizing j with
+  | nil => cost_unfold findFirst.counted
+  | cons v vs ih =>
+    have ih := ih (j + 1) fun w hw ↦ hv w (by simp [hw])
+    have := gcd_cost_le C hn (hv v (by simp))
+    cost_unfold findFirst.counted
+    rw [List.length_cons, add_mul, one_mul]
+    split_ifs <;> omega
+
+theorem psValues_length (n B : ℕ) : (psValues n B).length = B := by
+  simp [psValues, multipointEvalFast, length_multipointEvalWith]
+
+/-- **The values `f(jB) mod n` by fast polynomial arithmetic**: the product tree for
+`f(t) = t (t - 1) ⋯ (t - B + 1)`, the `B` points `jB`, and fast multipoint evaluation. -/
+theorem psValues_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ} [NeZero n]
+    (B : ℕ) :
+    costOf C (psValues n B) ≤
+      ((Nat.clog 2 B + 1) * polyMulBound C n B + B * (2 * C.mulMod n.size)) +
+        B * C.mul B.size B.size + (Nat.clog 2 B + 1) * nodeBound C n 4 B := by
+  have hs : ∀ a b : ZMod n, MulCost.mulCost C a b ≤ C.mulMod n.size := fun _ _ ↦ le_rfl
+  have h₁ := prodTree_cost_le C (mulF := mulMod n) _ (polyMulBound_mono C n)
+    (polyMulBound_superadditive C n hC) (mulMod_charge_le C n) hs
+    ((List.range B).map ((↑) : ℕ → ZMod n))
+  have h₂ : ((List.range B).map fun a ↦ C.mul (1 + a).size B.size).sum ≤
+      B * C.mul B.size B.size := by
+    simpa using sum_map_le_length_mul (List.range B) (fun a ↦ C.mul (1 + a).size B.size)
+      fun a ha ↦ C.mul_mono (Nat.size_le_size (by simp at ha; omega)) le_rfl
+  have h₃ := multipointEvalFast_cost_le C hC 4
+    (prodTree (mulMod n) ((List.range B).map ((↑) : ℕ → ZMod n)))
+    ((List.range B).map fun j ↦ (((1 + j) * B : ℕ) : ZMod n))
+    (by simpa using length_prodTree_le (mulMod n) ((List.range B).map ((↑) : ℕ → ZMod n)))
+  simp only [List.length_map, List.length_range] at h₁ h₃
+  cost_unfold psValues.counted
+  omega
+
+/-- **Running time of the Pollard–Strassen method with fast polynomial arithmetic (§5.5)**,
+for any cost model with superadditive multiplication: with `B = ⌊n^{1/4}⌋ + 1` and `k` the
+bit length of `n`, the cost is at most
+* `B` fourth powers for computing `⌊n^{1/4}⌋`,
+* the product tree for `f(t) = t (t - 1) ⋯ (t - B + 1)` and `B` small products for the points,
+* fast multipoint evaluation of `f` at the `B` points `jB` (`multipointEvalFast_cost_le`),
+* `B` gcds with `n`, and the final scan of one interval of length `B`.
+With products of length-`m` polynomials costing `M(m (k + log m))` bit operations
+(`polyMulBound`), this is `O(M(n^{1/4} log n) log² n)` — the book's `O(n^{1/4})` up to
+logarithmic factors with a quasi-linear multiplication. -/
+theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ}
+    (hn : 1 < n) :
+    let B := iroot 4 n + 1
+    costOf C (pollardStrassenFast n) ≤
+      B * (3 * C.mul (n.size + 4) (n.size + 4)) +
+        (((Nat.clog 2 B + 1) * polyMulBound C n B + B * (2 * C.mulMod n.size)) +
+          B * C.mul B.size B.size + (Nat.clog 2 B + 1) * nodeBound C n 4 B) +
+        B * gcdCost C n.size +
+        (C.mul B.size B.size + B * C.divBound (n + B * B + B + 2).size) := by
+  intro B
+  have : NeZero n := ⟨by omega⟩
+  have hB : iroot 4 n + 1 = B := rfl
+  have h₀ := iroot4_cost_le C n
+  have h₁ := psValues_cost_le C hC (n := n) B
+  have hv : ∀ v ∈ psValues n B, v.size ≤ n.size := by
+    intro v hv
+    rw [psValues_eq hn] at hv
+    obtain ⟨i, -, rfl⟩ := List.mem_map.mp hv
+    exact Nat.size_le_size (blockProd_lt (by omega) _ _).le
+  have h₂ := findFirst_cost_le C le_rfl 1 (psValues n B) hv
+  rw [psValues_length] at h₂
+  rw [hB] at h₀
+  cost_unfold pollardStrassenFast.counted
+  rw [hB]
+  rcases hf : findFirst n 1 (psValues n B) with _ | j
+  · simp only [hf, cost_simps]
+    omega
+  · have hj := findFirst_lt hf
+    rw [psValues_length] at hj
+    have hm : C.mul (j - 1).size B.size ≤ C.mul B.size B.size :=
+      C.mul_mono (Nat.size_le_size (by omega)) le_rfl
+    have hd := smallDivisor_cost_le C (n := n) (N := n + B * B + B + 2) (by omega) B
+      (max 2 ((j - 1) * B + 1)) (by
+        have : (j - 1) * B ≤ B * B := Nat.mul_le_mul_right B (by omega)
+        omega)
+    simp only [cost_simps]
+    omega
+
+end RunningTimeFast
 
 end PrimeNumbers.Chapter5

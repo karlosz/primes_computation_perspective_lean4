@@ -140,6 +140,15 @@ theorem nodeBound_superadditive (hC : C.SuperadditiveMul) (δ a b : ℕ) :
 
 end Bounds
 
+/-- A product by binary segmentation, as charged inside the fast routines. -/
+theorem mulMod_charge_le (C : CostModel) (n : ℕ) [NeZero n] (m : ℕ) (hm : 1 ≤ m)
+    (f g : Chapter2.Poly (ZMod n)) (hf : f.length ≤ m) (hg : g.length ≤ m) :
+    CostM.cost C (bind (mulMod.counted (countedMonad := CostM C) n f g) fun _ ↦ pure ()) ≤
+      polyMulBound C n m := by
+  have := mulMod_cost_le' C n hm f g hf hg
+  cost_simp
+  exact this
+
 /-- **Running time of fast multipoint evaluation over `Z_n` (Algorithm 9.6.7 with
 Algorithms 9.6.1, 9.6.2, 9.6.4)**, for any cost model with superadditive multiplication: for
 `D` points, at most `(⌈log₂ D⌉ + 1) · nodeBound D` bit operations — `O(log D)` levels, each
@@ -150,12 +159,7 @@ theorem multipointEvalFast_cost_le (C : CostModel) {n : ℕ} [NeZero n] (hC : C.
       (Nat.clog 2 T.length + 1) * nodeBound C n δ T.length := by
   have hs : ∀ a b : ZMod n, MulCost.mulCost C a b ≤ C.mulMod n.size := fun _ _ ↦ le_rfl
   -- a product by binary segmentation, as charged inside the fast routines
-  have hMul : ∀ m, 1 ≤ m → ∀ f g : Chapter2.Poly (ZMod n), f.length ≤ m → g.length ≤ m →
-      CostM.cost C (bind (mulMod.counted (countedMonad := CostM C) n f g) fun _ ↦ pure ()) ≤
-        polyMulBound C n m := fun m hm f g hf hg ↦ by
-    have := mulMod_cost_le' C n hm f g hf hg
-    cost_simp
-    exact this
+  have hMul := mulMod_charge_le C n
   cost_unfold multipointEvalFast.counted
   refine multipointEval_cost_le C _ _ δ (nodeBound_mono C n δ) (nodeBound_superadditive C n hC δ)
     (fun x us ↦ length_fastModMonic_prodTree_le (mulMod n) x us) ?_ ?_ x T hx

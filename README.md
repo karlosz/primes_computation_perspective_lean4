@@ -340,7 +340,7 @@ per pass, `V` per value of `k` (the products `4kn`, `⌈√(4kn)⌉`, `⌊√k�
 `(4 log₂ B' + 5)(k + 1)²` per prime `Q`; §5.5 with block-by-block evaluation,
 `findBlockCost_le` — `B² ≈ √n` multiplications plus `B` gcds (and the products `jB`).
 
-### §9.6 Polynomial arithmetic — `PrimeNumbers/Chapter9/Multipoint.lean` (started)
+### §9.6 Polynomial arithmetic — `PrimeNumbers/Chapter9/Multipoint.lean`, …
 
 Over any commutative ring (so over `Z_n` for composite `n`):
 
@@ -354,18 +354,24 @@ Over any commutative ring (so over `Z_n` for composite `n`):
 | Alg 9.6.7 running time | `multipointEvalWith.counted` | `multipointEval_cost_le`: the derived cost is at most `(⌈log₂ D⌉ + 1) · S(D)` for any superadditive per-node bound `S` (the `log D` levels of the recursion); `length_fastModMonic_prodTree_le` discharges its length hypothesis for the fast routines |
 | Alg 9.6.7 evaluation at arbitrary points | `multipointEval`; `multipointEvalWith` (any correct product/remainder routines); `multipointEvalFast` (over `Z_n` with `mulMod` and `fastModMonic`, product tree `prodTree`) | `multipointEval_eq`, `multipointEvalWith_eq`, `multipointEvalFast_eq` |
 
-Still to do for §9.6: per-node bounds `S(d) = O(M(d) log d)` for the fast product tree and
-fast remainder in terms of an abstract polynomial-multiplication cost `M`, to instantiate
-`multipointEval_cost_le` and obtain the `O(n^{1/4} ln² n)` bound for §5.5; a quasi-linear `M`
-(Nussbaumer, Algorithm 9.5.25); using fast multiplication
-and remainder inside Algorithm 9.6.7; evaluation on arithmetic and geometric
-progressions (9.6.5, 9.6.6), and the running-time analysis `O(D ln² D)` with fast
-multiplication; then plugging Algorithm 9.6.7 into §5.5.
+| running time of the fast routines over `Z_n` | `mulMod`, `invNewton`, `fastModMonic`, `prodTree`, `multipointEvalFast` | `mulMod_cost_le` (one multiplication of `segWidth n d · d`-bit integers and `6d + 2` small ones); `invNewton_cost_le`, `fastModMonic_cost_le`, `prodTree_cost_le` (in terms of the cost of the products); `multipointEvalFast_cost_le`: at most `(⌈log₂ D⌉ + 1) · nodeBound D`, `O(log D)` products of length-`O(D)` polynomials per level (`FastMultipointCost`) |
 
-Open in Chapter 5: Algorithm 9.6.7 (fast polynomial multiplication and multipoint
-evaluation), which is what brings §5.5 down to `O(n^{1/4} ln² n)` operations — the current
-bound for §5.5 is the `√n` of block-by-block evaluation; §5.6 (binary quadratic forms:
-Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
+The level argument needs the multiplication cost to be superadditive
+(`CostModel.SuperadditiveMul`: true for the grammar-school and Karatsuba models).
+
+**§5.5 with fast polynomial arithmetic**: `pollardStrassenFast_cost_le` bounds the whole
+method — computing `⌊n^{1/4}⌋`, the product tree for `f`, fast multipoint evaluation at the
+`B ≈ n^{1/4}` points, `B` gcds and the final scan — by
+`(⌈log₂ B⌉ + 1) · nodeBound B` plus `O(B)` gcds and lower-order terms.  With a
+quasi-linear integer multiplication this is the book's `O(n^{1/4})` up to logarithmic
+factors; with the grammar-school (`school`) or Karatsuba model, `polyMulBound` grows like
+`(B log n)²` resp. `(B log n)^{1.58}`, so the bound is only `Õ(n^{1/2})` resp.
+`Õ(n^{0.4})`.
+
+Still to do: a quasi-linear multiplication cost model (Schönhage–Strassen or Nussbaumer,
+Algorithm 9.5.25) to state the `n^{1/4}` bound in closed form; evaluation on arithmetic and
+geometric progressions (9.6.5, 9.6.6); §5.6 (binary quadratic forms: Algorithms 5.6.2,
+5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 

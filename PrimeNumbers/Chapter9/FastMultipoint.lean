@@ -129,6 +129,16 @@ theorem multipointEvalWith_eq [Nontrivial R] {prodF : List R → Chapter2.Poly R
     · exact List.map_congr_left fun t ht ↦ hroot x u t ht
     · exact List.map_congr_left fun t ht ↦ hroot x v t ht
 
+theorem length_multipointEvalWith [MulCost R] (prodF : List R → Chapter2.Poly R)
+    (modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (δ : ℕ)
+    (x : Chapter2.Poly R) (T : List R) :
+    (multipointEvalWith prodF modF δ x T).length = T.length := by
+  fun_induction multipointEvalWith prodF modF δ x T with
+  | case1 x T h => simp
+  | case2 x T h u v ih₁ ih₂ =>
+    rw [List.length_append, ih₁, ih₂]
+    simp only [u, v, List.length_take, List.length_drop]; omega
+
 /-- **Algorithm 9.6.7 over `Z_n` with fast multiplication (Algorithm 9.6.1) and fast
 remainder (Algorithm 9.6.4).** -/
 counted_def multipointEvalFast (n δ : ℕ) (x : Chapter2.Poly (ZMod n)) (T : List (ZMod n)) :

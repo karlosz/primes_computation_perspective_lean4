@@ -815,6 +815,73 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
   push_cast [Nat.cast_add] at hc ⊢
   gcongr
 
+/-! ### Integer roots and the small-divisor scan -/
+
+/-- The search for `⌊n^{1/e}⌋` makes one power `(c + 1)^e` per candidate tried: if each
+costs at most `W`, the search from `c` costs at most `(result + 1 - c) · W`. -/
+theorem rootLoop_cost_le (C : CostModel) {e n W : ℕ}
+    (hW : ∀ c, c ^ e ≤ n → PowCost.powCost C (c + 1) e ≤ W) (fuel : ℕ) :
+    ∀ c, c ^ e ≤ n → costOf C (rootLoop e n c fuel) ≤ (rootLoop e n c fuel + 1 - c) * W := by
+  induction fuel with
+  | zero => intro c _; cost_unfold rootLoop.counted
+  | succ fuel ih =>
+    intro c hc
+    have hw := hW c hc
+    by_cases h : (c + 1) ^ e ≤ n
+    · have ih := ih (c + 1) h
+      have hr := le_rootLoop e n (c + 1) fuel
+      cost_unfold rootLoop.counted
+      rw [rootLoop, if_pos h,
+        show rootLoop e n (c + 1) fuel + 1 - c = (rootLoop e n (c + 1) fuel + 1 - (c + 1)) + 1
+          by omega, add_mul, one_mul]
+      omega
+    · cost_unfold rootLoop.counted
+      rw [rootLoop, if_neg h, show c + 1 - c = 1 by omega, one_mul]
+      exact hw
+
+/-- **Cost of `⌊n^{1/4}⌋`** by the upward search: at most `⌊n^{1/4}⌋ + 1` fourth powers, each
+three products of numbers of at most `size n + 4` bits. -/
+theorem iroot4_cost_le (C : CostModel) (n : ℕ) :
+    costOf C (iroot 4 n) ≤ (iroot 4 n + 1) * (3 * C.mul (n.size + 4) (n.size + 4)) := by
+  have hn : n + 1 ≤ 2 ^ n.size := Nat.lt_size_self n
+  have hW : ∀ c, c ^ 4 ≤ n → PowCost.powCost C (c + 1) 4 ≤ 3 * C.mul (n.size + 4) (n.size + 4) := by
+    intro c hc
+    have h3 : (c + 1) ^ 3 ≤ 8 * (n + 1) := by
+      rcases Nat.eq_zero_or_pos c with rfl | hc0
+      · simp; omega
+      · have : c ^ 3 ≤ c ^ 4 := Nat.pow_le_pow_right hc0 (by norm_num)
+        have : (c + 1) ^ 3 ≤ (2 * c) ^ 3 := Nat.pow_le_pow_left (by omega) 3
+        nlinarith
+    have hsz : ∀ x, x ≤ 8 * (n + 1) → x.size ≤ n.size + 4 := fun x hx ↦ by
+      rw [Nat.size_le, pow_add]; omega
+    have hc1 : (c + 1).size ≤ n.size + 4 :=
+      hsz _ ((Nat.le_self_pow (by norm_num) _).trans h3)
+    have hp : ∀ i, i ≤ 2 → ((c + 1) ^ (i + 1)).size ≤ n.size + 4 := fun i hi ↦
+      hsz _ ((Nat.pow_le_pow_right (by omega) (by omega)).trans h3)
+    show ∑ i ∈ Finset.range (4 - 1), C.mul ((c + 1) ^ (i + 1)).size (c + 1).size ≤ _
+    simp only [show 4 - 1 = 3 from rfl, Finset.sum_range_succ, Finset.sum_range_zero, zero_add]
+    have t₁ := C.mul_mono (hp 0 (by omega)) hc1
+    have t₂ := C.mul_mono (hp 1 (by omega)) hc1
+    have t₃ := C.mul_mono (hp 2 (by omega)) hc1
+    simp only [Nat.reduceAdd] at t₁ t₂ t₃ ⊢
+    omega
+  cost_unfold iroot.counted
+  have := rootLoop_cost_le C hW n 0 (by simp)
+  simpa [iroot] using this
+
+/-- The scan for a small divisor: one division of `n` per candidate `d ≤ N`. -/
+theorem smallDivisor_cost_le (C : CostModel) {n N : ℕ} (hn : n ≤ N) (fuel : ℕ) :
+    ∀ d, d + fuel ≤ N + 1 → costOf C (smallDivisor n d fuel) ≤ fuel * C.divBound N.size := by
+  induction fuel with
+  | zero => intro d _; cost_unfold smallDivisor.counted
+  | succ fuel ih =>
+    intro d hd
+    have ih := ih (d + 1) (by omega)
+    have := C.divMod_le_divBound (Nat.size_le_size hn) (Nat.size_le_size (show d ≤ N by omega))
+    cost_unfold smallDivisor.counted
+    rw [add_mul, one_mul]
+    split_ifs <;> omega
+
 end BitCost
 
 end PrimeNumbers.Chapter5
