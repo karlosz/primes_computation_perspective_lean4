@@ -83,9 +83,26 @@ decreasing_by
 @[cost_free] def block (r m₁ j : ℕ) (a : List ℤ) : List ℤ :=
   (List.range m₁).map fun l ↦ a.getD (j + r * l) 0
 
-/-- The inverse of `block`: the coefficient `j + r l` is entry `l` of block `j`. -/
+/-- The `r` blocks of `a`, through an array, in linear time (`blocks_eq`). -/
+@[cost_free] def blocks (r m₁ : ℕ) (a : List ℤ) : List (List ℤ) :=
+  let arr := a.toArray
+  (List.range r).map fun j ↦ (List.range m₁).map fun l ↦ arr.getD (j + r * l) 0
+
+/-- The inverse of `block`: the coefficient `j + r l` is entry `l` of block `j` (through
+arrays, in linear time; `unblock_eq`). -/
 @[cost_free] def unblock (r m : ℕ) (D : List (List ℤ)) : List ℤ :=
-  (List.range m).map fun i ↦ (D.getD (i % r) []).getD (i / r) 0
+  let arr := (D.map List.toArray).toArray
+  (List.range m).map fun i ↦ (arr.getD (i % r) #[]).getD (i / r) 0
+
+theorem blocks_eq (r m₁ : ℕ) (a : List ℤ) :
+    blocks r m₁ a = (List.range r).map fun j ↦ block r m₁ j a := by
+  simp [blocks, block, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+
+theorem unblock_eq (r m : ℕ) (D : List (List ℤ)) :
+    unblock r m D = (List.range m).map fun i ↦ (D.getD (i % r) []).getD (i / r) 0 := by
+  simp only [unblock, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+  refine List.map_congr_left fun i _ ↦ ?_
+  cases h : D[i % r]? <;> simp [h]
 
 /-- The negacyclic product in `S_m` by the schoolbook method: coefficient `s` is
 `∑_{i+j=s} a_i b_j - ∑_{i+j=s+m} a_i b_j`. -/
@@ -106,10 +123,8 @@ counted_def nussbaumer (k : ℕ) (a b : List ℤ) : List ℤ :=
     let k₂ := k / 2                    -- r = 2^k₂ ≤ m₁
     let e := 2 ^ (k₁ - k₂)             -- ω = x^e, of order L = 2r in S_{m₁}
     let zero := List.replicate (2 ^ k₁) (0 : ℤ)
-    let A := (List.range (2 ^ k₂)).map (fun j ↦ block (2 ^ k₂) (2 ^ k₁) j a) ++
-      List.replicate (2 ^ k₂) zero
-    let B := (List.range (2 ^ k₂)).map (fun j ↦ block (2 ^ k₂) (2 ^ k₁) j b) ++
-      List.replicate (2 ^ k₂) zero
+    let A := blocks (2 ^ k₂) (2 ^ k₁) a ++ List.replicate (2 ^ k₂) zero
+    let B := blocks (2 ^ k₂) (2 ^ k₁) b ++ List.replicate (2 ^ k₂) zero
     let P := List.zipWith (nussbaumer k₁) (fft (2 ^ k₁) e A) (fft (2 ^ k₁) e B)
     let C := (fft (2 ^ k₁) (2 * 2 ^ k₁ - e) P).map fun v ↦ v.map (· / 2 ^ (k₂ + 1))
     let D := (List.range (2 ^ k₂)).map fun j ↦
@@ -613,6 +628,7 @@ theorem ev_block {m₁ r m : ℕ} (h : r * m₁ = m) {a : List ℤ} (ha : a.leng
 
 theorem block_unblock {m₁ r m : ℕ} (h : r * m₁ = m) {D : List (List ℤ)} {j : ℕ} (hj : j < r)
     (hD : (D.getD j []).length = m₁) : block r m₁ j (unblock r m D) = D.getD j [] := by
+  rw [unblock_eq]
   refine List.ext_getElem (by rw [length_block, hD]) fun l h1 h2 ↦ ?_
   have hl : l < m₁ := by simpa [block] using h1
   have hlt : j + r * l < m := by subst h; nlinarith
@@ -624,7 +640,7 @@ theorem block_unblock {m₁ r m : ℕ} (h : r * m₁ = m) {D : List (List ℤ)} 
 theorem ev_unblock {m₁ r m : ℕ} (h : r * m₁ = m) {D : List (List ℤ)}
     (hD : ∀ j < r, (D.getD j []).length = m₁) :
     ev m (unblock r m D) = ∑ j ∈ Finset.range r, AdjoinRoot.root _ ^ j * psi h (ev m₁ (D.getD j [])) := by
-  rw [ev_block h (by simp [unblock])]
+  rw [ev_block h (by simp [unblock_eq])]
   exact Finset.sum_congr rfl fun j hj ↦ by
     rw [block_unblock h (Finset.mem_range.1 hj) (hD j (Finset.mem_range.1 hj))]
 
@@ -721,6 +737,7 @@ theorem nussbaumer_spec (k : ℕ) : ∀ a b : List ℤ, a.length = 2 ^ k → b.l
   · rw [nussbaumer, if_pos hk]; exact ⟨length_ncSchool _ _ _, ev_ncSchool ha hb⟩
   rw [nussbaumer, if_neg hk]
   dsimp only
+  rw [blocks_eq, blocks_eq]
   generalize hk₁ : (k + 1) / 2 = k₁
   generalize hk₂ : k / 2 = k₂
   have hle : k₂ ≤ k₁ := by omega
@@ -800,7 +817,7 @@ theorem nussbaumer_spec (k : ℕ) : ∀ a b : List ℤ, a.length = 2 ^ k → b.l
     intro j hj
     simp [List.getD_eq_getElem?_getD, hj]
   have hlen1 : 1 < 2 * m₁ := by omega
-  refine ⟨by simp [unblock], ?_⟩
+  refine ⟨by simp [unblock_eq], ?_⟩
   rw [ev_unblock hrm fun j hj ↦ by
     rw [hD j hj, length_vadd (by rw [(hCd j (by omega)).1, length_rot (hCd _ (by omega)).1 hlen1])]
     exact (hCd j (by omega)).1]
@@ -827,6 +844,19 @@ theorem nussbaumer_spec (k : ℕ) : ∀ a b : List ℤ, a.length = 2 ^ k → b.l
 writing them down is not arithmetic. -/
 @[cost_free] def ofBits (l : List ℤ) : ℤ := l.foldr (fun d acc ↦ d + 2 * acc) 0
 
+/-- The low `2^k` binary digits of `x`, by halving: `O(N log N)` word operations, against
+`O(N²)` for `bitsOf`, which halves the whole number `2^k` times (`bitsOfPow2_eq`). -/
+@[cost_free] def bitsOfPow2 : ℕ → ℕ → List ℤ
+  | 0, x => [((x % 2 : ℕ) : ℤ)]
+  | k + 1, x => bitsOfPow2 k (x % 2 ^ 2 ^ k) ++ bitsOfPow2 k (x >>> 2 ^ k)
+
+/-- The number with the given binary digits, by halving and shifts (`ofBitsNat_eq`). -/
+@[cost_free] def ofBitsNat (l : List ℤ) : ℕ :=
+  if l.length ≤ 1 then (l.headD 0).toNat
+  else (ofBitsNat (l.drop (l.length / 2)) <<< (l.length / 2)) + ofBitsNat (l.take (l.length / 2))
+termination_by l.length
+decreasing_by all_goals simp only [List.length_drop, List.length_take]; omega
+
 /-- **Carry propagation**: the binary digits of `c + ∑ dᵢ 2^i`, and the final carry. -/
 counted_def carry (c : ℤ) : List ℤ → List ℤ × ℤ
   | [] => ([], c)
@@ -845,8 +875,8 @@ counted_def nussMul (x y : ℕ) : ℕ :=
   if x = 0 ∨ y = 0 then 0
   else
     let k := mulLog x y
-    let r := carry 0 (nussbaumer k (bitsOf (2 ^ k) x) (bitsOf (2 ^ k) y))
-    (ofBits r.1 + r.2 * 2 ^ (2 ^ k)).toNat
+    let r := carry 0 (nussbaumer k (bitsOfPow2 k x) (bitsOfPow2 k y))
+    ((ofBitsNat r.1 : ℤ) + r.2 * 2 ^ (2 ^ k)).toNat
 
 theorem length_bitsOf : ∀ m x, (bitsOf m x).length = m
   | 0, _ => rfl
@@ -867,6 +897,18 @@ theorem bitsOf_add : ∀ N j x, bitsOf (N + j) x = bitsOf N x ++ bitsOf j (x / 2
 theorem bitsOf_zero : ∀ j, bitsOf j 0 = List.replicate j 0
   | 0 => rfl
   | j + 1 => by simp [bitsOf, bitsOf_zero j, List.replicate_succ]
+
+theorem bitsOf_mod : ∀ m x, bitsOf m (x % 2 ^ m) = bitsOf m x
+  | 0, _ => rfl
+  | m + 1, x => by
+    rw [bitsOf, bitsOf, Nat.mod_mod_of_dvd _ (dvd_pow_self 2 (by omega)), pow_succ',
+      Nat.mod_mul_right_div_self, bitsOf_mod m (x / 2)]
+
+theorem bitsOfPow2_eq : ∀ k x, bitsOfPow2 k x = bitsOf (2 ^ k) x
+  | 0, x => rfl
+  | k + 1, x => by
+    rw [bitsOfPow2, bitsOfPow2_eq k, bitsOfPow2_eq k, bitsOf_mod, pow_succ, mul_two, bitsOf_add,
+      Nat.shiftRight_eq_div_pow]
 
 theorem degree_bitsOf_lt {m x N : ℕ} (hN : N ≤ m) (hx : x < 2 ^ N) :
     (toPolynomial (bitsOf m x)).degree < N := by
@@ -895,6 +937,37 @@ theorem eq_of_mk_eq {m : ℕ} (hm : 0 < m) {p q : ℤ[X]} (hp : p.degree < m) (h
 theorem ofBits_eq : ∀ l : List ℤ, ofBits l = (toPolynomial l).eval 2
   | [] => by simp [ofBits]
   | d :: l => by simp [ofBits, ← ofBits_eq l]
+
+theorem ofBits_append (l l' : List ℤ) : ofBits (l ++ l') = ofBits l + 2 ^ l.length * ofBits l' := by
+  rw [ofBits_eq, ofBits_eq, ofBits_eq, toPolynomial_append]; simp
+
+theorem ofBitsNat_eq (l : List ℤ) (h : ∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) : (ofBitsNat l : ℤ) = ofBits l := by
+  induction l using WellFounded.induction (r := InvImage (· < ·) List.length)
+    (InvImage.wf _ Nat.lt_wfRel.wf) with
+  | h l ih =>
+    rw [ofBitsNat]
+    split_ifs with hl
+    · match l, hl with
+      | [], _ => rfl
+      | [d], _ =>
+        have := h d (by simp)
+        simp only [List.headD_cons, ofBits, List.foldr_cons, List.foldr_nil, mul_zero, add_zero]
+        omega
+    · have h₁ := ih (l.drop (l.length / 2)) (by simp only [InvImage, List.length_drop]; omega)
+        fun d hd ↦ h d (List.mem_of_mem_drop hd)
+      have h₂ := ih (l.take (l.length / 2)) (by simp only [InvImage, List.length_take]; omega)
+        fun d hd ↦ h d (List.mem_of_mem_take hd)
+      conv_rhs => rw [← List.take_append_drop (l.length / 2) l]
+      rw [ofBits_append, List.length_take, min_eq_left (by omega), Nat.shiftLeft_eq]
+      push_cast; rw [h₁, h₂]; ring
+
+theorem carry_digits : ∀ (c : ℤ) (ds : List ℤ), ∀ d ∈ (carry c ds).1, 0 ≤ d ∧ d ≤ 1
+  | _, [] => by simp [carry]
+  | c, d :: ds => fun x hx ↦ by
+    simp only [carry, List.mem_cons] at hx
+    rcases hx with rfl | hx
+    · omega
+    · exact carry_digits _ ds x hx
 
 theorem carry_spec : ∀ (c : ℤ) (ds : List ℤ),
     ofBits (carry c ds).1 + (carry c ds).2 * 2 ^ ds.length = c + (toPolynomial ds).eval 2
@@ -931,7 +1004,8 @@ theorem nussMul_eq (x y : ℕ) : nussMul x y = x * y := by
     (bitsOf (2 ^ mulLog x y) y))
   rw [hc, eval_mul, eval_bitsOf, eval_bitsOf, Nat.mod_eq_of_lt hxm, Nat.mod_eq_of_lt hym,
     hlen, zero_add] at this
-  simp only [nussMul, if_neg h0, this]; exact Int.toNat_natCast _
+  simp only [nussMul, if_neg h0, bitsOfPow2_eq, ofBitsNat_eq _ (carry_digits _ _), this]
+  exact Int.toNat_natCast _
 
 /-! ## Running time
 
@@ -1237,6 +1311,7 @@ theorem nussbaumer_cost (k : ℕ) : ∀ (β γ : ℕ) (a b : List ℤ), a.length
     refine (ncSchool_cost_le ha hab hbb).trans ?_
     interval_cases k <;> simp <;> nlinarith
   cost_unfold nussbaumer.counted
+  rw [blocks_eq, blocks_eq]
   generalize hk₁ : (k + 1) / 2 = k₁
   generalize hk₂ : k / 2 = k₂
   have hle : k₂ ≤ k₁ := by omega
@@ -1379,6 +1454,7 @@ theorem nussMul_cost_le_mulLog (x y : ℕ) :
   by_cases h0 : x = 0 ∨ y = 0
   · cost_unfold nussMul.counted
   cost_unfold nussMul.counted
+  simp only [bitsOfPow2_eq, ofBitsNat_eq _ (carry_digits _ _)]
   set k := mulLog x y
   have hA := length_bitsOf (2 ^ k) x
   have hB := length_bitsOf (2 ^ k) y
