@@ -134,6 +134,12 @@ syntax (name := chargeOp) "charge% " term:max : term
     | some ``HDiv.hDiv, 6 => pure (``NatArith.chargeMod, args[4]!, args[5]!)
     | some ``HPow.hPow, 6 => pure (``NatArith.chargePow, args[4]!, args[5]!)
     | some ``Dvd.dvd, 4 => pure (``NatArith.chargeMod, args[3]!, args[2]!)
+    | some ``HAdd.hAdd, 6 | some ``HSub.hSub, 6 => do
+        -- additions are charged only for types with an `AddCost` (the integers)
+        let ty ← instantiateMVars (← inferType args[4]!)
+        if (← trySynthInstance (mkApp (mkConst ``AddCost) ty)) matches .some _ then
+          pure (``NatArith.chargeAdd, args[4]!, args[5]!)
+        else return ← elabTerm (← `(pure ())) ety?
     | _, _ => throwErrorAt stx[1] "counted_def: cannot charge {e}"
   elabTerm (← `($(mkCIdent prim) $(← exprToSyntax x) $(← exprToSyntax y))) ety?
 
@@ -456,6 +462,14 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
               modify (·.push (← `(charge% ($(⟨ra⟩) ^ $lit * $(⟨ra⟩)))))
         | none => modify (·.push (← `(charge% ($(⟨ra⟩) ^ $(⟨rk⟩)))))
       `($(⟨ra⟩) ^ $(⟨rk⟩))
+  | `($a + $b) =>
+      let ra ← hoist ctx a; let rb ← hoist ctx b
+      modify (·.push (← `(charge% ($(⟨ra⟩) + $(⟨rb⟩)))))
+      `($(⟨ra⟩) + $(⟨rb⟩))
+  | `($a - $b) =>
+      let ra ← hoist ctx a; let rb ← hoist ctx b
+      modify (·.push (← `(charge% ($(⟨ra⟩) - $(⟨rb⟩)))))
+      `($(⟨ra⟩) - $(⟨rb⟩))
   | `($_⁻¹) =>
       Macro.throwErrorAt e "counted_def: an inverse is not a primitive operation; compute it \
         with a counted function such as `modInv`"

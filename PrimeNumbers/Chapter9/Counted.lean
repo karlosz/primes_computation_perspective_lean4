@@ -68,6 +68,14 @@ instance : PowCost ℤ :=
   ⟨fun C a e => ∑ i ∈ Finset.range (e - 1), C.mul (a.natAbs ^ (i + 1)).size a.natAbs.size⟩
 instance (n : ℕ) : PowCost (ZMod n) := ⟨fun C _ e => (e - 1) * C.mulMod n.size⟩
 
+/-- The cost of an addition or subtraction of values of type `α`.  Only integers (`ℤ`) have
+one: additions of naturals and residues are free in every model, as in the book. -/
+class AddCost (α : Type) where
+  /-- bit operations to add or subtract `a` and `b` under the cost model `C` -/
+  addCost : CostModel → α → α → ℕ
+
+instance : AddCost ℤ := ⟨fun C a b => C.add a.natAbs.size b.natAbs.size⟩
+
 /-- The big-number primitives an algorithm may use: charges for a multiplication and for a
 division with remainder.  Everything else (comparisons, additions, shifts) is free, as in
 the cost model. -/
@@ -80,6 +88,8 @@ class NatArith (m : Type → Type) where
   chargePow {α : Type} [PowCost α] : α → ℕ → m Unit
   /-- record `k` bit operations (e.g. `k` memory writes) -/
   charge : ℕ → m Unit
+  /-- record the cost of adding or subtracting `a` and `b` -/
+  chargeAdd {α : Type} [AddCost α] : α → α → m Unit
 
 /-- Plain execution. -/
 instance : NatArith Id where
@@ -87,6 +97,7 @@ instance : NatArith Id where
   chargeMod _ _ := pure ()
   chargePow _ _ := pure ()
   charge _ := pure ()
+  chargeAdd _ _ := pure ()
 
 /-- Counted execution under the cost model `C`. -/
 def CostM (_C : CostModel) (α : Type) : Type := Counted α
@@ -98,6 +109,7 @@ instance (C : CostModel) : NatArith (CostM C) where
   chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
   chargePow a e := (⟨(), PowCost.powCost C a e⟩ : Counted Unit)
   charge k := (⟨(), k * C.unit⟩ : Counted Unit)
+  chargeAdd a b := (⟨(), AddCost.addCost C a b⟩ : Counted Unit)
 
 section
 variable (C : CostModel)
@@ -123,6 +135,10 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.cost C (NatArith.chargeMul a b) = MulCost.mulCost C a b := rfl
 @[simp, cost_simps] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
     CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
+@[simp, cost_simps] theorem CostM.chargeAdd_cost {α} [AddCost α] (a b : α) :
+    CostM.cost C (NatArith.chargeAdd a b) = AddCost.addCost C a b := rfl
+@[simp, cost_simps] theorem addCost_int (a b : ℤ) :
+    AddCost.addCost C a b = C.add a.natAbs.size b.natAbs.size := rfl
 @[simp, cost_simps] theorem CostM.chargePow_cost {α} [PowCost α] (a : α) (e : ℕ) :
     CostM.cost C (NatArith.chargePow a e) = PowCost.powCost C a e := rfl
 @[simp, cost_simps] theorem CostM.charge_cost (k : ℕ) :
@@ -260,7 +276,7 @@ end
 attribute [cost_simps] zero_add add_zero ite_self mul_one one_mul zero_mul mul_zero
   mulCount_mul mulCount_divMod divCount_mul divCount_divMod opCount_mul opCount_divMod
   writeCount_mul writeCount_divMod mulCount_unit divCount_unit opCount_unit writeCount_unit
-  school_unit mulCount_mulMod divCount_mulMod
+  school_unit school_add mulCount_mulMod divCount_mulMod
 
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
 sum of the charges of its primitive calls (simp set `cost_simps`). -/

@@ -65,6 +65,10 @@ structure CostModel where
   /-- the cost of one elementary step that is neither a multiplication nor a division
   (a memory write): one bit operation -/
   unit : ℕ := 1
+  /-- bit operations to add or subtract an `a`-bit and a `b`-bit integer (free unless a
+  model charges it: additions are linear and dominated by the multiplications in all the
+  algorithms of the book except fast multiplication itself) -/
+  add : ℕ → ℕ → ℕ := fun _ _ ↦ 0
 
 /-- **The grammar-school cost model (§9.1).**  Long multiplication of an `a`-bit by a
 `b`-bit number takes `a b` bit operations; long division of an `a`-bit number by a `b`-bit
@@ -179,6 +183,7 @@ theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 @[simp] theorem opCount_unit : opCount.unit = 0 := rfl
 @[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
 @[simp] theorem school_unit : school.unit = 1 := rfl
+@[simp] theorem school_add (a b : ℕ) : school.add a b = 0 := rfl
 
 /-- One "multiply two residues and reduce" modulo a `k`-bit modulus: the unit of work of
 all modular algorithms. -/
