@@ -360,18 +360,32 @@ The level argument needs the multiplication cost to be superadditive
 (`CostModel.SuperadditiveMul`: true for the grammar-school and Karatsuba models).
 
 **§5.5 with fast polynomial arithmetic**: `pollardStrassenFast_cost_le` bounds the whole
-method — computing `⌊n^{1/4}⌋`, the product tree for `f`, fast multipoint evaluation at the
-`B ≈ n^{1/4}` points, `B` gcds and the final scan — by
-`(⌈log₂ B⌉ + 1) · nodeBound B` plus `O(B)` gcds and lower-order terms.  With a
-quasi-linear integer multiplication this is the book's `O(n^{1/4})` up to logarithmic
-factors; with the grammar-school (`school`) or Karatsuba model, `polyMulBound` grows like
-`(B log n)²` resp. `(B log n)^{1.58}`, so the bound is only `Õ(n^{1/2})` resp.
-`Õ(n^{0.4})`.
+method (computing `⌊n^{1/4}⌋`, the product tree for `f`, fast multipoint evaluation at the
+`B ≈ n^{1/4}` points, `B` gcds and the final scan) by `(⌈log₂ B⌉ + 1) · nodeBound B`, plus
+`O(B)` gcds and lower-order terms, in any model with superadditive multiplication. With the
+grammar-school or Karatsuba model, `polyMulBound` grows like `(B log n)²` resp.
+`(B log n)^{1.58}`, so the bound is only `Õ(n^{1/2})` resp. `Õ(n^{0.4})`. With Nussbaumer
+multiplication (below) it is the book's bound in closed form:
 
-Still to do: a quasi-linear multiplication cost model (Schönhage–Strassen or Nussbaumer,
-Algorithm 9.5.25) to state the `n^{1/4}` bound in closed form; evaluation on arithmetic and
-geometric progressions (9.6.5, 9.6.6); §5.6 (binary quadratic forms: Algorithms 5.6.2,
-5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
+* `pollardStrassenFast_cost_nuss`: at most `2^35 (⌊n^{1/4}⌋ + 1)(log₂ n + 3)⁷` bit
+  operations, i.e. `O(n^{1/4} log⁷ n)`.
+
+### §9.5 Quasi-linear multiplication — `PrimeNumbers/Chapter9/Nussbaumer.lean`
+
+| Book | Lean function | Theorems |
+|---|---|---|
+| Alg 9.5.25 Nussbaumer convolution (negacyclic, in `ℤ[x]/(x^{2^k} + 1)`) | `nussbaumer`, `fft` (FFT over `ℤ[x]/(x^m + 1)`, with root of unity a power of `x`), `ncSchool` (schoolbook base case) | `nussbaumer_spec`: the product in `ℤ[x]/(x^{2^k} + 1)` (via `fft_spec`, the orthogonality relation `sum_pow_mul_eq`, the convolution theorem `conv_spec`, unique representatives `ev_inj` and exact division `ev_map_ediv`) |
+| integer multiplication by negacyclic convolution | `nussMul` (binary digits as coefficients, length `2^k ≥ 2 · bits`, carry propagation) | `nussMul_eq : nussMul x y = x * y` |
+| running time | `nussbaumer.counted`, `nussMul.counted` | in the bit model `bitModel` (additions cost `max a b + 1`; negation and shifts free): `fft_cost` (`l 2^l m (β + l)` for `2^l` vectors with entries below `2^β`), `nussbaumer_cost` (`2^k (2k² + 1) · 8 (γ + 1)²` for any `γ ≥ β + 2k`), `nussMul_cost_le` |
+
+`nussModel` is a cost model with `mul a b = 292 N (log₂ N + 3)⁴`, where `N = max a b`.
+`nussMul_cost_le` shows it is achieved: multiplying an `a`-bit by a `b`-bit number with
+`nussMul` takes at most `nussModel.mul a b` bit operations. The model is superadditive
+(`nussModel_superadditiveMul`). This is a log factor more than the optimal
+`O(N log N log log N)`, because each recursion level's bound is crude.
+
+Still to do: evaluation on arithmetic and geometric progressions (9.6.5, 9.6.6); §5.6
+(binary quadratic forms: Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
 
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 

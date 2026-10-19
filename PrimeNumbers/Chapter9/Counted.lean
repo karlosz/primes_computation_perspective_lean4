@@ -294,7 +294,7 @@ end
 attribute [cost_simps] zero_add add_zero ite_self mul_one one_mul zero_mul mul_zero
   mulCount_mul mulCount_divMod divCount_mul divCount_divMod opCount_mul opCount_divMod
   writeCount_mul writeCount_divMod mulCount_unit divCount_unit opCount_unit writeCount_unit
-  school_unit school_add mulCount_mulMod divCount_mulMod
+  school_unit school_add bitModel_mul bitModel_add bitModel_unit mulCount_mulMod divCount_mulMod
 
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
 sum of the charges of its primitive calls (simp set `cost_simps`). -/

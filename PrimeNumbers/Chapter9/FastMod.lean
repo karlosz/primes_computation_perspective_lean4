@@ -47,12 +47,6 @@ theorem toPolynomial_reverse (L : Chapter2.Poly R) :
     · rw [List.length_eq_zero_iff.mp h0]; simp
     · rw [revAt_eq_self_of_lt (by omega), List.getD_eq_default _ _ (by omega)]
 
-theorem toPolynomial_replicate_zero (j : ℕ) :
-    toPolynomial (List.replicate j (0 : R)) = 0 := by
-  induction j with
-  | zero => simp
-  | succ j ih => simp [List.replicate_succ, ih]
-
 theorem coeff_toPolynomial_take (L : Chapter2.Poly R) (m j : ℕ) :
     (toPolynomial (L.take m)).coeff j = if j < m then (toPolynomial L).coeff j else 0 := by
   rw [coeff_toPolynomial, coeff_toPolynomial, List.getD_eq_getElem?_getD,

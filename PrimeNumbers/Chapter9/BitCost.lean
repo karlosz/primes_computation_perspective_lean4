@@ -79,6 +79,16 @@ def school : CostModel where
   mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
   divMod_mono b h := Nat.mul_le_mul_right b (by omega)
 
+/-- **The bit-level model**, in which fast multiplication itself is analysed: schoolbook
+products and divisions as in `school`, and an addition of an `a`-bit and a `b`-bit integer
+costing `max a b + 1` bit operations (ripple carry). -/
+def bitModel : CostModel where
+  mul a b := a * b
+  divMod a b := (a - b + 1) * b
+  mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
+  divMod_mono b h := Nat.mul_le_mul_right b (by omega)
+  add a b := max a b + 1
+
 /-! ### Worst cases over the inputs of a given bit length -/
 
 /-- The largest value of `g` on the numbers of at most `k` bits. -/
@@ -184,6 +194,9 @@ theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 @[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
 @[simp] theorem school_unit : school.unit = 1 := rfl
 @[simp] theorem school_add (a b : ℕ) : school.add a b = 0 := rfl
+@[simp] theorem bitModel_mul (a b : ℕ) : bitModel.mul a b = a * b := rfl
+@[simp] theorem bitModel_add (a b : ℕ) : bitModel.add a b = max a b + 1 := rfl
+@[simp] theorem bitModel_unit : bitModel.unit = 1 := rfl
 
 /-- One "multiply two residues and reduce" modulo a `k`-bit modulus: the unit of work of
 all modular algorithms. -/

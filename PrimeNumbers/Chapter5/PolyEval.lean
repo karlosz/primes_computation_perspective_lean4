@@ -3,6 +3,7 @@ import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter9.FastMultipointCost
+import PrimeNumbers.Chapter9.Nussbaumer
 
 /-!
 # §5.5 Polynomial evaluation method (Pollard–Strassen)
@@ -411,5 +412,217 @@ theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n
     omega
 
 end RunningTimeFast
+
+section QuasiLinear
+
+open PrimeNumbers.Chapter9 PrimeNumbers.Chapter2
+
+/-! ### With Nussbaumer multiplication: the closed form -/
+
+theorem nussModel_superadditiveMul : nussModel.SuperadditiveMul := fun a b ↦ by
+  simp only [nussModel_mul, max_self]
+  have ha := Nat.size_le_size (Nat.le_add_right a b)
+  have hb := Nat.size_le_size (Nat.le_add_left b a)
+  have h₁ := Nat.pow_le_pow_left (Nat.add_le_add_right ha 3) 4
+  have h₂ := Nat.pow_le_pow_left (Nat.add_le_add_right hb 3) 4
+  nlinarith [Nat.mul_le_mul_left (292 * a) h₁, Nat.mul_le_mul_left (292 * b) h₂]
+
+/-- A gcd costs the same in every model with the same divisions. -/
+theorem euclid_cost_congr {C D : CostModel} (h : C.divMod = D.divMod) (x y : ℕ) :
+    costOf C (euclid x y) = costOf D (euclid x y) := by
+  fun_induction euclid x y with
+  | case1 x y hy ih => cost_unfold_both euclid.counted; rw [h, ih]
+  | case2 x y hy => cost_unfold_both euclid.counted
+
+theorem gcdCost_nussModel (k : ℕ) : gcdCost nussModel k = gcdCost school k := by
+  unfold gcdCost; congr 1; funext x y; exact euclid_cost_congr (C := nussModel) (D := school) rfl x y
+
+theorem nussModel_divBound_le (k : ℕ) : nussModel.divBound k ≤ (k + 1) * k :=
+  school_divBound_le k
+
+theorem size_le_self (a : ℕ) : a.size ≤ a := Nat.size_le.2 Nat.lt_two_pow_self
+
+/-- A product of small numbers (at most `10 S` bits). -/
+theorem nussModel_mul_small {a S : ℕ} (hS : 3 ≤ S) (ha : a ≤ 10 * S) :
+    nussModel.mul a a ≤ 42751720 * S ^ 5 := by
+  simp only [nussModel_mul, max_self]
+  have h₁ : a.size + 3 ≤ 11 * S := by have := size_le_self a; omega
+  calc 292 * a * (a.size + 3) ^ 4 ≤ 292 * (10 * S) * (11 * S) ^ 4 :=
+        Nat.mul_le_mul (Nat.mul_le_mul_left _ ha) (Nat.pow_le_pow_left h₁ 4)
+    _ = 42751720 * S ^ 5 := by ring
+
+/-- A product of large numbers (at most `20 S B` bits, with `B` of at most `S` bits). -/
+theorem nussModel_mul_large {a S B : ℕ} (hS : 3 ≤ S) (hB : B.size ≤ S) (ha : a ≤ 20 * S * B) :
+    nussModel.mul a a ≤ 1368055040 * (B * S ^ 5) := by
+  simp only [nussModel_mul, max_self]
+  have h₁ : a.size + 3 ≤ 22 * S := by
+    have := Nat.size_le_size ha
+    have := size_mul_le (20 * S) B
+    have := size_le_self (20 * S)
+    omega
+  calc 292 * a * (a.size + 3) ^ 4 ≤ 292 * (20 * S * B) * (22 * S) ^ 4 :=
+        Nat.mul_le_mul (Nat.mul_le_mul_left _ ha) (Nat.pow_le_pow_left h₁ 4)
+    _ = 1368055040 * (B * S ^ 5) := by ring
+
+theorem nussModel_mulMod_le {k S : ℕ} (hS : 3 ≤ S) (hk : k + 1 ≤ S) :
+    nussModel.mulMod k ≤ 42751721 * S ^ 5 := by
+  have h₁ := nussModel_mul_small (a := k) hS (by omega)
+  have h₂ : nussModel.divMod (2 * k) k = (2 * k - k + 1) * k := rfl
+  have h₃ : (2 * k - k + 1) * k ≤ S ^ 5 := by
+    calc (2 * k - k + 1) * k ≤ S * S * 1 * 1 * 1 := by
+          rw [show 2 * k - k + 1 = k + 1 by omega, mul_one, mul_one, mul_one]
+          exact Nat.mul_le_mul hk (by omega)
+      _ ≤ S ^ 5 := by
+          have : 1 ≤ S := by omega
+          calc S * S * 1 * 1 * 1 ≤ S * S * S * S * S := by gcongr
+            _ = S ^ 5 := by ring
+  simp only [CostModel.mulMod]
+  omega
+
+theorem polyMulBound_nussModel_le {n m B S : ℕ} (hS : n.size + 3 ≤ S) (hB : B.size ≤ n.size)
+    (hm : m ≤ 4 * B) : polyMulBound nussModel n m ≤ 2736110080 * (B * S ^ 5) := by
+  have hms : m.size ≤ n.size + 3 := by
+    have := Nat.size_le_size hm; have := size_mul_le 4 B
+    rw [show Nat.size 4 = 3 by decide] at this; omega
+  have hw : segWidth n m ≤ 5 * S := by unfold segWidth; omega
+  have h₁ := nussModel_mul_large (a := segWidth n m * m) (S := S) (B := B) (by omega) (by omega) (by
+    calc segWidth n m * m ≤ 5 * S * (4 * B) := Nat.mul_le_mul hw hm
+      _ = 20 * S * B := by ring)
+  have h₂ := nussModel_mul_small (a := 2 * segWidth n m) (S := S) (by omega) (by omega)
+  have h₃ : 8 * m * nussModel.mul (2 * segWidth n m) (2 * segWidth n m) ≤
+      32 * B * (42751720 * S ^ 5) := Nat.mul_le_mul (by omega) h₂
+  unfold polyMulBound
+  nlinarith
+
+theorem clogBound_nussModel_le {z S : ℕ} (hS : 3 ≤ S) (hz : 2 * z ≤ 2 * S - 3) :
+    clogBound nussModel z ≤ 42751728 * S ^ 5 := by
+  have h₁ := nussModel_mul_small (a := 2 * z) hS (by omega)
+  have h₂ := nussModel_divBound_le (2 * z)
+  have h₃ : (2 * z + 1) * (2 * z) ≤ 4 * S ^ 2 := by
+    calc (2 * z + 1) * (2 * z) ≤ (2 * S) * (2 * S) := Nat.mul_le_mul (by omega) (by omega)
+      _ = 4 * S ^ 2 := by ring
+  have h₄ : S ^ 2 ≤ S ^ 5 := Nat.pow_le_pow_right (by omega) (by norm_num)
+  unfold clogBound
+  omega
+
+theorem le_mul_pow_seven {B S c j : ℕ} (hS : 1 ≤ S) (hj : j ≤ 7) :
+    B * (c * S ^ j) ≤ c * (B * S ^ 7) := by
+  calc B * (c * S ^ j) = c * (B * S ^ j) := by ring
+    _ ≤ c * (B * S ^ 7) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hS hj))
+
+/-- **The Pollard–Strassen method with Nussbaumer multiplication** (Theorem 5.5.3): at most
+`2^35 (⌊n^{1/4}⌋ + 1) (log₂ n + 3)⁷` bit operations, i.e. `O(n^{1/4} log⁷ n)`. -/
+theorem pollardStrassenFast_cost_nuss {n : ℕ} (hn : 1 < n) :
+    costOf nussModel (pollardStrassenFast n) ≤ 2 ^ 35 * (iroot 4 n + 1) * (n.size + 3) ^ 7 := by
+  have h := pollardStrassenFast_cost_le nussModel nussModel_superadditiveMul hn
+  set B := iroot 4 n + 1 with hBdef
+  set s := n.size
+  set S := s + 3 with hSdef
+  have hs : 2 ≤ s := by
+    have := Nat.lt_size.2 (show 2 ^ 1 ≤ n by omega); omega
+  have hS1 : 1 ≤ S := by omega
+  have hBn : B ≤ n := by
+    have h4 := iroot_pow_le (by norm_num : (4 : ℕ) ≠ 0) n
+    rcases Nat.lt_or_ge (iroot 4 n) 2 with h0 | h0
+    · omega
+    · have h3 := Nat.pow_le_pow_left h0 3
+      have : iroot 4 n ^ 4 = iroot 4 n * iroot 4 n ^ 3 := by ring
+      nlinarith
+  have hBs : B.size ≤ s := Nat.size_le_size hBn
+  have hclog : Nat.clog 2 B ≤ s :=
+    (Nat.clog_le_of_le_pow (Nat.lt_size_self B).le).trans hBs
+  set X := B * S ^ 7 with hX
+  have hX6 : B * S ^ 5 * S = B * S ^ 6 := by ring
+  have hX7 : B * S ^ 5 * S * S = X := by ring
+  have hX56 : B * S ^ 5 ≤ B * S ^ 5 * S := Nat.le_mul_of_pos_right _ (by omega)
+  have hX67 : B * S ^ 5 * S ≤ X := by
+    rw [← hX7]; exact Nat.le_mul_of_pos_right _ (by omega)
+  -- the pieces
+  have hFs := nussModel_mul_small (a := s + 4) (S := S) (by omega) (by omega)
+  have hFB := nussModel_mul_small (a := B.size) (S := S) (by omega) (by omega)
+  have hPB := polyMulBound_nussModel_le (n := n) (m := B) (S := S) le_rfl hBs (by omega)
+  have hP4B := polyMulBound_nussModel_le (n := n) (m := 4 * B) (S := S) le_rfl hBs le_rfl
+  have hMM := nussModel_mulMod_le (k := s) (S := S) (by omega) (by omega)
+  have hz : (2 * B).size ≤ s + 1 := by
+    have := Nat.size_le_size (show 2 * B ≤ 2 * n by omega)
+    have := size_mul_le 2 n; rw [show Nat.size 2 = 2 by decide] at this
+    have : (2 * n).size ≤ n.size + 1 := by
+      rw [show 2 * n = n * 2 ^ 1 by ring, ← Nat.shiftLeft_eq, Nat.size_shiftLeft (by omega)]
+    omega
+  have hCB := clogBound_nussModel_le (z := (2 * B).size) (S := S) (by omega) (by omega)
+  have t1 : B * (3 * nussModel.mul (s + 4) (s + 4)) ≤ 3 * 42751720 * X :=
+    (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hFs)).trans
+      (by rw [← mul_assoc 3]; exact le_mul_pow_seven hS1 (by norm_num))
+  have t2 : (Nat.clog 2 B + 1) * polyMulBound nussModel n B ≤ 2736110080 * X := by
+    calc _ ≤ S * (2736110080 * (B * S ^ 5)) := Nat.mul_le_mul (by omega) hPB
+      _ = 2736110080 * (B * S ^ 5 * S) := by ring
+      _ ≤ _ := Nat.mul_le_mul_left _ hX67
+  have t3 : B * (2 * nussModel.mulMod s) ≤ 2 * 42751721 * X :=
+    (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hMM)).trans
+      (by rw [← mul_assoc 2]; exact le_mul_pow_seven hS1 (by norm_num))
+  have t4 : B * nussModel.mul B.size B.size ≤ 42751720 * X :=
+    (Nat.mul_le_mul_left _ hFB).trans (le_mul_pow_seven hS1 (by norm_num))
+  have t5 : (Nat.clog 2 B + 1) * nodeBound nussModel n 4 B ≤
+      (5 * 2736110080 + 24 * 42751721 + 6 * 42751728) * X := by
+    have hin : polyMulBound nussModel n B + 4 * polyMulBound nussModel n (4 * B) +
+        18 * B * nussModel.mulMod n.size ≤ (5 * 2736110080 + 18 * 42751721) * (B * S ^ 5) := by
+      have : 18 * B * nussModel.mulMod n.size ≤ 18 * 42751721 * (B * S ^ 5) := by
+        calc 18 * B * nussModel.mulMod n.size ≤ 18 * B * (42751721 * S ^ 5) :=
+              Nat.mul_le_mul_left _ hMM
+          _ = 18 * 42751721 * (B * S ^ 5) := by ring
+      omega
+    have hrest : 6 * B * clogBound nussModel (2 * B).size + (4 + 2) * B * nussModel.mulMod n.size ≤
+        (6 * 42751728 + 6 * 42751721) * (B * S ^ 5) := by
+      have h₁ : 6 * B * clogBound nussModel (2 * B).size ≤ 6 * 42751728 * (B * S ^ 5) := by
+        calc _ ≤ 6 * B * (42751728 * S ^ 5) := Nat.mul_le_mul_left _ hCB
+          _ = _ := by ring
+      have h₂ : (4 + 2) * B * nussModel.mulMod n.size ≤ 6 * 42751721 * (B * S ^ 5) := by
+        calc _ ≤ (4 + 2) * B * (42751721 * S ^ 5) := Nat.mul_le_mul_left _ hMM
+          _ = _ := by ring
+      omega
+    have hnode : nodeBound nussModel n 4 B ≤
+        (5 * 2736110080 + 24 * 42751721 + 6 * 42751728) * (B * S ^ 5 * S) := by
+      unfold nodeBound
+      have : (Nat.clog 2 B + 2) * (polyMulBound nussModel n B + 4 * polyMulBound nussModel n (4 * B) +
+          18 * B * nussModel.mulMod n.size) ≤ (5 * 2736110080 + 18 * 42751721) * (B * S ^ 5 * S) := by
+        calc _ ≤ S * ((5 * 2736110080 + 18 * 42751721) * (B * S ^ 5)) :=
+              Nat.mul_le_mul (by omega) hin
+          _ = _ := by ring
+      have := Nat.mul_le_mul_left (6 * 42751728 + 6 * 42751721) hX56
+      omega
+    calc _ ≤ S * ((5 * 2736110080 + 24 * 42751721 + 6 * 42751728) * (B * S ^ 5 * S)) :=
+          Nat.mul_le_mul (by omega) hnode
+      _ = _ := by rw [← hX7]; ring
+  have t6 : B * gcdCost nussModel s ≤ 3 * X := by
+    rw [gcdCost_nussModel]
+    have h₁ : s * (3 * s + 2) ≤ 3 * S ^ 2 := by
+      calc s * (3 * s + 2) ≤ S * (3 * S) := Nat.mul_le_mul (by omega) (by omega)
+        _ = 3 * S ^ 2 := by ring
+    exact (Nat.mul_le_mul_left _ ((gcdCost_school_le s).trans h₁)).trans
+      (le_mul_pow_seven hS1 (by norm_num))
+  have t7 : nussModel.mul B.size B.size + B * nussModel.divBound (n + B * B + B + 2).size ≤
+      (42751720 + 4) * X := by
+    have hN : (n + B * B + B + 2).size ≤ 2 * s + 3 := by
+      have h₁ : n + B * B + B + 2 ≤ 4 * (n * n) := by nlinarith
+      have h₂ := Nat.size_le_size h₁
+      have h₃ := size_mul_le 4 (n * n); rw [show Nat.size 4 = 3 by decide] at h₃
+      have h₄ := size_mul_le n n
+      omega
+    have h₁ : nussModel.divBound (n + B * B + B + 2).size ≤ 4 * S ^ 2 := by
+      refine (nussModel.divBound_mono hN).trans ((nussModel_divBound_le _).trans ?_)
+      calc (2 * s + 3 + 1) * (2 * s + 3) ≤ (2 * S) * (2 * S) := Nat.mul_le_mul (by omega) (by omega)
+        _ = 4 * S ^ 2 := by ring
+    have h₂ : B * nussModel.divBound (n + B * B + B + 2).size ≤ 4 * X :=
+      (Nat.mul_le_mul_left _ h₁).trans (le_mul_pow_seven hS1 (by norm_num))
+    have h₃ : nussModel.mul B.size B.size ≤ 42751720 * X := by
+      refine hFB.trans (Nat.mul_le_mul_left _ ?_)
+      calc S ^ 5 ≤ S ^ 7 := Nat.pow_le_pow_right hS1 (by norm_num)
+        _ ≤ X := Nat.le_mul_of_pos_left _ (by omega)
+    omega
+  calc _ ≤ _ := h
+    _ ≤ 2 ^ 35 * X := by omega
+    _ = _ := by rw [hX]; ring
+
+end QuasiLinear
 
 end PrimeNumbers.Chapter5
