@@ -36,12 +36,6 @@ theorem toPolynomial_append (A B : Chapter2.Poly R) :
   | nil => simp
   | cons c A ih => simp [ih, pow_succ]; ring
 
-theorem toPolynomial_replicate_zero (j : ℕ) :
-    toPolynomial (List.replicate j (0 : R)) = 0 := by
-  induction j with
-  | zero => simp
-  | succ j ih => simp [List.replicate_succ, ih]
-
 /-- Truncation `L mod t^k` is `take k`. -/
 theorem X_pow_dvd_sub_take (L : Chapter2.Poly R) (k : ℕ) :
     X ^ k ∣ toPolynomial L - toPolynomial (L.take k) := by

@@ -13,7 +13,7 @@ subquadratic for large inputs) or, for heuristic algorithms, the expected count.
 namespace Bench
 
 open PrimeNumbers.Chapter2 PrimeNumbers.Chapter3 PrimeNumbers.Chapter4 PrimeNumbers.Chapter5
-open PrimeNumbers.Chapter9 (isqrt karatsuba nussMul mulMod invNewton fastModMonic prodTree
+open PrimeNumbers.Chapter9 (isqrt karatsuba nussMul nussbaumer bitsOfPow2 mulMod invNewton fastModMonic prodTree
   multipointEval multipointEvalFast)
 
 instance : Fact (Nat.Prime 65537) := ⟨by norm_num⟩
@@ -143,7 +143,12 @@ def mulCases : List Case := [
   { problem := "integer multiplication", name := "nussMul", ref := "Alg 9.5.25"
     param := "bits of the factors", bound := "292 k (log₂ k + 3)⁴ (bitModel)", growth := .poly 1
     sizes := pow2s 8 15
-    prepare := fun k ↦ task (randBits 1 k, randBits 2 k) fun (x, y) ↦ nussMul x y } ]
+    prepare := fun k ↦ task (randBits 1 k, randBits 2 k) fun (x, y) ↦ nussMul x y },
+  { problem := "integer multiplication", name := "nussbaumer (negacyclic, bits)"
+    ref := "Alg 9.5.25", param := "length 2^k", bound := "2^k (2k² + 1) · 8 (2k + 2)² (bitModel)"
+    growth := .poly 1, sizes := pow2s 8 17
+    prepare := fun m ↦ task (bitsOfPow2 m.log2 (randBits 1 m), bitsOfPow2 m.log2 (randBits 2 m))
+      fun (a, b) ↦ nussbaumer m.log2 a b } ]
 
 /-! ## Polynomials over finite fields -/
 
@@ -308,16 +313,16 @@ def factoringCases : List Case := [
 def dlogCases : List Case := [
   { problem := "discrete logarithms", name := "bsgs", ref := "Alg 5.3.1"
     param := "bits of the prime p", bound := "O(√p) products and table operations"
-    growth := .exp 0.5, sizes := steps 34 43 3
+    growth := .exp 0.5, sizes := steps 34 42 2
     prepare := fun k ↦ do
-      let ps := (List.range 4).map fun i ↦ randPrime (10 * k + i) k
+      let ps := (List.range 8).map fun i ↦ randPrime (10 * k + i) k
       task (ps.map fun p ↦ (p, powMod 3 (randBelow k p) p)) fun ins ↦
         ins.map fun (p, t) ↦ bsgs p 3 t p },
   { problem := "discrete logarithms", name := "rhoLog", ref := "§5.2.2"
     param := "bits of the prime order N (p = 2N + 1)", bound := "T passes, T ≈ √N (heuristic)"
-    growth := .exp 0.5, sizes := steps 34 44 2
+    growth := .exp 0.5, sizes := steps 34 42 2
     prepare := fun k ↦ do
-      let Ns := (List.range 4).map fun i ↦ randSophieGermain (10 * k + i) k
+      let Ns := (List.range 8).map fun i ↦ randSophieGermain (10 * k + i) k
       task (Ns.map fun N ↦ (N, powMod 4 (randBelow k N) (2 * N + 1))) fun ins ↦
         ins.map fun (N, t) ↦ rhoLog (2 * N + 1) N 4 t (2 ^ (k / 2 + 8)) } ]
 

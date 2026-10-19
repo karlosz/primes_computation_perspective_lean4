@@ -48,6 +48,12 @@ theorem coeff_toPolynomial (f : Poly F) (i : ℕ) : (toPolynomial f).coeff i = f
   | cons c f ih => cases i <;> simp [ih, coeff_C]
 
 /-- A list of length `n` denotes a polynomial of degree `< n`. -/
+theorem toPolynomial_replicate_zero (j : ℕ) :
+    toPolynomial (List.replicate j (0 : F)) = 0 := by
+  induction j with
+  | zero => simp
+  | succ j ih => simp [List.replicate_succ, ih]
+
 theorem degree_toPolynomial_lt (f : Poly F) : (toPolynomial f).degree < f.length := by
   rw [degree_lt_iff_coeff_zero]
   intro m hm
@@ -201,6 +207,9 @@ This is the "grammar-school" method: `O(deg f · deg g)` field operations. -/
 def divMod : Poly F → Poly F → Poly F × Poly F
   | [], _ => ([], [])
   | a :: f, g =>
+    -- a dividend shorter than the divisor is its own remainder: this keeps a division
+    -- `O((deg f - deg g + 1) · deg f)`, not `O(deg f · deg g)`
+    if f.length + 1 < g.length then (List.replicate (f.length + 1) 0, a :: f) else
     let qr := divMod f g
     let s := a :: qr.2
     if s.length < g.length then (0 :: qr.1, s)
@@ -218,6 +227,9 @@ theorem length_divMod_snd_lt (f : Poly F) {g : Poly F} (hg : g ≠ []) :
   | nil => simpa [divMod] using hpos
   | cons a f ih =>
     rw [divMod]
+    split_ifs with h₀
+    · simpa using h₀
+    dsimp only
     split_ifs with h
     · exact h
     · simp only [List.length_dropLast, length_sub, length_smul, List.length_cons] at h ⊢
@@ -233,6 +245,9 @@ theorem divMod_spec (f : Poly F) {g : Poly F} (hg : lead g ≠ 0) :
   | cons a f ih =>
     have hlen := length_divMod_snd_lt f hgne
     rw [divMod]
+    split_ifs with h₀
+    · simp [toPolynomial_replicate_zero]
+    dsimp only
     split_ifs with h
     · simp only [toPolynomial_cons, C_0, zero_add, ih]; ring
     · -- one reduction step: the top coefficient of `s - c g` vanishes
