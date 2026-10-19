@@ -1,0 +1,308 @@
+problem,algorithm,size,ns
+gcd and inverses,euclid,256,15244.883918
+gcd and inverses,euclid,512,34697.461058
+gcd and inverses,euclid,1024,78744.433071
+gcd and inverses,euclid,2048,163196.637847
+gcd and inverses,euclid,4096,393283.891945
+gcd and inverses,euclid,8192,946465.377358
+gcd and inverses,euclid,16384,2460260.085366
+gcd and inverses,euclid,32768,7660714.407407
+gcd and inverses,extEuclid,256,128681.448875
+gcd and inverses,extEuclid,512,268436.943700
+gcd and inverses,extEuclid,1024,590184.681416
+gcd and inverses,extEuclid,2048,1141150.840909
+gcd and inverses,extEuclid,4096,2577270.948718
+gcd and inverses,extEuclid,8192,5754134.571429
+gcd and inverses,extEuclid,16384,13813108.466667
+gcd and inverses,extEuclid,32768,38347583.333333
+gcd and inverses,modInv,256,111785.064246
+gcd and inverses,modInv,512,280268.268908
+gcd and inverses,modInv,1024,540163.199461
+gcd and inverses,modInv,2048,1190186.426036
+gcd and inverses,modInv,4096,2556971.468354
+gcd and inverses,modInv,8192,5797527.428571
+gcd and inverses,modInv,16384,13703191.600000
+gcd and inverses,modInv,32768,38619312.333333
+modular powers,powMod,64,28018.688892
+modular powers,powMod,128,69022.345411
+modular powers,powMod,256,182912.246801
+modular powers,powMod,512,445083.915556
+modular powers,powMod,1024,1372031.130137
+modular powers,powMod,2048,5654591.277778
+modular powers,powMod,4096,27978208.375000
+modular powers,pow (in ZMod m),64,37603.294792
+modular powers,pow (in ZMod m),128,88354.551237
+modular powers,pow (in ZMod m),256,220653.845645
+modular powers,pow (in ZMod m),512,520989.260417
+modular powers,pow (in ZMod m),1024,1542046.176923
+modular powers,pow (in ZMod m),2048,6010466.970588
+modular powers,pow (in ZMod m),4096,28868434.428571
+Chinese remainders,garner,8,120776.795290
+Chinese remainders,garner,16,261256.886423
+Chinese remainders,garner,32,565346.742938
+Chinese remainders,garner,64,1171346.701754
+Chinese remainders,garner,128,2659289.013158
+Chinese remainders,garner,256,6366007.843750
+Chinese remainders,garner,512,16945979.166667
+Chinese remainders,garner,1024,50498489.750000
+Chinese remainders,crt,8,137759.412534
+Chinese remainders,crt,16,269453.121131
+Chinese remainders,crt,32,533495.701333
+Chinese remainders,crt,64,1201223.586826
+Chinese remainders,crt,128,3116555.738462
+Chinese remainders,crt,256,8072503.480000
+Chinese remainders,crt,512,26349942.625000
+quadratic residues and square roots,jacobi,256,65283.765666
+quadratic residues and square roots,jacobi,512,158089.110585
+quadratic residues and square roots,jacobi,1024,362937.750000
+quadratic residues and square roots,jacobi,2048,900982.457399
+quadratic residues and square roots,jacobi,4096,2316139.758621
+quadratic residues and square roots,jacobi,8192,6731720.833333
+quadratic residues and square roots,jacobi,16384,21326695.700000
+quadratic residues and square roots,jacobi,32768,75399305.666667
+quadratic residues and square roots,sqrtMod,64,34808.835712
+quadratic residues and square roots,sqrtMod,128,255086.174522
+quadratic residues and square roots,sqrtMod,256,418120.993737
+quadratic residues and square roots,sqrtMod,512,1540609.961538
+quadratic residues and square roots,sqrtMod,1024,1506215.210526
+quadratic residues and square roots,sqrtMod,2048,5918271.000000
+quadratic residues and square roots,cipollaSqrt,64,51052.042113
+quadratic residues and square roots,cipollaSqrt,128,482907.824096
+quadratic residues and square roots,cipollaSqrt,256,1161715.774566
+quadratic residues and square roots,cipollaSqrt,512,2649012.118421
+quadratic residues and square roots,cipollaSqrt,1024,3371202.683333
+quadratic residues and square roots,cipollaSqrt,2048,9967019.619048
+quadratic residues and square roots,hensel,64,36738.520206
+quadratic residues and square roots,hensel,128,127676.400766
+quadratic residues and square roots,hensel,256,309055.918210
+quadratic residues and square roots,hensel,512,699221.662021
+quadratic residues and square roots,hensel,1024,1537482.847328
+quadratic residues and square roots,hensel,2048,3214357.714286
+quadratic residues and square roots,hensel,4096,6970541.620690
+quadratic residues and square roots,hensel,8192,15788621.692308
+quadratic residues and square roots,cornacchia,64,55803.605748
+quadratic residues and square roots,cornacchia,128,237142.954976
+quadratic residues and square roots,cornacchia,256,400031.000000
+quadratic residues and square roots,cornacchia,512,1323343.447368
+quadratic residues and square roots,cornacchia,1024,3378872.333333
+quadratic residues and square roots,cornacchia,2048,10842903.631579
+integer square roots,isqrt,256,23530.045765
+integer square roots,isqrt,512,53221.606706
+integer square roots,isqrt,1024,109387.457627
+integer square roots,isqrt,2048,234467.300117
+integer square roots,isqrt,4096,518571.168394
+integer square roots,isqrt,8192,1240515.679012
+integer square roots,isqrt,16384,3079321.107692
+integer square roots,isqrt,32768,9855410.761905
+integer multiplication,Nat.mul (GMP, reference),1024,334.388419
+integer multiplication,Nat.mul (GMP, reference),2048,609.082771
+integer multiplication,Nat.mul (GMP, reference),4096,1371.544688
+integer multiplication,Nat.mul (GMP, reference),8192,3979.706576
+integer multiplication,Nat.mul (GMP, reference),16384,11458.541564
+integer multiplication,Nat.mul (GMP, reference),32768,27897.522036
+integer multiplication,Nat.mul (GMP, reference),65536,80847.880760
+integer multiplication,Nat.mul (GMP, reference),131072,218596.528962
+integer multiplication,Nat.mul (GMP, reference),262144,440659.559471
+integer multiplication,Nat.mul (GMP, reference),524288,995792.527363
+integer multiplication,Nat.mul (GMP, reference),1048576,2125866.684211
+integer multiplication,karatsuba,64,112078.185434
+integer multiplication,karatsuba,128,337272.693086
+integer multiplication,karatsuba,256,1020196.228426
+integer multiplication,karatsuba,512,3054934.378788
+integer multiplication,karatsuba,1024,9290748.136364
+integer multiplication,karatsuba,2048,27702119.625000
+integer multiplication,karatsuba,4096,81979291.666667
+integer multiplication,nussMul,256,8071413.320000
+integer multiplication,nussMul,512,17114468.666667
+integer multiplication,nussMul,1024,35228534.500000
+integer multiplication,nussMul,2048,76371583.333333
+integer multiplication,nussMul,4096,153995334.000000
+integer multiplication,nussMul,8192,315328416.000000
+integer multiplication,nussMul,16384,646956792.000000
+integer multiplication,nussMul,32768,2225299791.000000
+polynomials over finite fields,Poly.gcd (over F_65537),32,277900.683333
+polynomials over finite fields,Poly.gcd (over F_65537),64,1042158.473958
+polynomials over finite fields,Poly.gcd (over F_65537),128,4472201.066667
+polynomials over finite fields,Poly.gcd (over F_65537),256,22757893.555556
+polynomials over finite fields,Poly.gcd (over F_65537),512,135886624.500000
+polynomials over finite fields,Poly.gcd (over F_65537),1024,931900292.000000
+polynomials over finite fields,isIrreducible (over F_2),16,480791.233173
+polynomials over finite fields,isIrreducible (over F_2),32,39819.326697
+polynomials over finite fields,isIrreducible (over F_2),64,16298057.692308
+polynomials over finite fields,isIrreducible (over F_2),128,4286812.127660
+polynomials over finite fields,isIrreducible (over F_2),256,160206958.000000
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),32,577859.273775
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),64,2363440.247059
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),128,9591412.523810
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),256,38689180.833333
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),512,155574896.000000
+polynomial arithmetic over Z_n,Poly.mul (schoolbook),1024,617952667.000000
+polynomial arithmetic over Z_n,mulMod (binary segmentation),32,132824.498672
+polynomial arithmetic over Z_n,mulMod (binary segmentation),64,270886.282815
+polynomial arithmetic over Z_n,mulMod (binary segmentation),128,532113.271277
+polynomial arithmetic over Z_n,mulMod (binary segmentation),256,1063311.476190
+polynomial arithmetic over Z_n,mulMod (binary segmentation),512,2229649.977778
+polynomial arithmetic over Z_n,mulMod (binary segmentation),1024,4545702.613636
+polynomial arithmetic over Z_n,mulMod (binary segmentation),2048,9382937.454545
+polynomial arithmetic over Z_n,mulMod (binary segmentation),4096,19019223.454545
+polynomial arithmetic over Z_n,mulMod (binary segmentation),8192,39747034.666667
+polynomial arithmetic over Z_n,invNewton (with mulMod),64,1353140.209459
+polynomial arithmetic over Z_n,invNewton (with mulMod),128,2951591.279412
+polynomial arithmetic over Z_n,invNewton (with mulMod),256,6380339.812500
+polynomial arithmetic over Z_n,invNewton (with mulMod),512,13989916.666667
+polynomial arithmetic over Z_n,invNewton (with mulMod),1024,31377750.142857
+polynomial arithmetic over Z_n,invNewton (with mulMod),2048,69087694.666667
+polynomial arithmetic over Z_n,invNewton (with mulMod),4096,148788771.000000
+polynomial arithmetic over Z_n,Poly.modMonic (long division),32,943879.500000
+polynomial arithmetic over Z_n,Poly.modMonic (long division),64,3671489.400000
+polynomial arithmetic over Z_n,Poly.modMonic (long division),128,14621482.142857
+polynomial arithmetic over Z_n,Poly.modMonic (long division),256,59326833.000000
+polynomial arithmetic over Z_n,Poly.modMonic (long division),512,238425583.000000
+polynomial arithmetic over Z_n,Poly.modMonic (long division),1024,948139667.000000
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),32,1007785.010050
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),64,2134200.808511
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),128,4486165.733333
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),256,9545579.285714
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),512,20150303.800000
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),1024,44551074.800000
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),2048,95257263.666667
+polynomial arithmetic over Z_n,fastModMonic (with mulMod),4096,200556125.000000
+multipoint evaluation,Horner at each point,32,569255.806818
+multipoint evaluation,Horner at each point,64,2300897.517241
+multipoint evaluation,Horner at each point,128,9299253.909091
+multipoint evaluation,Horner at each point,256,37365083.500000
+multipoint evaluation,Horner at each point,512,148452771.000000
+multipoint evaluation,Horner at each point,1024,589994416.000000
+multipoint evaluation,Horner at each point,2048,2378665541.000000
+multipoint evaluation,multipointEval (schoolbook products),32,1405351.706294
+multipoint evaluation,multipointEval (schoolbook products),64,5518963.945946
+multipoint evaluation,multipointEval (schoolbook products),128,21766629.200000
+multipoint evaluation,multipointEval (schoolbook products),256,84947097.333333
+multipoint evaluation,multipointEval (schoolbook products),512,335721000.000000
+multipoint evaluation,multipointEval (schoolbook products),1024,1350978792.000000
+multipoint evaluation,multipointEvalFast,32,4547630.681818
+multipoint evaluation,multipointEvalFast,64,12461953.529412
+multipoint evaluation,multipointEvalFast,128,31933077.428571
+multipoint evaluation,multipointEvalFast,256,79014611.000000
+multipoint evaluation,multipointEvalFast,512,190625604.000000
+multipoint evaluation,multipointEvalFast,1024,452129917.000000
+multipoint evaluation,multipointEvalFast,2048,1064276542.000000
+multipoint evaluation,multipointEvalFast,4096,2506945875.000000
+sieving,sievePrimes,16384,259635.412451
+sieving,sievePrimes,32768,474511.170616
+sieving,sievePrimes,65536,882366.484581
+sieving,sievePrimes,131072,1742976.182609
+sieving,sievePrimes,262144,3449964.793103
+sieving,sievePrimes,524288,7020841.862069
+sieving,sievePrimes,1048576,18663746.181818
+sieving,sievePrimes,2097152,53457896.250000
+sieving,sievePrimes,4194304,119919479.000000
+primality,isPrimeTD (trial division),20,5019.148238
+primality,isPrimeTD (trial division),24,17552.124002
+primality,isPrimeTD (trial division),28,72188.679177
+primality,isPrimeTD (trial division),32,280525.890603
+primality,isPrimeTD (trial division),36,1349524.308725
+primality,isPrimeTD (trial division),40,5913317.470588
+primality,isPrimeTD (trial division),44,23229657.222222
+primality,millerRabin (4 bases),64,91268.058394
+primality,millerRabin (4 bases),128,260216.651495
+primality,millerRabin (4 bases),256,719349.197133
+primality,millerRabin (4 bases),512,1716073.333333
+primality,millerRabin (4 bases),1024,4732367.209302
+primality,millerRabin (4 bases),2048,17470979.083333
+primality,millerRabin (4 bases),4096,80002083.333333
+primality,pocklingtonCheck (Proth primes),64,36769.350368
+primality,pocklingtonCheck (Proth primes),128,93973.299671
+primality,pocklingtonCheck (Proth primes),256,241778.984300
+primality,pocklingtonCheck (Proth primes),512,663871.973510
+primality,pocklingtonCheck (Proth primes),1024,1968392.558824
+primality,pocklingtonCheck (Proth primes),2048,7955658.615385
+primality,pocklingtonCheck (Proth primes),4096,38280131.666667
+primality,lucasLehmer,128,78310.953798
+primality,lucasLehmer,256,171787.761373
+primality,lucasLehmer,512,362937.815217
+primality,lucasLehmer,1024,1023444.081633
+primality,lucasLehmer,2048,4056264.180000
+primality,lucasLehmer,4096,19131492.454545
+primality,lucasLehmer,8192,105442333.000000
+primality,pepin,64,16967.532321
+primality,pepin,128,48229.501809
+primality,pepin,256,127774.767561
+primality,pepin,512,317665.030159
+primality,pepin,1024,976223.780488
+primality,pepin,2048,3895818.980769
+primality,pepin,4096,18907727.272727
+factoring,trialDivision,20,18533.794385
+factoring,trialDivision,24,74661.491601
+factoring,trialDivision,28,285764.487143
+factoring,trialDivision,32,1241737.666667
+factoring,trialDivision,36,5044086.375000
+factoring,trialDivision,40,22824194.555556
+factoring,trialDivision,44,74559847.333333
+factoring,fermat,20,20049.143444
+factoring,fermat,24,67413.112235
+factoring,fermat,28,281516.834037
+factoring,fermat,32,949781.568720
+factoring,fermat,36,4360891.413043
+factoring,fermat,40,15320446.357143
+factoring,fermat,44,59466489.750000
+factoring,lehman,20,106349.804359
+factoring,lehman,24,199511.627119
+factoring,lehman,28,360599.609009
+factoring,lehman,32,986360.576355
+factoring,lehman,36,2884336.314286
+factoring,lehman,40,9589190.523810
+factoring,lehman,44,17739638.833333
+factoring,pollardRho,40,3762968.425926
+factoring,pollardRho,48,19869128.727273
+factoring,pollardRho,56,112341875.000000
+factoring,pollardRho,64,274426125.000000
+factoring,pollardRho,72,1700587791.000000
+factoring,pollardRho,80,6495923916.000000
+factoring,pollardBrent,40,2059065.459184
+factoring,pollardBrent,48,14647553.714286
+factoring,pollardBrent,56,68607250.333333
+factoring,pollardBrent,64,236534500.000000
+factoring,pollardBrent,72,1755275833.000000
+factoring,pollardBrent,80,6744900875.000000
+factoring,pollardRhoAcc,40,4839277.904762
+factoring,pollardRhoAcc,48,23317921.333333
+factoring,pollardRhoAcc,56,127205667.000000
+factoring,pollardRhoAcc,64,292928709.000000
+factoring,pollardRhoAcc,72,1208715333.000000
+factoring,pollardRhoAcc,80,3807992458.000000
+factoring,pollardStrassen (block by block),20,45883.681578
+factoring,pollardStrassen (block by block),24,155648.061479
+factoring,pollardStrassen (block by block),28,506119.118687
+factoring,pollardStrassen (block by block),32,2038743.757576
+factoring,pollardStrassen (block by block),36,7860189.115385
+factoring,pollardStrassen (block by block),40,30977446.142857
+factoring,pollardStrassenFast,24,27067943.125000
+factoring,pollardStrassenFast,28,68351930.666667
+factoring,pollardStrassenFast,32,237668416.000000
+factoring,pollardStrassenFast,36,620798209.000000
+factoring,pollardStrassenFast,40,1424046375.000000
+factoring,pollardStrassenFast,44,3343817917.000000
+factoring,pollardPMinusOne,1024,565870.511299
+factoring,pollardPMinusOne,2048,1100510.730769
+factoring,pollardPMinusOne,4096,2216491.747253
+factoring,pollardPMinusOne,8192,4390947.391304
+factoring,pollardPMinusOne,16384,8855233.739130
+factoring,pollardPMinusOne,32768,17597180.333333
+factoring,pollardPMinusOne,65536,34998520.833333
+factoring,pollardPMinusOne,131072,69995624.666667
+factoring,pollardStage2,4096,1248208.298137
+factoring,pollardStage2,8192,2097891.937500
+factoring,pollardStage2,16384,3746205.203704
+factoring,pollardStage2,32768,6820601.333333
+factoring,pollardStage2,65536,12671786.500000
+factoring,pollardStage2,131072,23971500.000000
+factoring,pollardStage2,262144,45757591.600000
+discrete logarithms,bsgs,34,56266614.750000
+discrete logarithms,bsgs,37,128072916.500000
+discrete logarithms,bsgs,40,1038545875.000000
+discrete logarithms,bsgs,43,3799427583.000000
+discrete logarithms,rhoLog,34,242499708.000000
+discrete logarithms,rhoLog,36,749518125.000000
+discrete logarithms,rhoLog,38,1621942750.000000
+discrete logarithms,rhoLog,40,4360369625.000000

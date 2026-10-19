@@ -17,3 +17,10 @@ rev = "v4.34.1"
 
 [[lean_lib]]
 name = "PrimeNumbers"
+
+[[lean_exe]]
+name = "bench"
+root = "Bench.Main"
+
+[[lean_lib]]
+name = "Bench"

@@ -387,6 +387,25 @@ multiplication (below) it is the book's bound in closed form:
 Still to do: evaluation on arithmetic and geometric progressions (9.6.5, 9.6.6); §5.6
 (binary quadratic forms: Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
 
+### Benchmarks — `Bench/`
+
+`lake exe bench [--quick] [--list] [FILTER …]` runs the verified functions (compiled) on
+growing inputs, grouped by problem: gcds, powers, CRT, square roots, integer and polynomial
+multiplication, polynomial division, multipoint evaluation, sieving, primality, factoring
+and discrete logarithms. For each case it fits the growth exponent of the running time and
+compares it with the proved bound: `≈` as expected, `▲` faster growth than the bound (look at
+the implementation), `▼` slower growth (usually GMP's fast products, or per-call overheads at
+small sizes, making a schoolbook bound pessimistic). `bench/report.md` is the latest full run,
+and `bench/results.csv` has the raw timings.
+
+The data movement that the cost model treats as free (`@[cost_free]`) is exactly what the
+benchmarks check. They found quadratic list indexing in Nussbaumer multiplication, which is
+fixed, so it now measures about `N^1.05` per doubling.
+
+Lean stores naturals below `2^63` unboxed. Above that every operation goes through GMP,
+which costs several times more per step, so each exponential-time case keeps its sizes on
+one side of that boundary.
+
 ### Assumed theorems — `PrimeNumbers/Assumed.lean`
 
 Deep results the book states without proof and Mathlib does not have are written as
