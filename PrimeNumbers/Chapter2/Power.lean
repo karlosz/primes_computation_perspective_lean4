@@ -169,17 +169,29 @@ theorem pow_mults_le (x : M) (n : ℕ) : costOf mulCount (pow x n) ≤ 2 * Nat.l
     rw [h₁, h₁, show (n - 1) / 2 = n / 2 by omega]; omega
 
 /-- In a structure where every product costs `K` bit operations (e.g. `ZMod p`, with
-`K = C.mulMod (size p)`), Algorithm 2.1.5 costs its number of multiplications times `K`. -/
+`K = C.mulMod (size p)`), Algorithm 2.1.5 costs its number of multiplications times `K`,
+and five steps on the exponent (of at most `k` bits) per level. -/
 theorem pow_cost (C : CostModel) {K : ℕ} (hK : ∀ a b : M, MulCost.mulCost C a b = K)
-    (x : M) (n : ℕ) : costOf C (pow x n) = costOf mulCount (pow x n) * K := by
+    (x : M) {k : ℕ} (n : ℕ) (hn : n.size ≤ k) :
+    costOf C (pow x n) ≤ costOf mulCount (pow x n) * K + (Nat.log 2 n + 1) * 5 * C.lin (k + 2) := by
   fun_induction pow x n with
-  | case1 n h => cost_unfold_both pow.counted
+  | case1 n h => cost_unfold_both pow.counted; cost_bound
   | case2 n h heven y ih =>
+    have ih := ih ((Nat.size_le_size (Nat.div_le_self n 2)).trans hn)
+    have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
+      have := Nat.log_div_base 2 n; have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+      omega
     cost_unfold_both pow.counted
-    rw [ih, hK, h₁]; ring
+    simp only [hK, h₁, hlog]
+    cost_bound
   | case3 n h hodd y ih =>
+    have ih := ih ((Nat.size_le_size (show (n - 1) / 2 ≤ n by omega)).trans hn)
+    have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
+      have := Nat.log_div_base 2 n; have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
+      rw [show (n - 1) / 2 = n / 2 by omega]; omega
     cost_unfold_both pow.counted
-    rw [ih, hK, hK, h₁, h₁]; ring
+    simp only [hK, h₁, hlog]
+    cost_bound
 
 theorem power_mults_le [One M] (x : M) (n : ℕ) :
     costOf mulCount (power x n) ≤ 2 * Nat.log 2 n := by
@@ -189,65 +201,62 @@ theorem power_mults_le [One M] (x : M) (n : ℕ) :
   · exact pow_mults_le h₁ x n
 
 theorem power_cost [One M] (C : CostModel) {K : ℕ}
-    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) (n : ℕ) :
-    costOf C (power x n) = costOf mulCount (power x n) * K := by
+    (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) {k : ℕ} (n : ℕ) (hn : n.size ≤ k) :
+    costOf C (power x n) ≤
+      costOf mulCount (power x n) * K + (Nat.log 2 n + 2) * 5 * C.lin (k + 2) := by
+  have := pow_cost h₁ C hK x n hn
   cost_unfold_both power.counted
-  split_ifs
-  · rw [zero_mul]
-  · exact pow_cost h₁ C hK x n
+  split_ifs <;> cost_bound
 
 end
 
 /-! ### Bit operations -/
 
 /-- **Bit complexity of Algorithm 2.1.5.**  For `x < m`, computing `xⁿ mod m` costs at
-most `2 ⌊log₂ n⌋` modular multiplications (plus the initial reduction of `x`). -/
-theorem powModCost_le (C : CostModel) {x M : ℕ} (hx : x < M) (n : ℕ) :
-    costOf C (powMod x n M) ≤
-      C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) := by
+most `2 ⌊log₂ n⌋` modular multiplications (plus the initial reduction of `x`), and six steps
+on the exponent (of at most `k` bits) per level. -/
+theorem powModCost_le (C : CostModel) {x M : ℕ} (hx : x < M) {k : ℕ} (n : ℕ) (hn : n.size ≤ k) :
+    costOf C (powMod x n M) ≤ C.divMod M.size M.size + Nat.log 2 n * (2 * C.mulMod M.size) +
+      (Nat.log 2 n + 1) * 6 * C.lin (k + 2) := by
   have hM : 0 < M := by omega
+  have hM1 : (1 : ℕ).size ≤ M.size := Nat.size_le_size (by omega)
+  have hxM := size_le_of_lt hx
   induction n using Nat.strong_induction_on with
   | _ n ih =>
-    rw [powMod.counted]
-    split_ifs with h0 h1 h2
-    · cost_simp
-      have : C.divMod (1 : ℕ).size M.size ≤ C.divMod M.size M.size :=
-        C.divMod_mono _ (Nat.size_le_size (by omega))
+    by_cases h0 : n = 0
+    · cost_unfold powMod.counted; cost_bound
+    by_cases h1 : n = 1
+    · cost_unfold powMod.counted; cost_bound
+    have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
+      have := Nat.log_div_base 2 n; have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
       omega
-    · cost_simp
-      have := C.divMod_mono M.size (size_le_of_lt hx)
-      omega
-    · cost_simp
-      have ih := ih (n / 2) (by omega)
+    by_cases h2 : n % 2 = 0
+    · have ih := ih (n / 2) (by omega) ((Nat.size_le_size (Nat.div_le_self n 2)).trans hn)
       have hy : powMod x (n / 2) M < M := powMod_lt _ _ hM
       have hstep := mul_add_divMod_le C hy hy
-      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
-        have := Nat.log_div_base 2 n
-        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
-        omega
-      rw [hlog, add_mul]
-      omega
-    · cost_simp
-      have ih := ih ((n - 1) / 2) (by omega)
-      have hy : powMod x ((n - 1) / 2) M < M := powMod_lt _ _ hM
-      have hz := Nat.mod_lt (powMod x ((n - 1) / 2) M * powMod x ((n - 1) / 2) M) hM
+      cost_unfold powMod.counted
+      rw [hlog]
+      cost_bound
+    · have ih := ih ((n - 1) / 2) (by omega)
+        ((Nat.size_le_size (show (n - 1) / 2 ≤ n by omega)).trans hn)
+      rw [show (n - 1) / 2 = n / 2 by omega] at ih
+      have hy : powMod x (n / 2) M < M := powMod_lt _ _ hM
+      have hz := Nat.mod_lt (powMod x (n / 2) M * powMod x (n / 2) M) hM
       have hstep₁ := mul_add_divMod_le C hy hy
       have hstep₂ := mul_add_divMod_le C hx hz
-      have hlog : Nat.log 2 n = Nat.log 2 ((n - 1) / 2) + 1 := by
-        have := Nat.log_div_base 2 n
-        have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n)
-        rw [show (n - 1) / 2 = n / 2 by omega]
-        omega
-      rw [hlog, add_mul]
-      omega
+      cost_unfold powMod.counted
+      rw [show (n - 1) / 2 = n / 2 by omega, hlog]
+      cost_bound
 
 /-- **Exercise 2.17.**  With grammar-school arithmetic, `xⁿ mod m` costs at most
-`(4 log₂ n + 1)(k + 1)²` bit operations, `k` the bit length of `m`: that is
-`O(ln n · ln² m)`, cubic in the number of bits when `n` is of the size of `m`. -/
+`(4 log₂ n + 1)(k + 1)² + 6 (log₂ n + 1)(size n + 4)` bit operations, `k` the bit length
+of `m`: that is `O(ln n · ln² m)`, cubic in the number of bits when `n` is of the size of
+`m`. -/
 theorem powModCost_school_le {x m : ℕ} (hx : x < m) (n : ℕ) :
-    costOf school (powMod x n m) ≤ (4 * Nat.log 2 n + 1) * (m.size + 1) ^ 2 := by
-  refine (powModCost_le school hx n).trans ?_
-  rw [school_mulMod]
+    costOf school (powMod x n m) ≤
+      (4 * Nat.log 2 n + 1) * (m.size + 1) ^ 2 + 6 * (Nat.log 2 n + 1) * (n.size + 4) := by
+  refine (powModCost_le school hx n le_rfl).trans ?_
+  rw [school_mulMod, school_lin]
   have : school.divMod m.size m.size = m.size := by simp [school]
   rw [this]
   nlinarith [Nat.zero_le (Nat.log 2 n), Nat.zero_le m.size,

@@ -164,54 +164,65 @@ section RunningTime
 
 open PrimeNumbers.Chapter9
 
-/-- Each pass costs two multiplications of numbers `≤ A` and a square root of a number of at
-most `2 size A` bits. -/
-theorem fermatCost_le (C : CostModel) {n a A : ℕ} (fuel : ℕ) (h : a + fuel ≤ A + 1) :
+/-- Each pass costs two multiplications of numbers `≤ A`, a square root of a number of at
+most `2 size A` bits, and four linear operations. -/
+theorem fermatCost_le (C : CostModel) {n a A : ℕ} (hA : 1 ≤ A) (fuel : ℕ)
+    (h : a + fuel ≤ A + 1) (hna : n ≤ a * a) :
     costOf C (fermatLoop n a fuel) ≤
-      fuel * (2 * C.mul A.size A.size + sqrtCost C (2 * A.size)) := by
+      fuel * (2 * C.mul A.size A.size + sqrtCost C (2 * A.size) + 4 * C.lin (2 * A.size)) +
+        C.unit := by
   induction fuel generalizing a with
   | zero => cost_unfold fermatLoop.counted
   | succ fuel ih =>
     have haA : a ≤ A := by omega
-    have ih := ih (a := a + 1) (by omega)
+    have ih := ih (a := a + 1) (by omega) (hna.trans (Nat.mul_le_mul (by omega) (by omega)))
     have hb : Nat.sqrt (a * a - n) ≤ a := by
       have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) n)
       rwa [Nat.sqrt_eq] at this
     have h₁ := C.mul_le_mul_bound (Nat.size_le_size haA) (Nat.size_le_size haA)
     have h₂ := C.mul_le_mul_bound (Nat.size_le_size (hb.trans haA))
       (Nat.size_le_size (hb.trans haA))
-    have h₃ := sqrt_cost_le C (t := a * a - n) (k := 2 * A.size) (by
-      have := Nat.size_le_size (Nat.sub_le (a * a) n)
-      have := size_mul_le a a
-      have := Nat.size_le_size haA
-      omega)
+    have haa : (a * a).size ≤ 2 * A.size := by
+      have := size_mul_le a a; have := Nat.size_le_size haA; omega
+    have h₃ := sqrt_cost_le C (t := a * a - n) (k := 2 * A.size)
+      ((Nat.size_le_size (Nat.sub_le (a * a) n)).trans haa)
+    have hn : n.size ≤ 2 * A.size := (Nat.size_le_size hna).trans haa
+    have hbb : (Nat.sqrt (a * a - n) * Nat.sqrt (a * a - n)).size ≤ 2 * A.size :=
+      (Nat.size_le_size (Nat.mul_le_mul hb hb)).trans haa
+    have ha2 : a.size ≤ 2 * A.size := by have := Nat.size_le_size haA; omega
+    have h1A : 1 ≤ 2 * A.size := by have := Nat.size_pos.mpr (show 0 < A by omega); omega
     cost_unfold fermatLoop.counted
-    simp only [add_mul, one_mul]
-    split_ifs <;> omega
+    split_ifs <;> cost_bound
 
 /-- **Bit complexity of the Fermat method.**  Algorithm 5.1.1 makes at most
-`(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications and one integer square
-root of numbers no longer than `n` squared: `O(n)` passes in the worst case — "much more
-tedious than trial division", as the book says. -/
+`(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications, one integer square root
+of numbers no longer than `n` squared and four linear operations: `O(n)` passes in the
+worst case — "much more tedious than trial division", as the book says. -/
 theorem fermatCost_le' (C : CostModel) {n : ℕ} (hn : 2 ≤ n) :
     costOf C (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
-      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sqrtCost C (2 * n.size)) := by
+      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sqrtCost C (2 * n.size) +
+        4 * C.lin (2 * n.size)) + C.unit := by
   rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
   · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]
     cost_unfold fermatLoop.counted
-  · refine (fermatCost_le C (A := (n + 9) / 6) _ (by omega)).trans (Nat.mul_le_mul_left _ ?_)
+  · refine (fermatCost_le C (A := (n + 9) / 6) (by omega) _ (by omega) (le_ceilSqrt_mul_self n)).trans
+      (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
     have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
-    exact Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA)) (sqrtCost_mono C (by omega))
+    exact Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA))
+      (sqrtCost_mono C (by omega))) (Nat.mul_le_mul_left _ (C.lin_mono (by omega)))
 
 /-- **Bit complexity of the Fermat method, grammar-school arithmetic**, with the integer
 square roots computed by Algorithm 9.2.11 (`sqrtCost_school_le`): at most
-`((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k))` bit operations, `k` the bit length of
-`n` — that is `O(n ln³ n)` in the worst case. -/
+`((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k) + 8k + 8) + 1` bit operations, `k` the bit
+length of `n` — that is `O(n ln³ n)` in the worst case. -/
 theorem fermatCost_school_le {n : ℕ} (hn : 2 ≤ n) :
     costOf school (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
-      ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * (n.size * n.size) + schoolSqrt (2 * n.size)) :=
-  (fermatCost_le' school hn).trans (Nat.mul_le_mul_left _
-    (Nat.add_le_add_left (sqrtCost_school_le _) _))
+      ((n + 9) / 6 + 1 - ceilSqrt n) *
+        (2 * (n.size * n.size) + schoolSqrt (2 * n.size) + 8 * n.size + 8) + 1 := by
+  refine (fermatCost_le' school hn).trans (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
+  have := sqrtCost_school_le (2 * n.size)
+  rw [school_mul, school_lin]
+  omega
 
 end RunningTime
 

@@ -1,4 +1,4 @@
-import PrimeNumbers.Chapter9.Counted
+import PrimeNumbers.Chapter9.CostBound
 
 /-!
 # `counted_def`: write an algorithm once, in plain Lean
@@ -41,7 +41,7 @@ Conditions, `match` discriminants and `let` values are charged before the branch
 
 **What is rejected** — so that nothing can silently be left out of the count: a call of
 an expensive library function (`notFree`) without a counted version in scope; a call of a
-function of this project that is neither counted nor `@[cost_free]`; an inverse; and
+function of this project that is not counted; an inverse; and
 chargeable work under a binder that cannot be followed (e.g. inside a `fun` passed to a
 function without a counted version).
 
@@ -64,10 +64,20 @@ private def notFree : List Name :=
    ``Array.setIfInBounds, ``Array.set!, ``Array.replicate, ``Array.set,
    ``legendreSym, ``jacobiSym, ``orderOf]
 
+/-- Library functions that take constant time (one step, counted by the enclosing call): a
+call of any other library function needs a counted version. -/
+private def constTime : List Name :=
+  [``Prod.fst, ``Prod.snd, ``Prod.mk, ``Option.some, ``Option.none, ``Option.getD,
+   ``Option.isSome, ``Option.isNone, ``Option.get!, ``List.cons, ``List.nil, ``List.head?,
+   ``List.headD, ``List.head!, ``List.tail, ``List.isEmpty, ``not, ``and, ``or, ``xor, ``ite,
+   ``dite, ``decide, ``id, ``ZMod.val, ``Fin.val, ``Fin.mk, ``Subtype.val, ``OfNat.ofNat,
+   ``Inhabited.default, ``EmptyCollection.emptyCollection, ``Std.HashMap.emptyWithCapacity,
+   ``Array.empty, ``Array.mkEmpty, ``Bool.true, ``Bool.false, ``Int.ofNat, ``pure]
+
 /-- Elaborate a call `g a₁ … aₖ`; if its head is a constant `g` with a counted version,
 return `g.counted` and the elaborated arguments.  A call that cannot be charged — of a
-library function that is not free (`notFree`) or of a function of this project that is
-neither counted nor `@[cost_free]` — is an error. -/
+library function that is not free (`notFree`) or of a function of this project that is not
+counted — is an error. -/
 private def classifyCall (e : Expr) (ref : Syntax) : TermElabM (Option (Name × Array Expr)) := do
   let some c := e.getAppFn.constName? | return none
   if (← whnfR (← inferType e)).isSort then return none   -- a type, not a computation
@@ -77,11 +87,15 @@ private def classifyCall (e : Expr) (ref : Syntax) : TermElabM (Option (Name × 
   if notFree.contains c then
     throwErrorAt ref "counted_def: `{c}` is not free, and no `{cc}` is in scope to charge it \
       (import the file that defines it)"
-  if (`PrimeNumbers).isPrefixOf c && !costFreeAttr.hasTag env c &&
-      !(env.find? c).any (fun i => i.isCtor) && (env.getProjectionFnInfo? c).isNone then
-    throwErrorAt ref "counted_def: `{c}` has no counted version; define it with \
-      `counted_def`, or mark it `@[cost_free]` if it does no big-number arithmetic"
-  return none
+  if (env.find? c).any (fun i => i.isCtor) || (env.getProjectionFnInfo? c).isSome ||
+      constTime.contains c then
+    return none
+  -- a type class method applied at a structure (e.g. a projection of an instance)
+  if (env.find? c).any (fun i => i matches .defnInfo _) && (← isInstance c) then return none
+  if (`PrimeNumbers).isPrefixOf c then
+    throwErrorAt ref "counted_def: `{c}` has no counted version; define it with `counted_def`"
+  throwErrorAt ref "counted_def: the library function `{c}` has no counted version \
+    (`{cc}`) and does not take constant time"
 
 /-- Elaborate a call on its own. -/
 private def elabCallAlone (call : Syntax) : TermElabM Expr := do
@@ -134,14 +148,68 @@ syntax (name := chargeOp) "charge% " term:max : term
     | some ``HDiv.hDiv, 6 => pure (``NatArith.chargeMod, args[4]!, args[5]!)
     | some ``HPow.hPow, 6 => pure (``NatArith.chargePow, args[4]!, args[5]!)
     | some ``Dvd.dvd, 4 => pure (``NatArith.chargeMod, args[3]!, args[2]!)
-    | some ``HAdd.hAdd, 6 | some ``HSub.hSub, 6 => do
-        -- additions are charged only for types with an `AddCost` (the integers)
-        let ty ← instantiateMVars (← inferType args[4]!)
-        if (← trySynthInstance (mkApp (mkConst ``AddCost) ty)) matches .some _ then
-          pure (``NatArith.chargeAdd, args[4]!, args[5]!)
-        else return ← elabTerm (← `(pure ())) ety?
+    | some ``HAdd.hAdd, 6 | some ``HSub.hSub, 6 => pure (``NatArith.chargeAdd, args[4]!, args[5]!)
+    | some ``Neg.neg, 3 => pure (``NatArith.chargeAdd, args[2]!, args[2]!)
     | _, _ => throwErrorAt stx[1] "counted_def: cannot charge {e}"
   elabTerm (← `($(mkCIdent prim) $(← exprToSyntax x) $(← exprToSyntax y))) ety?
+
+/-- `charge_cmp% (a ∘ b)`: the charge for a comparison `=`, `≠`, `<`, `≤`, `==`, `!=` of
+`a` and `b` as elaborated. -/
+syntax (name := chargeCmpStx) "charge_cmp% " term:max : term
+
+@[term_elab chargeCmpStx] private def elabChargeCmp : TermElab := fun stx ety? => do
+  let e ← elabTerm stx[1] none
+  synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  let args := e.getAppArgs
+  let (x, y) ← match e.getAppFn.constName?, args.size with
+    | some ``Eq, 3 | some ``Ne, 3 => pure (args[1]!, args[2]!)
+    | some ``LT.lt, 4 | some ``LE.le, 4 | some ``GT.gt, 4 | some ``GE.ge, 4 |
+      some ``BEq.beq, 4 | some ``bne, 4 => pure (args[2]!, args[3]!)
+    | some ``Not, 1 => match args[0]!.getAppFn.constName?, args[0]!.getAppArgs with
+      | some ``Eq, as => pure (as[1]!, as[2]!)
+      | _, _ => throwErrorAt stx[1] "counted_def: cannot charge {e}"
+    | _, _ => throwErrorAt stx[1] "counted_def: cannot charge the comparison {e}"
+  elabTerm (← `(NatArith.chargeCmp $(← exprToSyntax x) $(← exprToSyntax y))) ety?
+
+/-- `charge_lin% (a ∘ b)`: a linear-time operation on `a` and `b` (a shift, a product or
+quotient by a power of two, an append): charged as an addition of the operands; for a list
+append, as the steps through its left operand. -/
+syntax (name := chargeLinStx) "charge_lin% " term:max : term
+
+@[term_elab chargeLinStx] private def elabChargeLin : TermElab := fun stx ety? => do
+  let e ← elabTerm stx[1] none
+  synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  let args := e.getAppArgs
+  let some f := e.getAppFn.constName? | throwErrorAt stx[1] "counted_def: cannot charge {e}"
+  if f == ``HAppend.hAppend && args.size == 6 then
+    let ty ← whnfR (← inferType args[4]!)
+    if ty.getAppFn.constName? == some ``List then
+      return ← elabTerm (← `(List.append.counted $(← exprToSyntax args[4]!) $(← exprToSyntax args[5]!))) ety?
+    throwErrorAt stx[1] "counted_def: cannot charge the append {e}"
+  if f == ``HPow.hPow && args.size == 6 then
+    -- `2 ^ e` is written with `e + 1` bits
+    return ← elabTerm (← `(NatArith.chargeAdd $(← exprToSyntax e) $(← exprToSyntax e))) ety?
+  if args.size == 6 then
+    return ← elabTerm (← `(NatArith.chargeAdd $(← exprToSyntax args[4]!) $(← exprToSyntax args[5]!))) ety?
+  throwErrorAt stx[1] "counted_def: cannot charge {e}"
+
+/-- `charge_cast% e`: for a type ascription or coercion `e`, the charge of the conversion
+it elaborates to (`Nat.cast` into a type with a `CastCost`), or nothing. -/
+syntax (name := chargeCastStx) "charge_cast% " term:max : term
+
+@[term_elab chargeCastStx] private def elabChargeCast : TermElab := fun stx ety? => do
+  let e ← elabTerm stx[1] none
+  synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  if e.isAppOfArity ``Nat.cast 3 || e.isAppOfArity ``NatCast.natCast 3 then
+    let ty ← inferType e
+    return ← elabTerm (← `(NatArith.chargeCast $(← exprToSyntax ty) $(← exprToSyntax e.appArg!))) ety?
+  if e.isAppOfArity ``Int.cast 3 || e.isAppOfArity ``IntCast.intCast 3 then
+    throwErrorAt stx[1] "counted_def: a conversion of an integer is not charged; reduce it \
+      explicitly"
+  elabTerm (← `(pure ())) ety?
 
 /-- For each explicit parameter of the constant `c`: is it a function? -/
 private def explicitFunParams (c : Name) : MetaM (Array Bool) := do
@@ -190,7 +258,8 @@ versions may take these in addition to the binders of the plain function. -/
 private def isCostInst (ty : Expr) : Bool :=
   match ty.getAppFn.constName? with
   | some c => c == ``MulCost || c == ``DivCost || c == ``PowCost || c == ``Monad ||
-      c == ``NatArith
+      c == ``NatArith || c == ``AddCost || c == ``CmpCost || c == ``ArithCost ||
+      c == ``InvCost || c == ``HashCost || c == ``CastCost
   | none => false
 
 /-- Build the counted call `cc a₁ … aₖ charges…` in the monad `m`: the binders of `cc` are
@@ -428,6 +497,8 @@ private def sectionToFun? (stx : Syntax) : MacroM (Option Syntax) := do
   let body := ((fillCDots xs stx[1]).run' 0)
   return some (← `(fun $xs* => $(⟨body⟩)))
 
+set_option maxHeartbeats 1000000 in
+-- the elaborator's `match` over all syntax forms is large to compile
 mutual
 
 /-- **Charging.**  Walk an expression in evaluation order (innermost first, left to right),
@@ -440,22 +511,44 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
   match e with
   | `($a * $b) =>
       let ra ← hoist ctx a; let rb ← hoist ctx b
-      unless isNumLit ⟨a⟩ || isNumLit ⟨b⟩ do
-        modify (·.push (← `(charge% ($(⟨ra⟩) * $(⟨rb⟩)))))
+      if isNumLit ⟨a⟩ || isNumLit ⟨b⟩ then
+        modify (·.push (← `(charge_lin% ($(⟨ra⟩) * $(⟨rb⟩)))))
+      else modify (·.push (← `(charge% ($(⟨ra⟩) * $(⟨rb⟩)))))
       `($(⟨ra⟩) * $(⟨rb⟩))
   | `($a % $b) =>
       let ra ← hoist ctx a; let rb ← hoist ctx b
-      unless isNumLit ⟨b⟩ do
-        modify (·.push (← `(charge% ($(⟨ra⟩) % $(⟨rb⟩)))))
+      if isNumLit ⟨b⟩ then modify (·.push (← `(charge_lin% ($(⟨ra⟩) % $(⟨rb⟩)))))
+      else modify (·.push (← `(charge% ($(⟨ra⟩) % $(⟨rb⟩)))))
       `($(⟨ra⟩) % $(⟨rb⟩))
   | `($a / $b) =>
       let ra ← hoist ctx a; let rb ← hoist ctx b
-      unless isNumLit ⟨b⟩ do
-        modify (·.push (← `(charge% ($(⟨ra⟩) / $(⟨rb⟩)))))
+      if isNumLit ⟨b⟩ then modify (·.push (← `(charge_lin% ($(⟨ra⟩) / $(⟨rb⟩)))))
+      else modify (·.push (← `(charge% ($(⟨ra⟩) / $(⟨rb⟩)))))
       `($(⟨ra⟩) / $(⟨rb⟩))
+  | `($a <<< $b) =>
+      let ra ← hoist ctx a; let rb ← hoist ctx b
+      modify (·.push (← `(charge_lin% ($(⟨ra⟩) <<< $(⟨rb⟩)))))
+      `($(⟨ra⟩) <<< $(⟨rb⟩))
+  | `($a >>> $b) =>
+      let ra ← hoist ctx a; let rb ← hoist ctx b
+      modify (·.push (← `(charge_lin% ($(⟨ra⟩) >>> $(⟨rb⟩)))))
+      `($(⟨ra⟩) >>> $(⟨rb⟩))
+  | `($a ++ $b) =>
+      let ra ← hoist ctx a; let rb ← hoist ctx b
+      modify (·.push (← `(charge_lin% ($(⟨ra⟩) ++ $(⟨rb⟩)))))
+      `($(⟨ra⟩) ++ $(⟨rb⟩))
+  | `($a = $b) => hoistCmp ctx a b fun x y => `($x = $y)
+  | `($a ≠ $b) => hoistCmp ctx a b fun x y => `($x ≠ $y)
+  | `($a < $b) => hoistCmp ctx a b fun x y => `($x < $y)
+  | `($a ≤ $b) => hoistCmp ctx a b fun x y => `($x ≤ $y)
+  | `($a > $b) => hoistCmp ctx a b fun x y => `($x > $y)
+  | `($a ≥ $b) => hoistCmp ctx a b fun x y => `($x ≥ $y)
+  | `($a == $b) => hoistCmp ctx a b fun x y => `($x == $y)
+  | `($a != $b) => hoistCmp ctx a b fun x y => `($x != $y)
   | `($a ^ $k) =>
       let ra ← hoist ctx a; let rk ← hoist ctx k
-      unless isNumLit a do
+      if isNumLit a then modify (·.push (← `(charge_lin% ($(⟨ra⟩) ^ $(⟨rk⟩)))))
+      else
         match k.raw.isNatLit? with
         | some n =>
             -- `a ^ n` is computed as `((a * a) * a) ⋯`: charge each product
@@ -464,6 +557,12 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
               modify (·.push (← `(charge% ($(⟨ra⟩) ^ $lit * $(⟨ra⟩)))))
         | none => modify (·.push (← `(charge% ($(⟨ra⟩) ^ $(⟨rk⟩)))))
       `($(⟨ra⟩) ^ $(⟨rk⟩))
+  | `(-$a) =>
+      -- a negation: an addition (for residues, a subtraction from the modulus); a negative
+      -- literal is a constant
+      let ra ← hoist ctx a
+      unless isNumLit a do modify (·.push (← `(charge% (-$(⟨ra⟩)))))
+      `(-$(⟨ra⟩))
   | `($a + $b) =>
       let ra ← hoist ctx a; let rb ← hoist ctx b
       modify (·.push (← `(charge% ($(⟨ra⟩) + $(⟨rb⟩)))))
@@ -472,9 +571,10 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
       let ra ← hoist ctx a; let rb ← hoist ctx b
       modify (·.push (← `(charge% ($(⟨ra⟩) - $(⟨rb⟩)))))
       `($(⟨ra⟩) - $(⟨rb⟩))
-  | `($_⁻¹) =>
-      Macro.throwErrorAt e "counted_def: an inverse is not a primitive operation; compute it \
-        with a counted function such as `modInv`"
+  | `($a⁻¹) =>
+      let ra ← hoist ctx a
+      modify (·.push (← `(NatArith.chargeInv $(⟨ra⟩))))
+      `($(⟨ra⟩)⁻¹)
   | `($a ∣ $b) =>
       -- a divisibility test computes `b mod a`
       let ra ← hoist ctx a; let rb ← hoist ctx b
@@ -534,6 +634,27 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
         let wb ← wrap cb (← `(pure ()))
         modify (·.push (← `(let $x:ident := $(⟨rv⟩); $wb)))
       `(let $x:ident := $(⟨rv⟩); $(⟨rb⟩))
+  | `($e:term.$fld:ident $args*) =>
+      -- `(e).f a₁ … aₖ`: a call of `f` on a computed value
+      let re ← hoist ctx e
+      hoistApp ctx (← `($(⟨re⟩).$fld:ident)) args
+  | `($e:term.$fld:ident) =>
+      -- `(e).f`: a call written as a field of a computed value
+      let re ← hoist ctx e
+      let call ← `($(⟨re⟩).$fld:ident)
+      let site := mkIdent (← withFreshMacroScope (MonadQuotation.addMacroScope `site))
+      modify (·.push (← `(counted_call% $site $call [])))
+      `(call_site% $site $call)
+  | `(($e : $t)) =>
+      let re ← hoist ctx e
+      let r ← `(($(⟨re⟩) : $t))
+      modify (·.push (← `(charge_cast% $r)))
+      return r
+  | `(↑$e) =>
+      let re ← hoist ctx e
+      let r ← `(↑$(⟨re⟩))
+      modify (·.push (← `(charge_cast% $r)))
+      return r
   | `($f:ident $args*) => hoistApp ctx f args
   | `($x:ident) =>
       -- `l.prod`, `n.size`: a call written as a field of a variable
@@ -574,6 +695,14 @@ private partial def hoist (ctx : Ctx) (e : Syntax) : HoistM Syntax := do
       | .node info kind args => return .node info kind (← args.mapM (hoist ctx))
       | _ => pure e
 where
+  /-- A comparison: its operands, then the comparison itself. -/
+  hoistCmp (ctx : Ctx) (a b : Term) (mk : Term → Term → MacroM Term) : HoistM Syntax := do
+    let ra ← hoist ctx a; let rb ← hoist ctx b
+    let r ← mk ⟨ra⟩ ⟨rb⟩
+    -- a comparison of two literals is decided by the compiler
+    unless isNumLit a && isNumLit b do
+      modify (·.push (← `(charge_cmp% ($r))))
+    return r
   /-- Under a binder nothing is hoisted; calls are checked not to need counting. -/
   guardCalls (e : Syntax) : HoistM Syntax := do
     if let `($f:ident $args*) := e then
@@ -701,7 +830,8 @@ private partial def translate (ctx : Ctx) (e : Term) : MacroM Term := do
 private def isCostClass (t : Term) : Bool :=
   match t with
   | `($c:ident $_*) =>
-      ["MulCost", "DivCost", "PowCost"].contains c.getId.eraseMacroScopes.getString!
+      ["MulCost", "DivCost", "PowCost", "AddCost", "CmpCost", "ArithCost", "InvCost",
+        "HashCost", "CastCost"].contains c.getId.eraseMacroScopes.getString!
   | _ => false
 
 /-- The domains of a (non-dependent) function type `A₁ → ⋯ → Aₖ → B`. -/
@@ -749,7 +879,7 @@ private def expandCounted (doc? : Option (TSyntax ``Lean.Parser.Command.docComme
     $suff:suffix)
   let c₂ ← `(command| $[$doc?:docComment]?
     def $counted {$mo : Type → Type} [Monad $mo] [NatArith $mo] $bs* $chargeBs* : $mo $ty :=
-      $tbody
+      bind (NatArith.charge 1) fun _ => $tbody
     $suff:suffix)
   let valName := mkIdent (f.getId ++ `counted_val)
   let fCall := Syntax.mkApp f (args.map fun a => ⟨a.raw⟩)

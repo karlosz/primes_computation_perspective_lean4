@@ -51,43 +51,51 @@ theorem log_two_le_size (n : ℕ) : Nat.log 2 n ≤ n.size := by
 
 /-! ## Cost models -/
 
-/-- A cost model for big-number arithmetic: the number of bit operations for one
-multiplication and for one division with remainder, in terms of operand bit lengths. -/
+/-- A cost model: what each primitive of the machine costs.  Nothing an algorithm does is
+free: every call of a function costs one `unit` (its constructors, matches and branches
+included), list and array steps are charged by the library's counted functions, and every
+arithmetic operation is charged by the bit lengths of its operands. -/
 structure CostModel where
   /-- bit operations to multiply an `a`-bit number by a `b`-bit number -/
   mul : ℕ → ℕ → ℕ
   /-- bit operations to divide an `a`-bit number by a `b`-bit number, with remainder -/
   divMod : ℕ → ℕ → ℕ
+  /-- bit operations per bit of a linear-time operation (an addition, a subtraction, a
+  comparison, a shift, a multiplication or division by a power of two): such an operation
+  on an `a`-bit and a `b`-bit number costs `addRate · (max a b + 1)` (`CostModel.add`) -/
+  addRate : ℕ
+  /-- the cost of one step: a function call, a list cell visited, an array access -/
+  unit : ℕ
   /-- multiplying longer numbers costs at least as much -/
   mul_mono : ∀ {a a' b b' : ℕ}, a ≤ a' → b ≤ b' → mul a b ≤ mul a' b'
   /-- dividing a longer number (by the same divisor length) costs at least as much -/
   divMod_mono : ∀ {a a' : ℕ} (b : ℕ), a ≤ a' → divMod a b ≤ divMod a' b
-  /-- the cost of one elementary step that is neither a multiplication nor a division
-  (a memory write): one bit operation -/
-  unit : ℕ := 1
-  /-- bit operations to add or subtract an `a`-bit and a `b`-bit integer (free unless a
-  model charges it: additions are linear and dominated by the multiplications in all the
-  algorithms of the book except fast multiplication itself) -/
-  add : ℕ → ℕ → ℕ := fun _ _ ↦ 0
+
+/-- A linear-time operation on an `a`-bit and a `b`-bit number. -/
+def CostModel.add (C : CostModel) (a b : ℕ) : ℕ := C.addRate * (max a b + 1)
+
+theorem CostModel.add_mono (C : CostModel) {a a' b b' : ℕ} (ha : a ≤ a') (hb : b ≤ b') :
+    C.add a b ≤ C.add a' b' :=
+  Nat.mul_le_mul_left _ (by omega)
+
+/-- A linear operation on `w n`-bit numbers costs at most `n` operations on `w`-bit ones. -/
+theorem CostModel.add_mul_le (C : CostModel) {w n : ℕ} (hn : 1 ≤ n) :
+    C.add (w * n) (w * n) ≤ n * C.add w w := by
+  unfold CostModel.add
+  simp only [max_self]
+  nlinarith [Nat.zero_le C.addRate, Nat.zero_le w]
 
 /-- **The grammar-school cost model (§9.1).**  Long multiplication of an `a`-bit by a
 `b`-bit number takes `a b` bit operations; long division of an `a`-bit number by a `b`-bit
-number produces at most `a - b + 1` quotient bits, each costing a `b`-bit subtraction. -/
+number produces at most `a - b + 1` quotient bits, each costing a `b`-bit subtraction; an
+addition (ripple carry) or comparison takes `max a b + 1`; a step takes one. -/
 def school : CostModel where
   mul a b := a * b
   divMod a b := (a - b + 1) * b
+  addRate := 1
+  unit := 1
   mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
   divMod_mono b h := Nat.mul_le_mul_right b (by omega)
-
-/-- **The bit-level model**, in which fast multiplication itself is analysed: schoolbook
-products and divisions as in `school`, and an addition of an `a`-bit and a `b`-bit integer
-costing `max a b + 1` bit operations (ripple carry). -/
-def bitModel : CostModel where
-  mul a b := a * b
-  divMod a b := (a - b + 1) * b
-  mul_mono h₁ h₂ := Nat.mul_le_mul h₁ h₂
-  divMod_mono b h := Nat.mul_le_mul_right b (by omega)
-  add a b := max a b + 1
 
 /-! ### Worst cases over the inputs of a given bit length -/
 
@@ -149,30 +157,35 @@ performs is derived from its code exactly like its bit complexity. -/
 def mulCount : CostModel where
   mul _ _ := 1
   divMod _ _ := 0
+  addRate := 0
+  unit := 0
   mul_mono _ _ := le_rfl
   divMod_mono _ _ := le_rfl
-  unit := 0
 
 /-- Counts divisions with remainder. -/
 def divCount : CostModel where
   mul _ _ := 0
   divMod _ _ := 1
+  addRate := 0
+  unit := 0
   mul_mono _ _ := le_rfl
   divMod_mono _ _ := le_rfl
-  unit := 0
 
 /-- Counts multiplications and divisions. -/
 def opCount : CostModel where
   mul _ _ := 1
   divMod _ _ := 1
+  addRate := 0
+  unit := 0
   mul_mono _ _ := le_rfl
   divMod_mono _ _ := le_rfl
-  unit := 0
 
 /-- Counts elementary steps (memory writes). -/
 def writeCount : CostModel where
   mul _ _ := 0
   divMod _ _ := 0
+  addRate := 0
+  unit := 1
   mul_mono _ _ := le_rfl
   divMod_mono _ _ := le_rfl
 
@@ -193,14 +206,25 @@ theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 @[simp] theorem opCount_unit : opCount.unit = 0 := rfl
 @[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
 @[simp] theorem school_unit : school.unit = 1 := rfl
-@[simp] theorem school_add (a b : ℕ) : school.add a b = 0 := rfl
-@[simp] theorem bitModel_mul (a b : ℕ) : bitModel.mul a b = a * b := rfl
-@[simp] theorem bitModel_add (a b : ℕ) : bitModel.add a b = max a b + 1 := rfl
-@[simp] theorem bitModel_unit : bitModel.unit = 1 := rfl
+@[simp] theorem school_add (a b : ℕ) : school.add a b = max a b + 1 := by
+  simp [CostModel.add, school]
+@[simp] theorem mulCount_add (a b : ℕ) : mulCount.add a b = 0 := by simp [CostModel.add, mulCount]
+@[simp] theorem divCount_add (a b : ℕ) : divCount.add a b = 0 := by simp [CostModel.add, divCount]
+@[simp] theorem opCount_add (a b : ℕ) : opCount.add a b = 0 := by simp [CostModel.add, opCount]
+@[simp] theorem writeCount_add (a b : ℕ) : writeCount.add a b = 0 := by
+  simp [CostModel.add, writeCount]
 
 /-- One "multiply two residues and reduce" modulo a `k`-bit modulus: the unit of work of
 all modular algorithms. -/
 def CostModel.mulMod (C : CostModel) (k : ℕ) : ℕ := C.mul k k + C.divMod (2 * k) k
+
+/-- One step on numbers of at most `k` bits: a call (or a list or array step) and one
+linear-time operation (an addition, a comparison, a shift).  The unit of the bookkeeping
+around the multiplications and divisions. -/
+def CostModel.lin (C : CostModel) (k : ℕ) : ℕ := C.unit + C.add k k
+
+@[simp] theorem school_lin (k : ℕ) : school.lin k = k + 2 := by
+  simp only [CostModel.lin, school_add, max_self]; rw [show school.unit = 1 from rfl]; omega
 
 /-- In the grammar-school model a modular multiplication costs `2k² + k ≤ 2 (k + 1)²`. -/
 @[simp] theorem mulCount_mulMod (k : ℕ) : mulCount.mulMod k = 1 := rfl

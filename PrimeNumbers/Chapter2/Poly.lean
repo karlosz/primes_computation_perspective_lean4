@@ -54,16 +54,22 @@ theorem toPolynomial_replicate_zero (j : ℕ) :
   | zero => simp
   | succ j ih => simp [List.replicate_succ, ih]
 
+theorem toPolynomial_append (A B : Poly F) :
+    toPolynomial (A ++ B) = toPolynomial A + X ^ A.length * toPolynomial B := by
+  induction A with
+  | nil => simp
+  | cons c A ih => simp [ih, pow_succ]; ring
+
 theorem degree_toPolynomial_lt (f : Poly F) : (toPolynomial f).degree < f.length := by
   rw [degree_lt_iff_coeff_zero]
   intro m hm
   rw [coeff_toPolynomial, List.getD_eq_default _ _ hm]
 
 /-- The top coefficient of the list (which is the leading coefficient once trimmed). -/
-@[cost_free] def lead (f : Poly F) : F := f.getD (f.length - 1) 0
+counted_def lead (f : Poly F) : F := f.getD (f.length - 1) 0
 
 /-- Addition, coefficientwise. -/
-@[cost_free] def add : Poly F → Poly F → Poly F
+counted_def add [Chapter9.AddCost F] : Poly F → Poly F → Poly F
   | [], g => g
   | f, [] => f
   | a :: f, b :: g => (a + b) :: add f g
@@ -72,7 +78,7 @@ theorem degree_toPolynomial_lt (f : Poly F) : (toPolynomial f).degree < f.length
 counted_def smul [Chapter9.MulCost F] (c : F) (f : Poly F) : Poly F := f.map (c * ·)
 
 /-- Multiplication (schoolbook): `(a + x f) g = a g + x (f g)`. -/
-counted_def mul [Chapter9.MulCost F] : Poly F → Poly F → Poly F
+counted_def mul [Chapter9.ArithCost F] : Poly F → Poly F → Poly F
   | [], _ => []
   | a :: f, g => add (smul a g) (0 :: mul f g)
 
@@ -129,7 +135,7 @@ theorem toPolynomial_dropLast_add (f : Poly F) :
 variable [DecidableEq F]
 
 /-- Remove trailing zero coefficients. -/
-@[cost_free] def trim : Poly F → Poly F
+counted_def trim [Chapter9.CmpCost F] : Poly F → Poly F
   | [] => []
   | a :: f =>
     let t := trim f
@@ -183,7 +189,7 @@ section Ring
 variable {F : Type} [CommRing F]
 
 /-- Subtraction. -/
-counted_def sub [Chapter9.MulCost F] (f g : Poly F) : Poly F := add f (smul (-1) g)
+counted_def sub [Chapter9.ArithCost F] (f g : Poly F) : Poly F := add f (smul (-1) g)
 
 @[simp] theorem toPolynomial_sub (f g : Poly F) :
     toPolynomial (sub f g) = toPolynomial f - toPolynomial g := by
@@ -204,29 +210,49 @@ returns `(q, r)` with `f = q g + r` and `r` shorter than `g`.
 The recursion is Horner's rule read as a division: if `f = q' g + r'` then
 `a + x f = (x q') g + (a + x r')`, and `a + x r'` needs at most one reduction by `g`.
 This is the "grammar-school" method: `O(deg f · deg g)` field operations. -/
-def divMod : Poly F → Poly F → Poly F × Poly F
-  | [], _ => ([], [])
-  | a :: f, g =>
+counted_def divModLoop [Chapter9.ArithCost F] (g : Poly F) (n : ℕ) (gi : F) :
+    Poly F → Poly F × Poly F
+  | [] => ([], [])
+  | a :: f =>
     -- a dividend shorter than the divisor is its own remainder: this keeps a division
     -- `O((deg f - deg g + 1) · deg f)`, not `O(deg f · deg g)`
+    if f.length + 1 < n then (List.replicate (f.length + 1) 0, a :: f) else
+    let qr := divModLoop g n gi f
+    let s := a :: qr.2
+    if s.length < n then (0 :: qr.1, s)
+    else
+      let c := lead s * gi
+      (c :: qr.1, (sub s (smul c g)).dropLast)
+
+/-- The division itself: the length and the inverse of the top coefficient of `g` are
+computed once. -/
+counted_def divMod [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) :
+    Poly F × Poly F :=
+  divModLoop g g.length (lead g)⁻¹ f
+
+theorem divMod_nil (g : Poly F) : divMod [] g = ([], []) := by simp [divMod, divModLoop]
+
+theorem divMod_cons (a : F) (f g : Poly F) : divMod (a :: f) g =
     if f.length + 1 < g.length then (List.replicate (f.length + 1) 0, a :: f) else
     let qr := divMod f g
     let s := a :: qr.2
     if s.length < g.length then (0 :: qr.1, s)
     else
       let c := lead s * (lead g)⁻¹
-      (c :: qr.1, (sub s (smul c g)).dropLast)
+      (c :: qr.1, (sub s (smul c g)).dropLast) := by
+  simp only [divMod]; rw [divModLoop]; rfl
 
 /-- The remainder `f mod g`. -/
-def mod (f g : Poly F) : Poly F := (divMod f g).2
+counted_def mod [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) : Poly F :=
+  (divMod f g).2
 
 theorem length_divMod_snd_lt (f : Poly F) {g : Poly F} (hg : g ≠ []) :
     (divMod f g).2.length < g.length := by
   have hpos : 0 < g.length := List.length_pos_iff.mpr hg
   induction f with
-  | nil => simpa [divMod] using hpos
+  | nil => simpa [divMod_nil] using hpos
   | cons a f ih =>
-    rw [divMod]
+    rw [divMod_cons]
     split_ifs with h₀
     · simpa using h₀
     dsimp only
@@ -241,10 +267,10 @@ theorem divMod_spec (f : Poly F) {g : Poly F} (hg : lead g ≠ 0) :
       toPolynomial (divMod f g).1 * toPolynomial g + toPolynomial (divMod f g).2 := by
   have hgne : g ≠ [] := by rintro rfl; simp [lead] at hg
   induction f with
-  | nil => simp [divMod]
+  | nil => simp [divMod_nil]
   | cons a f ih =>
     have hlen := length_divMod_snd_lt f hgne
-    rw [divMod]
+    rw [divMod_cons]
     split_ifs with h₀
     · simp [toPolynomial_replicate_zero]
     dsimp only
@@ -302,6 +328,77 @@ theorem toPolynomial_mod (f : Poly F) {g : Poly F} (hg : lead g ≠ 0) :
   linear_combination (toPolynomial g * toPolynomial (divMod f g).1) * this
 
 end Field
+
+section RunningTime
+
+open Chapter9
+
+variable {F : Type} [CommRing F] [ArithCost F] (C : CostModel) {s : ℕ}
+
+/-- Scaling: a step and a product per coefficient. -/
+theorem smul_cost_le (hs : ArithCost.Bounded F C s) (c : F) (f : Poly F) :
+    costOf C (smul c f) ≤ (f.length + 2) * (C.unit + s) := by
+  cost_unfold smul.counted
+  have := sum_map_le_length_mul f (fun x ↦ MulCost.mulCost C c x) fun x _ ↦ (hs c x).1
+  nlinarith
+
+/-- Adding: a step and a sum per coefficient of the longer polynomial. -/
+theorem add_cost_le (hs : ArithCost.Bounded F C s) :
+    ∀ f g : Poly F, costOf C (add f g) ≤ (max f.length g.length + 1) * (C.unit + s)
+  | [], g => by
+    cost_unfold add.counted
+    exact (Nat.le_add_right _ s).trans (Nat.le_mul_of_pos_left _ (by omega))
+  | a :: f, [] => by
+    cost_unfold add.counted
+    all_goals first
+      | exact (Nat.le_add_right _ s).trans (Nat.le_mul_of_pos_left _ (by omega))
+      | simp
+  | a :: f, b :: g => by
+    have ih := add_cost_le hs f g
+    have := (hs a b).2.1
+    cost_unfold add.counted
+    simp only [List.length_cons, Nat.add_max_add_right] at *
+    nlinarith
+
+theorem sub_cost_le (hs : ArithCost.Bounded F C s) (f g : Poly F) :
+    costOf C (sub f g) ≤ (max f.length g.length + 1) * (C.unit + s) +
+      (g.length + 3) * (C.unit + s) := by
+  have h₁ := smul_cost_le C hs (-1) g
+  have h₂ := add_cost_le C hs f (smul (-1) g)
+  simp only [length_smul] at h₂
+  cost_unfold sub.counted
+  nlinarith
+
+theorem length_mul_le_add : ∀ f g : Poly F, (mul f g).length ≤ f.length + g.length
+  | [], g => by simp [mul]
+  | a :: f, g => by
+    have := length_mul_le_add f g
+    simp only [mul, length_add, length_smul, List.length_cons]; omega
+
+/-- **The schoolbook product**: at each of the `len f` levels, a scaling of `g` and an
+addition, `O(len f + len g)` coefficient operations. -/
+theorem mul_cost_le (hs : ArithCost.Bounded F C s) : ∀ f g : Poly F,
+    costOf C (mul f g) ≤ (f.length + 1) * ((2 * (f.length + g.length) + 5) * (C.unit + s))
+  | [], g => by
+    cost_unfold mul.counted
+    exact (Nat.le_add_right _ s).trans (by nlinarith)
+  | a :: f, g => by
+    have ih := mul_cost_le hs f g
+    have h₁ := smul_cost_le C hs a g
+    have h₂ := add_cost_le C hs (smul a g) (0 :: mul f g)
+    have hl := length_mul_le_add f g
+    simp only [length_smul, List.length_cons] at h₂
+    have h₃ : (max g.length ((mul f g).length + 1) + 1) * (C.unit + s) ≤
+        (f.length + g.length + 2) * (C.unit + s) := Nat.mul_le_mul_right _ (by omega)
+    have h₄ : (g.length + 2) * (C.unit + s) ≤ (f.length + g.length + 2) * (C.unit + s) :=
+      Nat.mul_le_mul_right _ (by omega)
+    have h₅ : (f.length + 1) * ((2 * (f.length + g.length) + 5) * (C.unit + s)) ≤
+        (f.length + 1) * ((2 * (f.length + 1 + g.length) + 5) * (C.unit + s)) :=
+      Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
+    cost_unfold mul.counted
+    nlinarith
+
+end RunningTime
 
 end Poly
 

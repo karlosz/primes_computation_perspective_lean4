@@ -25,7 +25,7 @@ variable {R : Type} [CommRing R]
 
 /-- Force the coefficient list of a polynomial known to be monic of degree `d` into the
 shape `[c₀, …, c_{d-1}, 1]`, so that its last entry is visibly `1`. -/
-@[cost_free] def monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : Chapter2.Poly R := L.take d ++ [1]
+counted_def monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : Chapter2.Poly R := L.take d ++ [1]
 
 theorem lead_monicOfDegree (d : ℕ) (L : Chapter2.Poly R) : lead (monicOfDegree d L) = 1 := by
   simp [monicOfDegree, lead]
@@ -39,7 +39,7 @@ theorem toPolynomial_monicOfDegree [Nontrivial R] {d : ℕ} {L : Chapter2.Poly R
       rw [coeff_toPolynomial, List.getD_eq_default _ _ (by omega)]
     rw [← hd, coeff_natDegree, hmon.leadingCoeff] at this
     exact one_ne_zero this
-  rw [monicOfDegree, Chapter9.toPolynomial_append, List.length_take, min_eq_left hlen.le]
+  rw [monicOfDegree, Chapter2.Poly.toPolynomial_append, List.length_take, min_eq_left hlen.le]
   ext j
   rw [coeff_add, coeff_toPolynomial_take, coeff_X_pow_mul']
   simp only [toPolynomial_cons, toPolynomial_nil, mul_zero, add_zero]
@@ -66,12 +66,14 @@ theorem toPolynomial_prodLinear_append (a b : List R) :
   | cons u a ih => simp only [List.cons_append, prodLinear, toPolynomial_mul, ih]; ring
 
 /-- The product `∏ (t - u)` as a balanced product tree, multiplying with `mulF`. -/
-counted_def prodTree [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+counted_def prodTree [ArithCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
     (us : List R) :
     Chapter2.Poly R :=
-  if us.length ≤ 1 then prodLinear us
-  else monicOfDegree us.length
-    (mulF (prodTree mulF (us.take (us.length / 2))) (prodTree mulF (us.drop (us.length / 2))))
+  let n := us.length
+  if n ≤ 1 then prodLinear us
+  else
+    let h := n / 2
+    monicOfDegree n (mulF (prodTree mulF (us.take h)) (prodTree mulF (us.drop h)))
 termination_by us.length
 decreasing_by all_goals simp only [List.length_take, List.length_drop]; omega
 
@@ -80,8 +82,8 @@ theorem prodTree_spec [Nontrivial R] {mulF : Chapter2.Poly R → Chapter2.Poly R
     toPolynomial (prodTree mulF us) = toPolynomial (prodLinear us) ∧
       lead (prodTree mulF us) = 1 := by
   fun_induction prodTree mulF us with
-  | case1 us h => exact ⟨rfl, lead_prodLinear us⟩
-  | case2 us h ih₁ ih₂ =>
+  | case1 us n hn => exact ⟨rfl, lead_prodLinear us⟩
+  | case2 us n hn h ih₁ ih₂ =>
     refine ⟨?_, lead_monicOfDegree _ _⟩
     have hprod : toPolynomial (mulF (prodTree mulF (us.take (us.length / 2)))
         (prodTree mulF (us.drop (us.length / 2)))) = toPolynomial (prodLinear us) := by
@@ -93,13 +95,15 @@ theorem prodTree_spec [Nontrivial R] {mulF : Chapter2.Poly R → Chapter2.Poly R
 
 /-- **Algorithm 9.6.7** with the half-products computed by `prodF` and the reductions by
 `modF`. -/
-counted_def multipointEvalWith [MulCost R] (prodF : List R → Chapter2.Poly R)
+counted_def multipointEvalWith [ArithCost R] (prodF : List R → Chapter2.Poly R)
     (modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (δ : ℕ)
     (x : Chapter2.Poly R) (T : List R) : List R :=
-  if T.length ≤ max δ 1 then T.map (Poly.eval x)
+  let n := T.length
+  if n ≤ max δ 1 then T.map (Poly.eval x)
   else
-    let u := T.take (T.length / 2)
-    let v := T.drop (T.length / 2)
+    let h := n / 2
+    let u := T.take h
+    let v := T.drop h
     multipointEvalWith prodF modF δ (modF x (prodF u)) u ++
       multipointEvalWith prodF modF δ (modF x (prodF v)) v
 termination_by T.length
@@ -120,8 +124,8 @@ theorem multipointEvalWith_eq [Nontrivial R] {prodF : List R → Chapter2.Poly R
     rw [hmod x _ (hprod us).2, (hprod us).1, ← Poly.toPolynomial_modMonic x (lead_prodLinear us)]
     exact eval_modMonic_of_root x us ht
   fun_induction multipointEvalWith prodF modF δ x T with
-  | case1 x T h => simp [Poly.eval_eq]
-  | case2 x T h u v ih₁ ih₂ =>
+  | case1 x T n hn => simp [Poly.eval_eq]
+  | case2 x T n hn h u v ih₁ ih₂ =>
     have hT : T = u ++ v := (List.take_append_drop _ T).symm
     rw [ih₁, ih₂]
     conv_rhs => rw [hT, List.map_append]
@@ -129,13 +133,13 @@ theorem multipointEvalWith_eq [Nontrivial R] {prodF : List R → Chapter2.Poly R
     · exact List.map_congr_left fun t ht ↦ hroot x u t ht
     · exact List.map_congr_left fun t ht ↦ hroot x v t ht
 
-theorem length_multipointEvalWith [MulCost R] (prodF : List R → Chapter2.Poly R)
+theorem length_multipointEvalWith [ArithCost R] (prodF : List R → Chapter2.Poly R)
     (modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R) (δ : ℕ)
     (x : Chapter2.Poly R) (T : List R) :
     (multipointEvalWith prodF modF δ x T).length = T.length := by
   fun_induction multipointEvalWith prodF modF δ x T with
-  | case1 x T h => simp
-  | case2 x T h u v ih₁ ih₂ =>
+  | case1 x T n hn => simp
+  | case2 x T n hn h u v ih₁ ih₂ =>
     rw [List.length_append, ih₁, ih₂]
     simp only [u, v, List.length_take, List.length_drop]; omega
 
@@ -157,60 +161,106 @@ The cost of Algorithm 9.6.7 is that of its nodes: at a node with `d` points, two
 half-products and two remainders (charged through the charge functions `pc`, `mc` of the
 routines passed for them), or, at a leaf, direct evaluation by Horner's rule. -/
 
+/-- The level count for a nonempty set of points (`multipointEval_cost_le`). -/
+theorem multipointEval_cost_le_aux [ArithCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
+    {modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
+    (pc : List R → CostM C Unit) (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit)
+    (δ : ℕ) {S : ℕ → ℕ} {K : ℕ} (hS : Monotone S) (hsup : ∀ a b, 1 ≤ a → 1 ≤ b → S a + S b ≤ S (a + b))
+    (h2K : 2 ≤ K) (hδK : δ.size ≤ K)
+    (hmodLen : ∀ x us, (modF x (prodF us)).length ≤ us.length + 1)
+    (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length → T.length.size ≤ K →
+      CostM.cost C (pc (T.take (T.length / 2))) + CostM.cost C (pc (T.drop (T.length / 2))) +
+        CostM.cost C (mc x (prodF (T.take (T.length / 2)))) +
+        CostM.cost C (mc x (prodF (T.drop (T.length / 2)))) + 6 * T.length * C.lin K ≤
+          S T.length)
+    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 → T.length ≤ max δ 1 → 1 ≤ T.length →
+      (T.map fun (t : R) ↦ costOf C (Poly.eval x t)).sum + 6 * T.length * C.lin K ≤ S T.length)
+    (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) (hTK : T.length.size ≤ K)
+    (hT1 : 1 ≤ T.length) :
+    CostM.cost C (multipointEvalWith.counted prodF modF δ x T pc mc) ≤
+      (Nat.clog 2 T.length + 1) * S T.length := by
+  have hδ1 : (max δ 1).size ≤ K := by
+    rcases le_total δ 1 with h | h
+    · rw [max_eq_right h]; simp; omega
+    · rw [max_eq_left h]; exact hδK
+  by_cases h : T.length ≤ max δ 1
+  · · have := hleaf x T hx h hT1
+      have hu : (T.length + 1 + (T.length + 1) + 1) * C.unit ≤ 6 * T.length * C.unit :=
+        Nat.mul_le_mul_right _ (by omega)
+      have ha : 2 * C.add K K ≤ 6 * T.length * C.add K K := Nat.mul_le_mul_right _ (by omega)
+      cost_unfold multipointEvalWith.counted
+      cost_bound
+  · set n := T.length with hn
+    have hn2 : 2 ≤ n := by omega
+    set u := T.take (n / 2)
+    set v := T.drop (n / 2)
+    have hu : u.length = n / 2 := by simp [u]; omega
+    have hv : v.length = n - n / 2 := by simp [v]; omega
+    have hK' : ∀ m, m ≤ n → m.size ≤ K := fun m hm ↦ (Nat.size_le_size hm).trans hTK
+    have ih₁ := multipointEval_cost_le_aux C pc mc δ hS hsup h2K hδK hmodLen hnode hleaf _ u
+      (by have := hmodLen x u; omega) (hK' _ (by omega)) (by omega)
+    have ih₂ := multipointEval_cost_le_aux C pc mc δ hS hsup h2K hδK hmodLen hnode hleaf _ v
+      (by have := hmodLen x v; omega) (hK' _ (by omega)) (by omega)
+    have hnd := hnode x T hx hn2 hTK
+    -- each half has at most `⌈n/2⌉` points, hence one level fewer
+    have hclog : ∀ m, m ≤ (n + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 n := by
+      intro m hm
+      have := Nat.clog_mono_right 2 hm
+      have hc : Nat.clog 2 n = Nat.clog 2 ((n + 1) / 2) + 1 := Nat.clog_of_two_le (by norm_num) hn2
+      omega
+    have hsplit : S u.length + S v.length ≤ S n :=
+      (hsup _ _ (by omega) (by omega)).trans (hS (by omega))
+    have e₁ : (Nat.clog 2 u.length + 1) * S u.length ≤ Nat.clog 2 n * S u.length :=
+      Nat.mul_le_mul_right _ (hclog _ (by omega))
+    have e₂ : (Nat.clog 2 v.length + 1) * S v.length ≤ Nat.clog 2 n * S v.length :=
+      Nat.mul_le_mul_right _ (hclog _ (by omega))
+    have e₃ : Nat.clog 2 n * (S u.length + S v.length) ≤ Nat.clog 2 n * S n :=
+      Nat.mul_le_mul_left _ hsplit
+    have hlen := length_multipointEvalWith prodF modF δ (modF x (prodF u)) u
+    have hunits : (1 + (n + 1) + (n / 2 + 1) + (n / 2 + 1) +
+        ((multipointEvalWith prodF modF δ (modF x (prodF u)) u).length + 1)) * C.unit ≤
+        6 * n * C.unit := Nat.mul_le_mul_right _ (by omega)
+    have ha : 3 * C.add K K ≤ 6 * n * C.add K K := Nat.mul_le_mul_right _ (by omega)
+    cost_unfold multipointEvalWith.counted
+    cost_bound
+termination_by T.length
+decreasing_by all_goals simp only [List.length_take, List.length_drop]; omega
+
+
 /-- **The level count of Algorithm 9.6.7.**  Suppose the work at a node with `d` points
-(two products, two remainders, or the direct evaluation at a leaf) is at most `S d`,
+(two products, two remainders, or the direct evaluation at a leaf), together with the
+bookkeeping around it (`6 d` steps on lengths of at most `K` bits), is at most `S d`,
 whenever the polynomial being evaluated has at most `d + 1` coefficients — which the
 remainders guarantee below the root (`hmodLen`).  If `S` is monotone and superadditive
 (`S a + S b ≤ S (a + b)`, true for `S d = M(d) log d` and the like), then the whole
-algorithm costs at most `(⌈log₂ D⌉ + 1) · S D` for `D` points.  With `S d = O(M(d) log d)`
-for the fast routines this is the book's `O(M(D) log² D)`. -/
-theorem multipointEval_cost_le [MulCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
+algorithm costs at most `(⌈log₂ D⌉ + 1) · S D` for `D` points (and a few steps for `D = 0`).
+With `S d = O(M(d) log d)` for the fast routines this is the book's `O(M(D) log² D)`. -/
+theorem multipointEval_cost_le [ArithCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
     {modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (pc : List R → CostM C Unit) (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit)
-    (δ : ℕ) {S : ℕ → ℕ} (hS : Monotone S) (hsup : ∀ a b, S a + S b ≤ S (a + b))
+    (δ : ℕ) {S : ℕ → ℕ} {K : ℕ} (hS : Monotone S) (hsup : ∀ a b, 1 ≤ a → 1 ≤ b → S a + S b ≤ S (a + b))
+    (h2K : 2 ≤ K) (hδK : δ.size ≤ K)
     (hmodLen : ∀ x us, (modF x (prodF us)).length ≤ us.length + 1)
-    (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length →
+    (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length → T.length.size ≤ K →
       CostM.cost C (pc (T.take (T.length / 2))) + CostM.cost C (pc (T.drop (T.length / 2))) +
         CostM.cost C (mc x (prodF (T.take (T.length / 2)))) +
-        CostM.cost C (mc x (prodF (T.drop (T.length / 2)))) ≤ S T.length)
-    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 → T.length ≤ max δ 1 →
-      (T.map fun (t : R) ↦ costOf C (Poly.eval x t)).sum ≤ S T.length)
-    (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) :
+        CostM.cost C (mc x (prodF (T.drop (T.length / 2)))) + 6 * T.length * C.lin K ≤
+          S T.length)
+    (hleaf : ∀ x (T : List R), x.length ≤ T.length + 1 → T.length ≤ max δ 1 → 1 ≤ T.length →
+      (T.map fun (t : R) ↦ costOf C (Poly.eval x t)).sum + 6 * T.length * C.lin K ≤ S T.length)
+    (x : Chapter2.Poly R) (T : List R) (hx : x.length ≤ T.length + 1) (hTK : T.length.size ≤ K) :
     CostM.cost C (multipointEvalWith.counted prodF modF δ x T pc mc) ≤
-      (Nat.clog 2 T.length + 1) * S T.length := by
-  fun_induction multipointEvalWith prodF modF δ x T with
-  | case1 x T h =>
-    have := hleaf x T hx h
+      (Nat.clog 2 T.length + 1) * S T.length + 6 * C.lin K := by
+  rcases Nat.eq_zero_or_pos T.length with h0 | h0
+  · have hδ1 : (max δ 1).size ≤ K := by
+      rcases le_total δ 1 with h | h
+      · rw [max_eq_right h]; simp; omega
+      · rw [max_eq_left h]; exact hδK
+    rw [List.length_eq_zero_iff.mp h0]
     cost_unfold multipointEvalWith.counted
-    nlinarith
-  | case2 x T h u v ih₁ ih₂ =>
-    have hu : u.length = T.length / 2 := by simp [u]; omega
-    have hv : v.length = T.length - T.length / 2 := by simp [v]
-    have ih₁ := ih₁ (by have := hmodLen x u; omega)
-    have ih₂ := ih₂ (by have := hmodLen x v; omega)
-    have hn := hnode x T hx (by omega)
-    -- each half has at most `⌈D/2⌉` points, hence one level fewer
-    have hclog : ∀ m, m ≤ (T.length + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 T.length := by
-      intro m hm
-      have h2 : 2 ≤ T.length := by omega
-      have := Nat.clog_mono_right 2 hm
-      have hc : Nat.clog 2 T.length = Nat.clog 2 ((T.length + 1) / 2) + 1 :=
-        Nat.clog_of_two_le (by norm_num) h2
-      omega
-    have hcu := hclog u.length (by omega)
-    have hcv := hclog v.length (by omega)
-    have hsplit : S u.length + S v.length ≤ S T.length := by
-      have := hsup u.length v.length
-      exact this.trans (hS (by omega))
-    cost_unfold multipointEvalWith.counted
-    simp only [u, v] at *
-    calc _ ≤ S T.length + (Nat.clog 2 u.length + 1) * S u.length +
-          (Nat.clog 2 v.length + 1) * S v.length := by simp only [u, v]; omega
-      _ ≤ S T.length + Nat.clog 2 T.length * S u.length + Nat.clog 2 T.length * S v.length := by
-          gcongr
-      _ = S T.length + Nat.clog 2 T.length * (S u.length + S v.length) := by ring
-      _ ≤ S T.length + Nat.clog 2 T.length * S T.length := by gcongr
-      _ = (Nat.clog 2 T.length + 1) * S T.length := by ring
+    cost_bound
+  · have := multipointEval_cost_le_aux C pc mc δ hS hsup h2K hδK hmodLen hnode hleaf x T hx hTK h0
+    omega
 
 /-! ### The length hypothesis holds for the fast routines -/
 
@@ -240,71 +290,89 @@ theorem length_fastModMonic_prodTree_le (mulF : Chapter2.Poly R → Chapter2.Pol
 
 /-! ### The product tree -/
 
-/-- A leaf of the product tree, `t - u`, costs two scalar products. -/
-theorem prodLinear_cost_le [MulCost R] (C : CostModel) {s : ℕ}
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (us : List R) (h : us.length ≤ 1) :
-    costOf C (prodLinear us) ≤ us.length * (2 * s) := by
+/-- A leaf of the product tree, `t - u`: a schoolbook product of tiny polynomials. -/
+theorem prodLinear_cost_le [ArithCost R] (C : CostModel) {s : ℕ} (hs : ArithCost.Bounded R C s)
+    (us : List R) (h : us.length ≤ 1) : costOf C (prodLinear us) ≤ 40 * (C.unit + s) := by
   match us, h with
   | [], _ => cost_unfold prodLinear.counted
   | [u], _ =>
-    have h₁ := hs (-u) 1
-    have h₂ := hs 1 1
+    have h₁ := Chapter2.Poly.mul_cost_le C hs [-u, 1] (prodLinear [])
+    have h₂ : costOf C (prodLinear ([] : List R)) = C.unit := by cost_unfold prodLinear.counted
+    have h₃ := (hs u u).2.1
+    rw [length_prodLinear] at h₁
+    simp only [List.length_cons, List.length_nil] at h₁
     cost_unfold prodLinear.counted
-    cost_unfold prodLinear.counted
-    cost_unfold Chapter2.Poly.mul.counted
-    cost_unfold Chapter2.Poly.smul.counted
-    cost_unfold Chapter2.Poly.mul.counted
-    cost_unfold Chapter2.Poly.smul.counted
-    have h₀ : CostM.cost C (Chapter2.Poly.mul.counted ([] : Chapter2.Poly R) [1]) = 0 := by
-      cost_unfold Chapter2.Poly.mul.counted
-    simp only [prodLinear, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
-      List.length_singleton, h₀]
-    omega
+
+theorem monicOfDegree_cost_le (C : CostModel) (n : ℕ) (L : Chapter2.Poly R) :
+    costOf C (monicOfDegree n L) ≤ (2 * n + 3) * C.unit := by
+  cost_unfold monicOfDegree.counted
+  simp only [List.length_take]
+  have : (min n L.length + 1 + 1) * C.unit ≤ (n + 2) * C.unit := Nat.mul_le_mul_right _ (by omega)
+  nlinarith
 
 /-- **Cost of the product tree**: if a product of inputs of length `≤ m` costs at most
-`Mf m`, with `Mf` monotone and superadditive, the tree over `d` points costs at most
-`(⌈log₂ d⌉ + 1) · Mf d` for the products and `2s` for each leaf. -/
-theorem prodTree_cost_le [MulCost R] (C : CostModel)
+`Mf m`, with `Mf` monotone and superadditive, the tree over `d ≥ 1` points costs at most
+`(⌈log₂ d⌉ + 1) · (Mf d + 8 d steps)` for the products and the bookkeeping, and `40`
+coefficient operations for each leaf. -/
+theorem prodTree_cost_le [ArithCost R] (C : CostModel)
     {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
-    (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {Mf : ℕ → ℕ} {s : ℕ}
-    (hMf : Monotone Mf) (hsup : ∀ a b, Mf a + Mf b ≤ Mf (a + b))
+    (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {Mf : ℕ → ℕ} {s K : ℕ}
+    (hMf : Monotone Mf) (hsup : ∀ a b, 1 ≤ a → 1 ≤ b → Mf a + Mf b ≤ Mf (a + b))
     (hM : ∀ (m : ℕ), 1 ≤ m → ∀ (f g : Chapter2.Poly R), f.length ≤ m → g.length ≤ m →
       CostM.cost C (mc f g) ≤ Mf m)
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (us : List R) :
-    CostM.cost C (prodTree.counted mulF us mc) ≤
-      (Nat.clog 2 us.length + 1) * Mf us.length + us.length * (2 * s) := by
-  fun_induction prodTree mulF us with
-  | case1 us h =>
+    (hs : ArithCost.Bounded R C s) (h2K : 2 ≤ K) :
+    ∀ us : List R, 1 ≤ us.length → us.length.size ≤ K →
+      CostM.cost C (prodTree.counted mulF us mc) ≤
+        (Nat.clog 2 us.length + 1) * (Mf us.length + 8 * us.length * C.lin K) +
+          us.length * (40 * (C.unit + s)) := by
+  intro us h1 hK
+  by_cases hn : us.length ≤ 1
+  · have := prodLinear_cost_le C hs us hn
+    have hu : (us.length + 1) * C.unit ≤ 2 * C.unit := Nat.mul_le_mul_right _ (by omega)
+    have h1' : us.length = 1 := by omega
     cost_unfold prodTree.counted
-    have := prodLinear_cost_le C hs us h
-    omega
-  | case2 us h ih₁ ih₂ =>
-    set u := us.take (us.length / 2)
-    set v := us.drop (us.length / 2)
-    have hu : u.length = us.length / 2 := by simp [u]; omega
-    have hv : v.length = us.length - us.length / 2 := by simp [v]
-    have hnode := hM us.length (by omega) (prodTree mulF u) (prodTree mulF v)
+    rw [h1'] at *
+    cost_bound
+  · set n := us.length with hn'
+    set u := us.take (n / 2)
+    set v := us.drop (n / 2)
+    have hu : u.length = n / 2 := by simp [u]; omega
+    have hv : v.length = n - n / 2 := by simp [v]; omega
+    have hK' : ∀ m, m ≤ n → m.size ≤ K := fun m hm ↦ (Nat.size_le_size hm).trans hK
+    have ih₁ := prodTree_cost_le (mulF := mulF) C mc hMf hsup hM hs h2K u (by omega) (hK' _ (by omega))
+    have ih₂ := prodTree_cost_le (mulF := mulF) C mc hMf hsup hM hs h2K v (by omega) (hK' _ (by omega))
+    have hnode := hM n (by omega) (prodTree mulF u) (prodTree mulF v)
       ((length_prodTree_le mulF u).trans (by omega))
       ((length_prodTree_le mulF v).trans (by omega))
-    have hclog : ∀ m, m ≤ (us.length + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 us.length := by
+    have hmon := monicOfDegree_cost_le C n (mulF (prodTree mulF u) (prodTree mulF v))
+    have hclog : ∀ m, m ≤ (n + 1) / 2 → Nat.clog 2 m + 1 ≤ Nat.clog 2 n := by
       intro m hm
       have := Nat.clog_mono_right 2 hm
-      have hc : Nat.clog 2 us.length = Nat.clog 2 ((us.length + 1) / 2) + 1 :=
+      have hc : Nat.clog 2 n = Nat.clog 2 ((n + 1) / 2) + 1 :=
         Nat.clog_of_two_le (by norm_num) (by omega)
       omega
-    have hcu := hclog u.length (by omega)
-    have hcv := hclog v.length (by omega)
-    have hsplit : Mf u.length + Mf v.length ≤ Mf us.length :=
-      (hsup _ _).trans (hMf (by omega))
-    have e₁ : (Nat.clog 2 u.length + 1) * Mf u.length ≤ Nat.clog 2 us.length * Mf u.length :=
-      Nat.mul_le_mul_right _ hcu
-    have e₂ : (Nat.clog 2 v.length + 1) * Mf v.length ≤ Nat.clog 2 us.length * Mf v.length :=
-      Nat.mul_le_mul_right _ hcv
-    have e₃ : Nat.clog 2 us.length * (Mf u.length + Mf v.length) ≤
-        Nat.clog 2 us.length * Mf us.length := Nat.mul_le_mul_left _ hsplit
+    have hsplit : Mf u.length + 8 * u.length * C.lin K + (Mf v.length + 8 * v.length * C.lin K) ≤
+        Mf n + 8 * n * C.lin K := by
+      have := (hsup u.length v.length (by omega) (by omega)).trans
+        (hMf (show u.length + v.length ≤ n by omega))
+      have : 8 * u.length * C.lin K + 8 * v.length * C.lin K = 8 * n * C.lin K := by
+        rw [← Nat.add_mul, ← Nat.mul_add]; congr 2; omega
+      omega
+    have e₁ : (Nat.clog 2 u.length + 1) * (Mf u.length + 8 * u.length * C.lin K) ≤
+        Nat.clog 2 n * (Mf u.length + 8 * u.length * C.lin K) :=
+      Nat.mul_le_mul_right _ (hclog _ (by omega))
+    have e₂ : (Nat.clog 2 v.length + 1) * (Mf v.length + 8 * v.length * C.lin K) ≤
+        Nat.clog 2 n * (Mf v.length + 8 * v.length * C.lin K) :=
+      Nat.mul_le_mul_right _ (hclog _ (by omega))
+    have e₃ := Nat.mul_le_mul_left (Nat.clog 2 n) hsplit
+    have e₄ : u.length * (40 * (C.unit + s)) + v.length * (40 * (C.unit + s)) =
+        n * (40 * (C.unit + s)) := by rw [← Nat.add_mul]; congr 1; omega
+    have hunits : (1 + (n + 1) + (n / 2 + 1) + (n / 2 + 1)) * C.unit + (2 * n + 3) * C.unit ≤
+        8 * n * C.unit := by rw [← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
+    have ha : 2 * C.add K K ≤ 8 * n * C.add K K := Nat.mul_le_mul_right _ (by omega)
     cost_unfold prodTree.counted
-    rw [add_mul, one_mul, show us.length * (2 * s) = u.length * (2 * s) + v.length * (2 * s) by
-      rw [← add_mul]; congr 1; omega]
-    nlinarith
+    cost_bound
+termination_by us => us.length
+decreasing_by all_goals simp only [u, v, List.length_take, List.length_drop]; omega
 
 end PrimeNumbers.Chapter9

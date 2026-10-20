@@ -1,6 +1,5 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter2.Poly
-import PrimeNumbers.Chapter9.Newton
 
 /-!
 # §9.5.8 Nussbaumer convolution (Algorithm 9.5.25) and quasi-linear multiplication
@@ -15,7 +14,8 @@ use only additions, and the `L` pointwise products are recursive products in `S_
 inverse transform gives `L` times the result, divided out exactly.
 
 Over `ℤ` this gives a multiplication of `N`-bit integers in `O(N log³ N)` bit operations:
-the quasi-linear multiplication needed for the `n^{1/4}` bound of §5.5.
+the quasi-linear multiplication needed for the `n^{1/4}` bound of §5.5.  Its running time is
+in `NussbaumerCost.lean`, and the cost model it realizes, `nussModel`, in `NussModel.lean`.
 -/
 
 namespace PrimeNumbers.Chapter9
@@ -31,22 +31,22 @@ counted_def vadd (u v : List ℤ) : List ℤ := List.zipWith (· + ·) u v
 counted_def vsub (u v : List ℤ) : List ℤ := List.zipWith (· - ·) u v
 
 /-- Multiplication by `x^j` in `S_m` (`j < m`): a rotation, the coefficients wrapping around
-with a change of sign (`x^m = -1`).  Negation is a sign flip and costs nothing. -/
-@[cost_free] def rotLow (m j : ℕ) (u : List ℤ) : List ℤ :=
+with a change of sign (`x^m = -1`). -/
+counted_def rotLow (m j : ℕ) (u : List ℤ) : List ℤ :=
   (u.drop (m - j)).map Neg.neg ++ u.take (m - j)
 
 /-- Multiplication by `x^j` in `S_m` for `j < 2m` (`x^m = -1`). -/
-@[cost_free] def rot (m j : ℕ) (u : List ℤ) : List ℤ :=
+counted_def rot (m j : ℕ) (u : List ℤ) : List ℤ :=
   if j < m then rotLow m j u else (rotLow m (j - m) u).map Neg.neg
 
 /-- The entries at even positions. -/
-@[cost_free] def evens {α : Type} : List α → List α
+counted_def evens {α : Type} : List α → List α
   | a :: _ :: l => a :: evens l
   | [a] => [a]
   | [] => []
 
 /-- The entries at odd positions. -/
-@[cost_free] def odds {α : Type} : List α → List α
+counted_def odds {α : Type} : List α → List α
   | _ :: b :: l => b :: odds l
   | _ => []
 
@@ -61,7 +61,7 @@ theorem length_odds {α : Type} : ∀ l : List α, (odds l).length = l.length / 
   | [] => by simp [odds]
 
 /-- The twiddled odd half: `x^{e i mod 2m} · o_i`. -/
-@[cost_free] def twiddle (m e : ℕ) : (i : ℕ) → List (List ℤ) → List (List ℤ)
+counted_def twiddle (m e : ℕ) : (i : ℕ) → List (List ℤ) → List (List ℤ)
   | _, [] => []
   | i, o :: os => rot m (e * i % (2 * m)) o :: twiddle m e (i + 1) os
 
@@ -80,17 +80,17 @@ decreasing_by
 
 /-- Block `j` of `a`: the coefficients `a_{j + r l}`, `l < m₁` — the coefficient of `t^j` when
 `a ∈ S_m` is written over `S_{m₁}` with `t^r = x`. -/
-@[cost_free] def block (r m₁ j : ℕ) (a : List ℤ) : List ℤ :=
+counted_def block (r m₁ j : ℕ) (a : List ℤ) : List ℤ :=
   (List.range m₁).map fun l ↦ a.getD (j + r * l) 0
 
 /-- The `r` blocks of `a`, through an array, in linear time (`blocks_eq`). -/
-@[cost_free] def blocks (r m₁ : ℕ) (a : List ℤ) : List (List ℤ) :=
+counted_def blocks (r m₁ : ℕ) (a : List ℤ) : List (List ℤ) :=
   let arr := a.toArray
   (List.range r).map fun j ↦ (List.range m₁).map fun l ↦ arr.getD (j + r * l) 0
 
 /-- The inverse of `block`: the coefficient `j + r l` is entry `l` of block `j` (through
 arrays, in linear time; `unblock_eq`). -/
-@[cost_free] def unblock (r m : ℕ) (D : List (List ℤ)) : List ℤ :=
+counted_def unblock (r m : ℕ) (D : List (List ℤ)) : List ℤ :=
   let arr := (D.map List.toArray).toArray
   (List.range m).map fun i ↦ (arr.getD (i % r) #[]).getD (i / r) 0
 
@@ -836,22 +836,22 @@ theorem nussbaumer_spec (k : ℕ) : ∀ a b : List ℤ, a.length = 2 ^ k → b.l
 /-! ## Integer multiplication -/
 
 /-- The low `m` binary digits of `x`, least significant first. -/
-@[cost_free] def bitsOf : ℕ → ℕ → List ℤ
+counted_def bitsOf : ℕ → ℕ → List ℤ
   | 0, _ => []
   | m + 1, x => ((x % 2 : ℕ) : ℤ) :: bitsOf m (x / 2)
 
 /-- The number with the given binary digits (each `0` or `1`), least significant first:
 writing them down is not arithmetic. -/
-@[cost_free] def ofBits (l : List ℤ) : ℤ := l.foldr (fun d acc ↦ d + 2 * acc) 0
+counted_def ofBits (l : List ℤ) : ℤ := l.foldr (fun d acc ↦ d + 2 * acc) 0
 
 /-- The low `2^k` binary digits of `x`, by halving: `O(N log N)` word operations, against
 `O(N²)` for `bitsOf`, which halves the whole number `2^k` times (`bitsOfPow2_eq`). -/
-@[cost_free] def bitsOfPow2 : ℕ → ℕ → List ℤ
+counted_def bitsOfPow2 : ℕ → ℕ → List ℤ
   | 0, x => [((x % 2 : ℕ) : ℤ)]
   | k + 1, x => bitsOfPow2 k (x % 2 ^ 2 ^ k) ++ bitsOfPow2 k (x >>> 2 ^ k)
 
 /-- The number with the given binary digits, by halving and shifts (`ofBitsNat_eq`). -/
-@[cost_free] def ofBitsNat (l : List ℤ) : ℕ :=
+counted_def ofBitsNat (l : List ℤ) : ℕ :=
   if l.length ≤ 1 then (l.headD 0).toNat
   else (ofBitsNat (l.drop (l.length / 2)) <<< (l.length / 2)) + ofBitsNat (l.take (l.length / 2))
 termination_by l.length
@@ -867,7 +867,7 @@ counted_def carry (c : ℤ) : List ℤ → List ℤ × ℤ
 
 /-- The transform length `2^k` for multiplying `x` by `y`: at least twice their bit length,
 so that the negacyclic product does not wrap around. -/
-@[cost_free] def mulLog (x y : ℕ) : ℕ := (2 * max x.size y.size).size
+counted_def mulLog (x y : ℕ) : ℕ := (2 * max x.size y.size).size
 
 /-- **Multiplication by Nussbaumer's convolution**: the binary digits of `x` and `y` as
 coefficients, their product in `ℤ[x]/(x^{2^k} + 1)`, and carry propagation. -/
@@ -1006,531 +1006,5 @@ theorem nussMul_eq (x y : ℕ) : nussMul x y = x * y := by
     hlen, zero_add] at this
   simp only [nussMul, if_neg h0, bitsOfPow2_eq, ofBitsNat_eq _ (carry_digits _ _), this]
   exact Int.toNat_natCast _
-
-/-! ## Running time
-
-In the bit model `bitModel`: an addition costs the bit length plus one, the products of the
-base case are schoolbook.  Negation (a sign) and shifts are free. -/
-
-/-- All entries of `v` are below `2^β` in absolute value. -/
-def Bdd (β : ℕ) (v : List ℤ) : Prop := ∀ x ∈ v, x.natAbs < 2 ^ β
-
-theorem Bdd.mono {β β' : ℕ} {v : List ℤ} (h : Bdd β v) (hβ : β ≤ β') : Bdd β' v :=
-  fun x hx ↦ (h x hx).trans_le (Nat.pow_le_pow_right two_pos hβ)
-
-theorem Bdd.getD {β : ℕ} {v : List ℤ} (h : Bdd β v) (i : ℕ) : (v.getD i 0).natAbs < 2 ^ β := by
-  rw [List.getD_eq_getElem?_getD]
-  cases hv : v[i]? with
-  | none => simp
-  | some x => simpa using h x (List.mem_of_getElem? hv)
-
-theorem bdd_replicate_zero (β n : ℕ) : Bdd β (List.replicate n 0) := fun x hx ↦ by
-  rw [List.eq_of_mem_replicate hx]; simp
-
-theorem natAbs_add_lt {x y : ℤ} {β : ℕ} (hx : x.natAbs < 2 ^ β) (hy : y.natAbs < 2 ^ β) :
-    (x + y).natAbs < 2 ^ (β + 1) := by
-  have := Int.natAbs_add_le x y; rw [pow_succ]; omega
-
-theorem natAbs_sub_lt {x y : ℤ} {β : ℕ} (hx : x.natAbs < 2 ^ β) (hy : y.natAbs < 2 ^ β) :
-    (x - y).natAbs < 2 ^ (β + 1) := by
-  have := Int.natAbs_sub_le x y; rw [pow_succ]; omega
-
-theorem mem_zipWith' {α β γ : Type} {f : α → β → γ} {l : List α} {l' : List β} {x : γ}
-    (h : x ∈ List.zipWith f l l') : ∃ a ∈ l, ∃ b ∈ l', x = f a b := by
-  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem h
-  simp only [List.length_zipWith, lt_min_iff] at hi
-  exact ⟨_, List.getElem_mem hi.1, _, List.getElem_mem hi.2, List.getElem_zipWith ..⟩
-
-theorem bdd_vadd {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v) : Bdd (β + 1) (vadd u v) :=
-  fun x hx ↦ by
-    obtain ⟨a, ha, b, hb, rfl⟩ := mem_zipWith' hx
-    exact natAbs_add_lt (hu a ha) (hv b hb)
-
-theorem bdd_vsub {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v) : Bdd (β + 1) (vsub u v) :=
-  fun x hx ↦ by
-    obtain ⟨a, ha, b, hb, rfl⟩ := mem_zipWith' hx
-    exact natAbs_sub_lt (hu a ha) (hv b hb)
-
-theorem bdd_rotLow {β m j : ℕ} {u : List ℤ} (hu : Bdd β u) : Bdd β (rotLow m j u) := fun x hx ↦ by
-  simp only [rotLow, List.mem_append, List.mem_map] at hx
-  rcases hx with ⟨y, hy, rfl⟩ | hx
-  · simpa using hu y (List.mem_of_mem_drop hy)
-  · exact hu x (List.mem_of_mem_take hx)
-
-theorem bdd_rot {β m j : ℕ} {u : List ℤ} (hu : Bdd β u) : Bdd β (rot m j u) := by
-  unfold rot; split_ifs
-  · exact bdd_rotLow hu
-  · intro x hx
-    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
-    simpa using bdd_rotLow hu y hy
-
-theorem mem_twiddle {m e : ℕ} (hm : 0 < m) : ∀ {i : ℕ} {os : List (List ℤ)} {v : List ℤ},
-    v ∈ twiddle m e i os → ∃ o ∈ os, ∃ j, j < 2 * m ∧ v = rot m j o
-  | _, [], _, h => by simp [twiddle] at h
-  | i, o :: os, v, h => by
-    simp only [twiddle, List.mem_cons] at h
-    rcases h with rfl | h
-    · exact ⟨o, by simp, _, Nat.mod_lt _ (by omega), rfl⟩
-    · obtain ⟨o', ho', j, hj, rfl⟩ := mem_twiddle hm h
-      exact ⟨o', by simp [ho'], j, hj, rfl⟩
-
-theorem mem_of_mem_evens {α : Type} : ∀ {l : List α} {x : α}, x ∈ evens l → x ∈ l
-  | a :: b :: l, x, h => by
-    simp only [evens, List.mem_cons] at h ⊢
-    rcases h with h | h
-    · exact Or.inl h
-    · exact Or.inr (Or.inr (mem_of_mem_evens h))
-  | [a], x, h => by simpa [evens] using h
-  | [], x, h => by simp [evens] at h
-
-theorem mem_of_mem_odds {α : Type} : ∀ {l : List α} {x : α}, x ∈ odds l → x ∈ l
-  | a :: b :: l, x, h => by
-    simp only [odds, List.mem_cons] at h ⊢
-    rcases h with h | h
-    · exact Or.inr (Or.inl h)
-    · exact Or.inr (Or.inr (mem_of_mem_odds h))
-  | [a], x, h => by simp [odds] at h
-  | [], x, h => by simp [odds] at h
-
-theorem sum_zipWith_le {α β : Type} (f : α → β → ℕ) {s : ℕ} :
-    ∀ (l : List α) (l' : List β), (∀ a ∈ l, ∀ b ∈ l', f a b ≤ s) →
-      (List.zipWith f l l').sum ≤ l.length * s
-  | [], _, _ => by simp
-  | _ :: _, [], _ => by simp
-  | a :: l, b :: l', h => by
-    simp only [List.zipWith_cons_cons, List.sum_cons, List.length_cons]
-    have := sum_zipWith_le f l l' fun a ha b hb ↦ h a (by simp [ha]) b (by simp [hb])
-    have := h a (by simp) b (by simp)
-    rw [add_mul, one_mul]; omega
-
-theorem vadd_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v) :
-    costOf bitModel (vadd u v) ≤ u.length * (β + 1) := by
-  cost_unfold vadd.counted
-  refine sum_zipWith_le _ u v fun a ha b hb ↦ ?_
-  have := Nat.size_le.2 (hu a ha); have := Nat.size_le.2 (hv b hb)
-  omega
-
-theorem vsub_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v) :
-    costOf bitModel (vsub u v) ≤ u.length * (β + 1) := by
-  cost_unfold vsub.counted
-  refine sum_zipWith_le _ u v fun a ha b hb ↦ ?_
-  have := Nat.size_le.2 (hu a ha); have := Nat.size_le.2 (hv b hb)
-  omega
-
-/-- **Running time of the FFT**: `l 2^l m (β + l)` bit operations for `2^l` vectors of length
-`m` with entries below `2^β`; the entries grow by one bit per level. -/
-theorem fft_cost {m : ℕ} (hm : 0 < m) : ∀ (l e β : ℕ) (vs : List (List ℤ)), vs.length = 2 ^ l →
-    (∀ v ∈ vs, v.length = m ∧ Bdd β v) →
-    (fft m e vs).length = 2 ^ l ∧ (∀ v ∈ fft m e vs, v.length = m ∧ Bdd (β + l) v) ∧
-      costOf bitModel (fft m e vs) ≤ l * 2 ^ l * m * (β + l) := by
-  intro l
-  induction l with
-  | zero =>
-    intro e β vs hlen hvs
-    obtain ⟨v, rfl⟩ : ∃ v, vs = [v] := by
-      match vs, hlen with
-      | [v], _ => exact ⟨v, rfl⟩
-    have h1 : [v].length ≤ 1 := by simp
-    refine ⟨?_, ?_, ?_⟩
-    · rw [fft, if_pos h1]; rfl
-    · rw [fft, if_pos h1]; simpa using hvs
-    · cost_unfold fft.counted
-  | succ l ih =>
-    intro e β vs hlen hvs
-    have hnot : ¬ vs.length ≤ 1 := by
-      rw [hlen]; have := Nat.one_lt_two_pow (n := l + 1) (by omega); omega
-    have h2l : 2 ^ (l + 1) = 2 * 2 ^ l := by ring
-    have hev : (evens vs).length = 2 ^ l := by rw [length_evens, hlen, h2l]; omega
-    have hod : (odds vs).length = 2 ^ l := by rw [length_odds, hlen, h2l]; omega
-    obtain ⟨lE, vE, cE⟩ := ih (2 * e) β (evens vs) hev fun v hv ↦ hvs v (mem_of_mem_evens hv)
-    obtain ⟨lO, vO, cO⟩ := ih (2 * e) β (odds vs) hod fun v hv ↦ hvs v (mem_of_mem_odds hv)
-    have vT : ∀ t ∈ twiddle m e 0 (fft m (2 * e) (odds vs)), t.length = m ∧ Bdd (β + l) t := by
-      intro t ht
-      obtain ⟨o, ho, j, hj, rfl⟩ := mem_twiddle hm ht
-      exact ⟨length_rot (vO o ho).1 hj, bdd_rot (vO o ho).2⟩
-    have lT : (twiddle m e 0 (fft m (2 * e) (odds vs))).length = 2 ^ l := by rw [length_twiddle, lO]
-    refine ⟨?_, ?_, ?_⟩
-    · rw [fft, if_neg hnot]; simp [lE, lT]; omega
-    · rw [fft, if_neg hnot]
-      intro v hv
-      rcases List.mem_append.1 hv with hv | hv
-      · obtain ⟨a, ha, b, hb, rfl⟩ := mem_zipWith' hv
-        exact ⟨by rw [length_vadd (by rw [(vE a ha).1, (vT b hb).1])]; exact (vE a ha).1,
-          bdd_vadd (vE a ha).2 (vT b hb).2⟩
-      · obtain ⟨a, ha, b, hb, rfl⟩ := mem_zipWith' hv
-        exact ⟨by rw [length_vsub (by rw [(vE a ha).1, (vT b hb).1])]; exact (vE a ha).1,
-          bdd_vsub (vE a ha).2 (vT b hb).2⟩
-    · cost_unfold fft.counted
-      have hA := sum_zipWith_le (fun a b ↦ costOf bitModel (vadd a b)) (s := m * (β + l + 1))
-        (fft m (2 * e) (evens vs)) (twiddle m e 0 (fft m (2 * e) (odds vs))) fun a ha b hb ↦ by
-          have := vadd_cost_le (vE a ha).2 (vT b hb).2; rwa [(vE a ha).1] at this
-      have hS := sum_zipWith_le (fun a b ↦ costOf bitModel (vsub a b)) (s := m * (β + l + 1))
-        (fft m (2 * e) (evens vs)) (twiddle m e 0 (fft m (2 * e) (odds vs))) fun a ha b hb ↦ by
-          have := vsub_cost_le (vE a ha).2 (vT b hb).2; rwa [(vE a ha).1] at this
-      rw [lE] at hA hS
-      have : l * 2 ^ l * m * (β + l) ≤ l * 2 ^ l * m * (β + (l + 1)) :=
-        Nat.mul_le_mul_left _ (by omega)
-      calc _ ≤ l * 2 ^ l * m * (β + l) + l * 2 ^ l * m * (β + l) +
-            2 ^ l * (m * (β + l + 1)) + 2 ^ l * (m * (β + l + 1)) := by omega
-        _ ≤ (l + 1) * 2 ^ (l + 1) * m * (β + (l + 1)) := by rw [h2l]; nlinarith
-
-theorem natAbs_term_add_one_le {β : ℕ} {x y : ℤ} (hx : x.natAbs < 2 ^ β) (hy : y.natAbs < 2 ^ β) :
-    (x * y).natAbs + 1 ≤ 2 ^ (2 * β) := by
-  rw [Int.natAbs_mul, two_mul, pow_add]
-  exact Nat.mul_lt_mul'' hx hy
-
-/-- The partial sums of the schoolbook product: `|ncTerm| + n ≤ n 2^{2β}` for `n` terms. -/
-theorem ncTerm_bound {β m s : ℕ} {b : List ℤ} (hb : Bdd β b) : ∀ (i : ℕ) (as : List ℤ), Bdd β as →
-    (ncTerm m s b i as).natAbs + as.length ≤ as.length * 2 ^ (2 * β)
-  | _, [], _ => by simp [ncTerm]
-  | i, a :: as, ha => by
-    have ih := ncTerm_bound (m := m) (s := s) hb (i + 1) as fun x hx ↦ ha x (by simp [hx])
-    have hterm : (if i ≤ s then a * b.getD (s - i) 0 else -(a * b.getD (m + s - i) 0)).natAbs + 1 ≤
-        2 ^ (2 * β) := by
-      split_ifs
-      · exact natAbs_term_add_one_le (ha a (by simp)) (hb.getD _)
-      · rw [Int.natAbs_neg]; exact natAbs_term_add_one_le (ha a (by simp)) (hb.getD _)
-    have := Int.natAbs_add_le (if i ≤ s then a * b.getD (s - i) 0 else -(a * b.getD (m + s - i) 0))
-      (ncTerm m s b (i + 1) as)
-    rw [ncTerm, List.length_cons, add_mul, one_mul]
-    omega
-
-theorem ncTerm_cost_le {β m s K : ℕ} {b : List ℤ} (hb : Bdd β b) : ∀ (i : ℕ) (as : List ℤ),
-    Bdd β as → as.length ≤ 2 ^ K →
-    costOf bitModel (ncTerm m s b i as) ≤ as.length * (β * β + 2 * β + K + 1)
-  | _, [], _, _ => by cost_unfold ncTerm.counted
-  | i, a :: as, ha, hlen => by
-    have has : Bdd β as := fun x hx ↦ ha x (by simp [hx])
-    have ih := ncTerm_cost_le (m := m) (s := s) (K := K) hb (i + 1) as has (by simp at hlen; omega)
-    have hrest := ncTerm_bound (m := m) (s := s) hb (i + 1) as has
-    have hsr : (ncTerm m s b (i + 1) as).natAbs.size ≤ 2 * β + K := by
-      refine Nat.size_le.2 ?_
-      rw [Nat.pow_add, mul_comm]
-      have : as.length * 2 ^ (2 * β) ≤ 2 ^ K * 2 ^ (2 * β) :=
-        Nat.mul_le_mul_right _ (by simp at hlen; omega)
-      have := Nat.one_le_two_pow (n := 2 * β)
-      by_cases h0 : as.length = 0
-      · rw [h0] at hrest; nlinarith [Nat.one_le_two_pow (n := K)]
-      · omega
-    have ha' := Nat.size_le.2 (ha a (by simp))
-    have hgs := fun j ↦ Nat.size_le.2 (hb.getD (i := j))
-    have hts : ∀ j, (a * b.getD j 0).natAbs.size ≤ 2 * β := fun j ↦ Nat.size_le.2 (by
-      have := natAbs_term_add_one_le (ha a (by simp)) (hb.getD j); omega)
-    have hmul : ∀ j, a.natAbs.size * (b.getD j 0).natAbs.size ≤ β * β := fun j ↦
-      Nat.mul_le_mul ha' (hgs j)
-    cost_unfold ncTerm.counted
-    rw [List.length_cons, add_mul, one_mul]
-    split_ifs
-    · have := hmul (s - i); have := hts (s - i)
-      omega
-    · have := hmul (m + s - i); have := hts (m + s - i)
-      simp only [Int.natAbs_neg]
-      omega
-
-/-- The schoolbook negacyclic product of vectors of length `2^k` with entries below `2^β`
-costs at most `4^k (β² + 2β + k + 1)` and has entries below `2^{2β + k}`. -/
-theorem ncSchool_cost_le {β k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k) (hab : Bdd β a)
-    (hbb : Bdd β b) : costOf bitModel (ncSchool (2 ^ k) a b) ≤
-      2 ^ k * (2 ^ k * (β * β + 2 * β + k + 1)) := by
-  cost_unfold ncSchool.counted
-  calc _ ≤ (List.range (2 ^ k)).length * (2 ^ k * (β * β + 2 * β + k + 1)) :=
-        sum_map_le_length_mul _ _ fun s _ ↦ by
-          have := ncTerm_cost_le (m := 2 ^ k) (s := s) (K := k) hbb 0 a hab ha.le
-          rwa [ha] at this
-    _ = _ := by simp
-
-theorem bdd_ncSchool {β k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k) (hab : Bdd β a)
-    (hbb : Bdd β b) : Bdd (2 * β + k) (ncSchool (2 ^ k) a b) := fun x hx ↦ by
-  simp only [ncSchool, List.mem_map, List.mem_range] at hx
-  obtain ⟨s, _, rfl⟩ := hx
-  have := ncTerm_bound (m := 2 ^ k) (s := s) hbb 0 a hab
-  rw [ha] at this
-  rw [pow_add, mul_comm]
-  have := Nat.one_le_two_pow (n := k)
-  nlinarith
-
-/-- Nussbaumer's algorithm and the schoolbook method give the same coefficients. -/
-theorem nussbaumer_eq_ncSchool {k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k)
-    (hb : b.length = 2 ^ k) : nussbaumer k a b = ncSchool (2 ^ k) a b := by
-  obtain ⟨hl, he⟩ := nussbaumer_spec k a b ha hb
-  exact ev_inj (Nat.two_pow_pos k) hl (length_ncSchool _ _ _) (by rw [he, ev_ncSchool ha hb])
-
-theorem bdd_padded {β : ℕ} (r m₁ : ℕ) {a : List ℤ} (ha : Bdd β a) :
-    ∀ v ∈ (List.range r).map (fun j ↦ block r m₁ j a) ++ List.replicate r (List.replicate m₁ 0),
-      Bdd β v := by
-  intro v hv
-  simp only [List.mem_append, List.mem_map, List.mem_replicate] at hv
-  rcases hv with ⟨j, _, rfl⟩ | ⟨_, rfl⟩
-  · intro x hx
-    simp only [block, List.mem_map, List.mem_range] at hx
-    obtain ⟨l, _, rfl⟩ := hx
-    exact ha.getD _
-  · exact bdd_replicate_zero _ _
-
-/-- The arithmetic of the recursion: what one level costs, beyond its `2r` half-size
-products, fits in the slack of `2k² + 1` over `2 (2k₁² + 1)`. -/
-theorem nussbaumer_cost_step {k₁ k₂ β G : ℕ} (h : k₁ = k₂ ∨ k₁ = k₂ + 1) (hk₂ : 1 ≤ k₂)
-    (hG : β + 2 * (k₁ + k₂) + 1 ≤ G) :
-    4 * (k₂ + 1) * (β + k₂ + 1) + 16 * (2 * k₁ ^ 2 + 1) * G ^ 2 +
-      2 * (k₂ + 1) * (2 * (β + k₂ + 1) + k₁ + k₂ + 1) + (2 * (β + k₂ + 1) + k₁ + k₂ + 2) ≤
-    8 * (2 * (k₁ + k₂) ^ 2 + 1) * G ^ 2 := by
-  have hq2 : 1 ≤ k₂ ^ 2 := Nat.one_le_pow _ _ hk₂
-  have hGG : G ^ 2 ≤ k₂ ^ 2 * G ^ 2 := Nat.le_mul_of_pos_left _ hq2
-  rcases h with rfl | rfl
-  · have h1 : 4 * (k₁ + 1) * (β + k₁ + 1) ≤ 4 * (k₁ + 1) * G := Nat.mul_le_mul_left _ (by omega)
-    have h2 : 2 * (k₁ + 1) * (2 * (β + k₁ + 1) + k₁ + k₁ + 1) ≤ 2 * (k₁ + 1) * (3 * G) :=
-      Nat.mul_le_mul_left _ (by omega)
-    have h4 : (10 * k₁ + 14) * G ≤ 24 * k₁ ^ 2 * G ^ 2 := by
-      have : 10 * k₁ + 14 ≤ 24 * k₁ ^ 2 * G := by
-        have : 24 * k₁ ^ 2 * 5 ≤ 24 * k₁ ^ 2 * G := Nat.mul_le_mul_left _ (by omega)
-        nlinarith
-      calc _ ≤ 24 * k₁ ^ 2 * G * G := Nat.mul_le_mul_right _ this
-        _ = _ := by ring
-    nlinarith
-  · have h1 : 4 * (k₂ + 1) * (β + k₂ + 1) ≤ 4 * (k₂ + 1) * G := Nat.mul_le_mul_left _ (by omega)
-    have h2 : 2 * (k₂ + 1) * (2 * (β + k₂ + 1) + (k₂ + 1) + k₂ + 1) ≤ 2 * (k₂ + 1) * (2 * G) :=
-      Nat.mul_le_mul_left _ (by omega)
-    have h4 : (8 * k₂ + 10) * G ≤ 8 * k₂ ^ 2 * G ^ 2 := by
-      have : 8 * k₂ + 10 ≤ 8 * k₂ ^ 2 * G := by
-        have : 8 * k₂ ^ 2 * 7 ≤ 8 * k₂ ^ 2 * G := Nat.mul_le_mul_left _ (by omega)
-        nlinarith
-      calc _ ≤ 8 * k₂ ^ 2 * G * G := Nat.mul_le_mul_right _ this
-        _ = _ := by ring
-    nlinarith
-
-/-- **Running time of Nussbaumer's algorithm**: for vectors of length `2^k` with entries below
-`2^β`, and any `γ ≥ β + 2k`, at most `2^k (2k² + 1) · 8 (γ + 1)²` bit operations. -/
-theorem nussbaumer_cost (k : ℕ) : ∀ (β γ : ℕ) (a b : List ℤ), a.length = 2 ^ k →
-    b.length = 2 ^ k → Bdd β a → Bdd β b → β + 2 * k ≤ γ →
-    costOf bitModel (nussbaumer k a b) ≤ 2 ^ k * (2 * k ^ 2 + 1) * (8 * (γ + 1) ^ 2) := by
-  induction k using Nat.strong_induction_on with
-  | _ k ih =>
-  intro β γ a b ha hb hab hbb hγ
-  by_cases hk : k ≤ 2
-  · cost_unfold nussbaumer.counted
-    refine (ncSchool_cost_le ha hab hbb).trans ?_
-    interval_cases k <;> simp <;> nlinarith
-  cost_unfold nussbaumer.counted
-  rw [blocks_eq, blocks_eq]
-  generalize hk₁ : (k + 1) / 2 = k₁
-  generalize hk₂ : k / 2 = k₂
-  have hle : k₂ ≤ k₁ := by omega
-  have hk1lt : k₁ < k := by omega
-  have hkk : k = k₁ + k₂ := by omega
-  have hk₂1 : 1 ≤ k₂ := by omega
-  have hrm : 2 ^ k₂ * 2 ^ k₁ = 2 ^ k := by rw [← pow_add]; congr 1; omega
-  have hLm : 2 ^ (k₂ + 1) * 2 ^ k₁ = 2 * 2 ^ k := by rw [pow_succ, ← hrm]; ring
-  generalize 2 ^ (k₁ - k₂) = e
-  set m₁ := 2 ^ k₁ with hm₁
-  set r := 2 ^ k₂ with hr
-  have hm₁pos : 0 < m₁ := by positivity
-  have hL : 2 ^ (k₂ + 1) = r + r := by rw [pow_succ]; ring
-  have hβ₁ : β + k₂ + 1 + 2 * k₁ ≤ γ := by omega
-  -- the transforms of the inputs
-  have hAv := fun v hv ↦ And.intro ((padded_spec r m₁ a).2.1 v hv) (bdd_padded r m₁ hab v hv)
-  have hBv := fun v hv ↦ And.intro ((padded_spec r m₁ b).2.1 v hv) (bdd_padded r m₁ hbb v hv)
-  have hAl := (padded_spec r m₁ a).1
-  have hBl := (padded_spec r m₁ b).1
-  generalize (List.range r).map (fun j ↦ block r m₁ j a) ++
-    List.replicate r (List.replicate m₁ 0) = A at hAv hAl ⊢
-  generalize (List.range r).map (fun j ↦ block r m₁ j b) ++
-    List.replicate r (List.replicate m₁ 0) = B at hBv hBl ⊢
-  rw [two_mul, ← hL] at hAl hBl
-  obtain ⟨lFA, vFA, cFA⟩ := fft_cost hm₁pos (k₂ + 1) e β A hAl hAv
-  obtain ⟨lFB, vFB, cFB⟩ := fft_cost hm₁pos (k₂ + 1) e β B hBl hBv
-  generalize fft m₁ e A = FA at lFA vFA cFA ⊢
-  generalize fft m₁ e B = FB at lFB vFB cFB ⊢
-  -- the `2r` products of half size
-  have cP := sum_zipWith_le (fun a b ↦ costOf bitModel (nussbaumer k₁ a b))
-    (s := m₁ * (2 * k₁ ^ 2 + 1) * (8 * (γ + 1) ^ 2)) FA FB fun u hu v hv ↦
-      ih k₁ hk1lt (β + (k₂ + 1)) γ u v (vFA u hu).1 (vFB v hv).1 (vFA u hu).2 (vFB v hv).2
-        (by omega)
-  have vP : ∀ v ∈ List.zipWith (nussbaumer k₁) FA FB,
-      v.length = m₁ ∧ Bdd (2 * (β + k₂ + 1) + k₁) v := by
-    intro v hv
-    obtain ⟨u, hu, w, hw, rfl⟩ := mem_zipWith' hv
-    rw [nussbaumer_eq_ncSchool (vFA u hu).1 (vFB w hw).1]
-    exact ⟨length_ncSchool _ _ _, by
-      simpa [add_assoc] using bdd_ncSchool (vFA u hu).1 (vFA u hu).2 (vFB w hw).2⟩
-  have lP : (List.zipWith (nussbaumer k₁) FA FB).length = 2 ^ (k₂ + 1) := by simp [lFA, lFB]
-  generalize List.zipWith (nussbaumer k₁) FA FB = P at vP lP ⊢
-  -- the inverse transform, the exact division and the folding
-  obtain ⟨-, vC, cC⟩ := fft_cost hm₁pos (k₂ + 1) (2 * m₁ - e) _ P lP vP
-  generalize fft m₁ (2 * m₁ - e) P = Cf at vC cC ⊢
-  have vCd : ∀ j, ((Cf.map fun v ↦ v.map (· / 2 ^ (k₂ + 1))).getD j (List.replicate m₁ 0)).length
-      = m₁ ∧ Bdd (2 * (β + k₂ + 1) + k₁ + (k₂ + 1))
-        ((Cf.map fun v ↦ v.map (· / 2 ^ (k₂ + 1))).getD j (List.replicate m₁ 0)) := by
-    intro j
-    rw [List.getD_eq_getElem?_getD]
-    cases hj : (Cf.map fun v ↦ v.map (· / 2 ^ (k₂ + 1)))[j]? with
-    | none => exact ⟨by simp, bdd_replicate_zero _ _⟩
-    | some w =>
-      obtain ⟨v, hv, rfl⟩ := List.mem_map.1 (List.mem_of_getElem? hj)
-      refine ⟨by simp [(vC v hv).1], fun x hx ↦ ?_⟩
-      obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
-      exact (Int.natAbs_ediv_le_natAbs _ _).trans_lt ((vC v hv).2 y hy)
-  generalize Cf.map (fun v ↦ v.map (· / 2 ^ (k₂ + 1))) = C at vCd ⊢
-  have cD := sum_map_le_length_mul (List.range r) (fun j ↦ costOf bitModel
-      (vadd (C.getD j (List.replicate m₁ 0)) (rot m₁ 1 (C.getD (j + r) (List.replicate m₁ 0)))))
-    (s := m₁ * (2 * (β + k₂ + 1) + k₁ + (k₂ + 1) + 1)) fun j _ ↦ by
-      have := vadd_cost_le (vCd j).2 (bdd_rot (m := m₁) (j := 1) (vCd (j + r)).2)
-      rwa [(vCd j).1] at this
-  rw [List.length_range] at cD
-  rw [lFA] at cP
-  -- adding up
-  have key := nussbaumer_cost_step (or_iff_not_imp_left.2 fun h ↦ by omega : k₁ = k₂ ∨ k₁ = k₂ + 1)
-    hk₂1 (by omega : β + 2 * (k₁ + k₂) + 1 ≤ γ + 1)
-  rw [← hkk] at key
-  have e1 : (k₂ + 1) * 2 ^ (k₂ + 1) * m₁ * (β + (k₂ + 1)) = 2 ^ k * (2 * (k₂ + 1) * (β + k₂ + 1)) := by
-    rw [mul_assoc (k₂ + 1), hLm]; ring
-  have e2 : 2 ^ (k₂ + 1) * (m₁ * (2 * k₁ ^ 2 + 1) * (8 * (γ + 1) ^ 2)) =
-      2 ^ k * (16 * (2 * k₁ ^ 2 + 1) * (γ + 1) ^ 2) := by
-    rw [show 2 ^ (k₂ + 1) * (m₁ * (2 * k₁ ^ 2 + 1) * (8 * (γ + 1) ^ 2)) =
-      2 ^ (k₂ + 1) * m₁ * (8 * (2 * k₁ ^ 2 + 1) * (γ + 1) ^ 2) by ring, hLm]; ring
-  have e3 : (k₂ + 1) * 2 ^ (k₂ + 1) * m₁ * (2 * (β + k₂ + 1) + k₁ + (k₂ + 1)) =
-      2 ^ k * (2 * (k₂ + 1) * (2 * (β + k₂ + 1) + k₁ + k₂ + 1)) := by
-    rw [mul_assoc (k₂ + 1), hLm]; ring
-  have e4 : r * (m₁ * (2 * (β + k₂ + 1) + k₁ + (k₂ + 1) + 1)) =
-      2 ^ k * (2 * (β + k₂ + 1) + k₁ + k₂ + 2) := by
-    rw [← mul_assoc, hrm]; ring
-  rw [e1] at cFA cFB; rw [e2] at cP; rw [e3] at cC; rw [e4] at cD
-  calc _ ≤ 2 ^ k * (4 * (k₂ + 1) * (β + k₂ + 1) + 16 * (2 * k₁ ^ 2 + 1) * (γ + 1) ^ 2 +
-        2 * (k₂ + 1) * (2 * (β + k₂ + 1) + k₁ + k₂ + 1) + (2 * (β + k₂ + 1) + k₁ + k₂ + 2)) := by
-        linarith
-    _ ≤ 2 ^ k * (8 * (2 * k ^ 2 + 1) * (γ + 1) ^ 2) := Nat.mul_le_mul_left _ key
-    _ = _ := by ring
-
-/-- Carry propagation over digits below `2^D` keeps the carry at most `2^D`, produces binary
-digits, and costs `D + 2` bit operations per digit. -/
-theorem carry_cost {D : ℕ} : ∀ (c : ℤ) (ds : List ℤ), c.natAbs ≤ 2 ^ D → Bdd D ds →
-    (∀ d ∈ (carry c ds).1, 0 ≤ d ∧ d ≤ 1) ∧ (carry c ds).2.natAbs ≤ 2 ^ D ∧
-      costOf bitModel (carry c ds) ≤ ds.length * (D + 2)
-  | c, [], hc, _ => by
-    refine ⟨by simp [carry], by simpa [carry] using hc, ?_⟩
-    cost_unfold carry.counted
-  | c, d :: ds, hc, hds => by
-    have hd := hds d (by simp)
-    have hc' : ((c + d) / 2).natAbs ≤ 2 ^ D := by
-      have := Int.natAbs_add_le c d
-      have : ((c + d) / 2).natAbs ≤ ((c + d).natAbs + 1) / 2 := by omega
-      omega
-    obtain ⟨h1, h2, h3⟩ := carry_cost ((c + d) / 2) ds hc' fun x hx ↦ hds x (by simp [hx])
-    refine ⟨fun x hx ↦ ?_, by simpa [carry] using h2, ?_⟩
-    · simp only [carry, List.mem_cons] at hx
-      rcases hx with rfl | hx
-      · omega
-      · exact h1 x hx
-    · cost_unfold carry.counted
-      have := Nat.size_le.2 hd
-      have : c.natAbs.size ≤ D + 1 := Nat.size_le.2 (by rw [pow_succ]; omega)
-      rw [List.length_cons, add_mul, one_mul]
-      omega
-
-theorem ofBits_bound : ∀ l : List ℤ, (∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) →
-    0 ≤ ofBits l ∧ ofBits l < 2 ^ l.length
-  | [], _ => by simp [ofBits]
-  | d :: l, h => by
-    obtain ⟨h1, h2⟩ := ofBits_bound l fun x hx ↦ h x (by simp [hx])
-    have := h d (by simp)
-    change 0 ≤ d + 2 * ofBits l ∧ d + 2 * ofBits l < 2 ^ (l.length + 1)
-    rw [pow_succ]; omega
-
-theorem bdd_bitsOf : ∀ m x, Bdd 1 (bitsOf m x)
-  | 0, _ => by simp [Bdd, bitsOf]
-  | m + 1, x => fun d hd ↦ by
-    simp only [bitsOf, List.mem_cons] at hd
-    rcases hd with rfl | hd
-    · omega
-    · exact bdd_bitsOf m (x / 2) d hd
-
-theorem length_carry : ∀ (c : ℤ) (ds : List ℤ), (carry c ds).1.length = ds.length
-  | _, [] => rfl
-  | c, d :: ds => by simp [carry, length_carry _ ds]
-
-/-- **Running time of Nussbaumer multiplication**, in terms of the transform exponent
-`k = mulLog x y`. -/
-theorem nussMul_cost_le_mulLog (x y : ℕ) :
-    costOf bitModel (nussMul x y) ≤ 2 ^ mulLog x y * (73 * (mulLog x y + 1) ^ 4) := by
-  by_cases h0 : x = 0 ∨ y = 0
-  · cost_unfold nussMul.counted
-  cost_unfold nussMul.counted
-  simp only [bitsOfPow2_eq, ofBitsNat_eq _ (carry_digits _ _)]
-  set k := mulLog x y
-  have hA := length_bitsOf (2 ^ k) x
-  have hB := length_bitsOf (2 ^ k) y
-  have cN := nussbaumer_cost k 1 (1 + 2 * k) _ _ hA hB (bdd_bitsOf _ _) (bdd_bitsOf _ _) le_rfl
-  have vN : Bdd (k + 2) (nussbaumer k (bitsOf (2 ^ k) x) (bitsOf (2 ^ k) y)) := by
-    rw [nussbaumer_eq_ncSchool hA hB]
-    simpa [add_comm] using bdd_ncSchool hA (bdd_bitsOf _ _) (bdd_bitsOf _ _)
-  have lN := (nussbaumer_spec k _ _ hA hB).1
-  obtain ⟨d1, d2, cC⟩ := carry_cost (D := k + 2) 0 _ (by simp) vN
-  have lr := length_carry 0 (nussbaumer k (bitsOf (2 ^ k) x) (bitsOf (2 ^ k) y))
-  rw [lN] at cC lr
-  have hO := ofBits_bound _ d1
-  generalize carry 0 (nussbaumer k (bitsOf (2 ^ k) x) (bitsOf (2 ^ k) y)) = r at d1 d2 hO lr ⊢
-  rw [lr] at hO
-  have s1 : (ofBits r.1).natAbs.size ≤ 2 ^ k := Nat.size_le.2 (by
-    have : ((ofBits r.1).natAbs : ℤ) < 2 ^ 2 ^ k := by rw [Int.natAbs_of_nonneg hO.1]; exact hO.2
-    exact_mod_cast this)
-  have s2 : (r.2 * 2 ^ 2 ^ k).natAbs.size ≤ k + 3 + 2 ^ k := Nat.size_le.2 (by
-    have e : (r.2 * 2 ^ 2 ^ k).natAbs = r.2.natAbs * 2 ^ 2 ^ k := by
-      rw [Int.natAbs_mul, Int.natAbs_pow]; rfl
-    rw [e, pow_add]
-    refine (Nat.mul_le_mul_right _ d2).trans_lt (Nat.mul_lt_mul_of_pos_right ?_ (Nat.two_pow_pos _))
-    exact Nat.pow_lt_pow_right (by norm_num) (by omega))
-  have hk : k + 1 ≤ 2 ^ k := Nat.lt_two_pow_self
-  have hpoly : 32 * (2 * k ^ 2 + 1) * (k + 1) ^ 2 + 2 * k + 10 ≤ 73 * (k + 1) ^ 4 := by nlinarith
-  have : (1 + 2 * k + 1) ^ 2 = 4 * (k + 1) ^ 2 := by ring
-  rw [this] at cN
-  calc _ ≤ 2 ^ k * (2 * k ^ 2 + 1) * (8 * (4 * (k + 1) ^ 2)) + 2 ^ k * (k + 2 + 2) +
-        (2 ^ k + (k + 3 + 2 ^ k) + 1) := by omega
-    _ ≤ 2 ^ k * (32 * (2 * k ^ 2 + 1) * (k + 1) ^ 2 + 2 * k + 10) := by
-        have hP : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-        nlinarith [Nat.mul_le_mul_right (k + 4) hP]
-    _ ≤ _ := Nat.mul_le_mul_left _ hpoly
-
-/-- **A quasi-linear cost model**: multiplying numbers of at most `N` bits costs
-`292 N (log₂ N + 3)⁴` bit operations, which Nussbaumer multiplication achieves
-(`nussMul_cost_le`); division stays schoolbook. -/
-def nussModel : CostModel where
-  mul a b := 292 * max a b * ((max a b).size + 3) ^ 4
-  divMod a b := (a - b + 1) * b
-  mul_mono h₁ h₂ := by
-    have h := max_le_max h₁ h₂
-    exact Nat.mul_le_mul (Nat.mul_le_mul_left _ h)
-      (Nat.pow_le_pow_left (by have := Nat.size_le_size h; omega) _)
-  divMod_mono b h := Nat.mul_le_mul_right b (by omega)
-
-theorem nussModel_mul (a b : ℕ) :
-    nussModel.mul a b = 292 * max a b * ((max a b).size + 3) ^ 4 := rfl
-
-/-- **Nussbaumer multiplication realizes `nussModel`**: multiplying an `a`-bit by a `b`-bit
-number takes at most `nussModel.mul a b` bit operations. -/
-theorem nussMul_cost_le {x y a b : ℕ} (hx : x.size ≤ a) (hy : y.size ≤ b) :
-    costOf bitModel (nussMul x y) ≤ nussModel.mul a b := by
-  by_cases h0 : x = 0 ∨ y = 0
-  · cost_unfold nussMul.counted
-  refine (nussMul_cost_le_mulLog x y).trans ?_
-  set N := max x.size y.size
-  have hN : 1 ≤ N := by
-    simp only [not_or] at h0
-    have := Nat.size_pos.2 (Nat.pos_of_ne_zero h0.1); omega
-  have hml : mulLog x y = (2 * N).size := rfl
-  have hk : mulLog x y ≤ N.size + 2 := by
-    have := size_mul_le 2 N
-    rw [hml]; rw [show Nat.size 2 = 2 by decide] at this; omega
-  have h2k : 2 ^ mulLog x y ≤ 4 * N := by
-    have hpos : 0 < mulLog x y := Nat.size_pos.2 (by omega)
-    have := Nat.lt_size.1 (show mulLog x y - 1 < (2 * N).size by rw [← hml]; omega)
-    calc 2 ^ mulLog x y = 2 * 2 ^ (mulLog x y - 1) := by
-          rw [← pow_succ']; congr 1; omega
-      _ ≤ 4 * N := by omega
-  have hNM : N ≤ max a b := max_le_max hx hy
-  calc 2 ^ mulLog x y * (73 * (mulLog x y + 1) ^ 4)
-      ≤ 4 * N * (73 * (N.size + 3) ^ 4) :=
-        Nat.mul_le_mul h2k (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _))
-    _ = 292 * N * (N.size + 3) ^ 4 := by ring
-    _ ≤ nussModel.mul a b := Nat.mul_le_mul (Nat.mul_le_mul_left _ hNM)
-        (Nat.pow_le_pow_left (by have := Nat.size_le_size hNM; omega) _)
 
 end PrimeNumbers.Chapter9

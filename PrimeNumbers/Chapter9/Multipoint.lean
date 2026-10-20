@@ -34,21 +34,21 @@ namespace Poly
 variable {R : Type} [CommRing R]
 
 /-- Horner's rule: `f(x) = c₀ + x (c₁ + x (c₂ + ⋯))`. -/
-counted_def eval [MulCost R] : Chapter2.Poly R → R → R
+counted_def eval [ArithCost R] : Chapter2.Poly R → R → R
   | [], _ => 0
   | c :: f, x => c + x * eval f x
 
-/-- Horner's rule costs one product per coefficient. -/
-theorem eval_cost_le [MulCost R] (C : CostModel) {s : ℕ}
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (f : Chapter2.Poly R) (x : R) :
-    costOf C (eval f x) ≤ f.length * s := by
+/-- Horner's rule costs a step, a product and a sum per coefficient. -/
+theorem eval_cost_le [ArithCost R] (C : CostModel) {s : ℕ} (hs : ArithCost.Bounded R C s)
+    (f : Chapter2.Poly R) (x : R) :
+    costOf C (eval f x) ≤ (f.length + 1) * (C.unit + 2 * s) := by
   induction f with
   | nil => cost_unfold eval.counted
   | cons c f ih =>
-    have := hs x (eval f x)
+    have h₁ := (hs x (eval f x)).1
+    have h₂ := (hs c (x * eval f x)).2.1
     cost_unfold eval.counted
-    rw [List.length_cons, add_mul, one_mul]
-    omega
+    nlinarith
 
 theorem eval_eq (f : Chapter2.Poly R) (x : R) : eval f x = (toPolynomial f).eval x := by
   induction f with
@@ -57,7 +57,7 @@ theorem eval_eq (f : Chapter2.Poly R) (x : R) : eval f x = (toPolynomial f).eval
 
 /-- **Division with remainder by a monic divisor** (`lead g = 1`): the same recursion as
 `Poly.divMod`, without the inverse of the leading coefficient. -/
-counted_def divModMonic [MulCost R] :
+counted_def divModMonic [ArithCost R] :
     Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R × Chapter2.Poly R
   | [], _ => ([], [])
   | a :: f, g =>
@@ -69,7 +69,7 @@ counted_def divModMonic [MulCost R] :
       (c :: qr.1, (sub s (smul c g)).dropLast)
 
 /-- The remainder `f mod g` for monic `g`. -/
-counted_def modMonic [MulCost R] (f g : Chapter2.Poly R) : Chapter2.Poly R :=
+counted_def modMonic [ArithCost R] (f g : Chapter2.Poly R) : Chapter2.Poly R :=
   (divModMonic f g).2
 
 theorem length_divModMonic_snd_lt (f : Chapter2.Poly R) {g : Chapter2.Poly R} (hg : g ≠ []) :
@@ -177,7 +177,7 @@ section Multipoint
 variable {R : Type} [CommRing R]
 
 /-- `∏_{u ∈ us} (t - u)`, as a coefficient list (step [Assemble half-polynomials]). -/
-counted_def prodLinear [MulCost R] : List R → Chapter2.Poly R
+counted_def prodLinear [ArithCost R] : List R → Chapter2.Poly R
   | [] => [1]
   | u :: us => Chapter2.Poly.mul [-u, 1] (prodLinear us)
 
@@ -207,7 +207,7 @@ eval(x, T) {
 }
 ```
 -/
-counted_def multipointEval [MulCost R] (δ : ℕ) (x : Chapter2.Poly R) (T : List R) : List R :=
+counted_def multipointEval [ArithCost R] (δ : ℕ) (x : Chapter2.Poly R) (T : List R) : List R :=
   if T.length ≤ max δ 1 then T.map (Poly.eval x)
   else
     let u := T.take (T.length / 2)

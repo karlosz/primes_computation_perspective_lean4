@@ -60,7 +60,7 @@ q = rev( rev(f) · rev(g)⁻¹ mod t^k );      // inverse by Newton iteration
 return f - q g;
 ```
 -/
-counted_def fastModMonic [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+counted_def fastModMonic [ArithCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
     (f g : Chapter2.Poly R) : Chapter2.Poly R :=
   if f.length ≤ g.length - 1 then f
   else
@@ -170,55 +170,69 @@ theorem two_pow_clog_le {k : ℕ} (hk : 1 ≤ k) : 2 ^ Nat.clog 2 k ≤ 2 * k :=
 
 /-- The charge for `⌈log₂ k⌉`, `k ≤ N`. -/
 theorem clog_cost_le (C : CostModel) {k N : ℕ} (hk : k ≤ N) :
-    costOf C (Nat.clog 2 k) ≤
-      (N.size + 1) * (C.mul (2 * N.size) (2 * N.size) + 2 * C.divBound (2 * N.size)) := by
+    costOf C (Nat.clog 2 k) ≤ (N.size + 2) * (C.mul (2 * N.size) (2 * N.size) +
+      2 * C.divBound (2 * N.size) + 4 * C.lin (2 * N.size + 1)) := by
   have hs := Nat.size_le_size hk
-  refine (iclog_cost_le C k).trans (Nat.mul_le_mul (by omega) (Nat.add_le_add
-    (C.mul_mono (by omega) (by omega)) (Nat.mul_le_mul_left 2 (C.divBound_mono (by omega)))))
+  refine (iclog_cost_le C k).trans (Nat.mul_le_mul (by omega) (Nat.add_le_add (Nat.add_le_add
+    (C.mul_mono (by omega) (by omega)) (Nat.mul_le_mul_left 2 (C.divBound_mono (by omega))))
+    (Nat.mul_le_mul_left 4 (C.lin_mono (by omega)))))
 
 /-- **Cost of the fast remainder (Algorithm 9.6.4)**: Newton inversion with `⌈log₂ k⌉`
-iterations (`k ≤ len f` the length of the quotient), two more products and one scaling —
-at most `(⌈log₂ (len f)⌉ + 1)` times (two products and `2D` scalar products), plus the
-computation of `⌈log₂ k⌉`; products by `mulF` cost at most `M` on inputs of length `≤ D`,
-with `D ≥ 2 len f`. -/
-theorem fastModMonic_cost_le [MulCost R] (C : CostModel)
+iterations (`k ≤ len f` the length of the quotient), two more products, a subtraction and
+the reversals and truncations around them, plus the computation of `⌈log₂ k⌉`; products by
+`mulF` cost at most `M` on inputs of length `≤ D`, with `D ≥ 2 len f` and `D ≥ len g`. -/
+theorem fastModMonic_cost_le [ArithCost R] (C : CostModel)
     {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {M s D : ℕ}
     (hM : ∀ f g : Chapter2.Poly R, f.length ≤ D → g.length ≤ D → CostM.cost C (mc f g) ≤ M)
     (hlen : ∀ f g : Chapter2.Poly R, (mulF f g).length ≤ f.length + g.length)
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s)
-    (f g : Chapter2.Poly R) (hD : 2 * f.length ≤ D) :
+    (hs : ArithCost.Bounded R C s)
+    (f g : Chapter2.Poly R) (hD : 2 * f.length ≤ D) (hgD : g.length ≤ D) :
     CostM.cost C (fastModMonic.counted mulF f g mc) ≤
-      (Nat.clog 2 f.length + 1) * (2 * M + 2 * D * s) +
-        (f.length.size + 1) * (C.mul (2 * f.length.size) (2 * f.length.size) +
-          2 * C.divBound (2 * f.length.size)) := by
+      (Nat.clog 2 f.length + 1) * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) +
+        (f.length.size + 2) * (C.mul (2 * f.length.size) (2 * f.length.size) +
+          2 * C.divBound (2 * f.length.size) + 4 * C.lin (2 * f.length.size + 1)) +
+        (16 * D + 20) * (C.unit + s) + 8 * C.lin (D.size + 2) := by
+  have hDs : ∀ m, m ≤ 3 * D + 3 → m.size ≤ D.size + 2 := fun m hm ↦ Nat.size_le.2 (by
+    have := Nat.lt_size_self D; rw [pow_add]; omega)
+  have hlf := hDs f.length (by omega)
+  have hlg := hDs g.length (by omega)
+  have hlg1 := hDs (g.length - 1) (by omega)
   cost_unfold fastModMonic.counted
   split_ifs with h
-  · exact Nat.zero_le _
+  · cost_bound
   · set k := f.length - (g.length - 1) with hkdef
     have hk1 : 1 ≤ k := by omega
     have hkf : k ≤ f.length := by omega
     have hgf : g.length ≤ f.length := by omega
+    have hks := hDs k (by omega)
     have hpow := two_pow_clog_le hk1
     have hcl := Nat.clog_mono_right 2 hkf
     have h₀ := clog_cost_le C hkf
     have h₁ := invNewton_cost_le C mc hM hlen hs g.reverse (by simp; omega) 1 (Nat.clog 2 k)
       (by omega)
+    have h₁' : Nat.clog 2 k * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) ≤
+        Nat.clog 2 f.length * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) :=
+      Nat.mul_le_mul_right _ hcl
     have hinv := length_invNewton_le mulF g.reverse 1 (Nat.clog 2 k)
     have h₂ := hM f.reverse (invNewton mulF g.reverse 1 (Nat.clog 2 k)) (by simp; omega)
       (by omega)
     set rq := (mulF f.reverse (invNewton mulF g.reverse 1 (Nat.clog 2 k))).take k
     have hrq : rq.length ≤ k := by simp [rq]
+    have hrqs := hDs rq.length (by omega)
+    have hkr := hDs (k - rq.length) (by omega)
     set q := (rq ++ List.replicate (k - rq.length) 0).reverse
     have hq : q.length = k := by simp [q]; omega
     have h₃ := hM q g (by omega) (by omega)
     have hl := hlen q g
-    have h₄ := smul_cost_le C hs (-1) (mulF q g)
-    cost_unfold Chapter2.Poly.sub.counted
-    have : (mulF q g).length * s ≤ D * s := Nat.mul_le_mul_right s (by omega)
-    have : Nat.clog 2 k * (2 * M + 2 * D * s) ≤ Nat.clog 2 f.length * (2 * M + 2 * D * s) :=
-      Nat.mul_le_mul_right _ hcl
-    rw [add_mul, one_mul]
-    nlinarith
+    have h₄ := Chapter2.Poly.sub_cost_le C hs f (mulF q g)
+    have u₂ : (max f.length (mulF q g).length + 1) * (C.unit + s) + ((mulF q g).length + 3) *
+        (C.unit + s) ≤ (4 * D + 4) * (C.unit + s) := by
+      have : max f.length (mulF q g).length + 1 + ((mulF q g).length + 3) ≤ 4 * D + 4 := by omega
+      calc _ = (max f.length (mulF q g).length + 1 + ((mulF q g).length + 3)) * (C.unit + s) := by
+            ring
+        _ ≤ _ := Nat.mul_le_mul_right _ this
+    have hl' : (rq ++ List.replicate (k - rq.length) 0).length = k := by simp; omega
+    cost_bound
 
 end PrimeNumbers.Chapter9

@@ -53,11 +53,39 @@ counted_def oddPart (n : ℕ) : ℕ × ℕ :=
 termination_by n
 decreasing_by omega
 
-/-- Splitting off the powers of two is free: tests and halvings are shifts. -/
-@[cost_simps] theorem oddPart_cost (C : Chapter9.CostModel) (n : ℕ) :
-    Chapter9.CostM.cost C (oddPart.counted n) = 0 := by
-  cost_induction oddPart n
-  assumption
+/-- Splitting off the powers of two makes no multiplications. -/
+@[cost_simps] theorem oddPart_mults (n : ℕ) :
+    Chapter9.CostM.cost Chapter9.mulCount (oddPart.counted n) = 0 := by
+  fun_induction oddPart n with
+  | case1 n h r ih => cost_unfold oddPart.counted
+  | case2 n h => cost_unfold oddPart.counted
+
+theorem oddPart_fst_le (n : ℕ) : (oddPart n).1 ≤ n.size := by
+  fun_induction oddPart n with
+  | case1 n h r ih => have := size_div_two_add_one h.1; simp only [r]; omega
+  | case2 n h => exact Nat.zero_le _
+
+/-- Splitting off the powers of two: a halving and a few tests per bit. -/
+theorem oddPart_cost_le (C : Chapter9.CostModel) (n : ℕ) :
+    costOf C (oddPart n) ≤ (n.size + 1) * (6 * C.lin (n.size + 2)) := by
+  fun_induction oddPart n with
+  | case1 n h r ih =>
+    have hs := size_div_two_add_one h.1
+    have hl := C.lin_mono (show (n / 2).size + 2 ≤ n.size + 2 by omega)
+    have ih' : costOf C (oddPart (n / 2)) ≤ (n / 2).size * (6 * C.lin (n.size + 2)) +
+        6 * C.lin (n.size + 2) := by
+      have := Nat.mul_le_mul_left ((n / 2).size + 1) (Nat.mul_le_mul_left 6 hl); nlinarith
+    have hr : ((oddPart (n / 2)).1).size ≤ n.size + 2 :=
+      (Chapter9.size_le_self _).trans ((oddPart_fst_le _).trans (by omega))
+    have hm : (n.size + 1) * (6 * C.lin (n.size + 2)) =
+        (n / 2).size * (6 * C.lin (n.size + 2)) + 12 * C.lin (n.size + 2) := by rw [← hs]; ring
+    rw [hm]
+    clear ih hl
+    cost_unfold oddPart.counted
+    cost_bound
+  | case2 n h =>
+    cost_unfold oddPart.counted
+    split_ifs <;> cost_bound
 
 theorem oddPart_spec {n : ℕ} (hn : n ≠ 0) :
     n = 2 ^ (oddPart n).1 * (oddPart n).2 ∧ (oddPart n).2 % 2 = 1 := by
@@ -522,79 +550,193 @@ theorem tonelli_mults_le (a d : ZMod p) :
       nlinarith
     omega
 
-/-! ### Bit operations of the modular square root -/
+/-! ### Bit operations of the modular square root
 
-/-- The loop's bit operations are its multiplications modulo `p`. -/
-theorem tonelliLoop_cost (C : CostModel) (A D : ZMod p) (s i m : ℕ) :
-    costOf C (tonelliLoop A D s i m) =
-      costOf mulCount (tonelliLoop A D s i m) * C.mulMod p.size := by
+Each multiplication modulo `p` costs `C.mulMod (size p)`; the rest — the exponent
+arithmetic of the powers, the counters of the loop, splitting off `p - 1 = 2^s t` — is
+`O(log² p)` linear operations on numbers of `size p + 2` bits (`sqrtOverhead`). -/
+
+/-- The linear work of a modular square root: `O(log² p)` linear operations. -/
+def sqrtOverhead (C : CostModel) (p : ℕ) : ℕ :=
+  (2 * p.size + 4) * (14 * (Nat.log 2 p + 2) * C.lin (p.size + 2))
+
+/-- A power with an exponent `≤ p`: its multiplications, and five linear operations on the
+exponent per bit. -/
+theorem power_cost_le (C : CostModel) (x : ZMod p) {n : ℕ} (hn : n ≤ p) :
+    costOf C (power x n) ≤ costOf mulCount (power x n) * C.mulMod p.size +
+      5 * (Nat.log 2 p + 2) * C.lin (p.size + 2) := by
+  refine (power_cost zmod_mulCount C (zmod_mulCost C) x n (Nat.size_le_size hn)).trans ?_
+  have := Nat.log_mono_right (b := 2) hn
+  have : (Nat.log 2 n + 2) * 5 ≤ 5 * (Nat.log 2 p + 2) := by omega
+  have := Nat.mul_le_mul_right (C.lin (p.size + 2)) this
+  omega
+
+theorem two_pow_oddPart_le {p : ℕ} (hp : 0 < p) : 2 ^ (oddPart (p - 1)).1 ≤ p := by
+  rcases Nat.eq_zero_or_pos (p - 1) with h | h
+  · rw [h, oddPart]; simp; omega
+  · obtain ⟨h₁, -⟩ := oddPart_spec (show p - 1 ≠ 0 by omega)
+    have : 0 < (oddPart (p - 1)).2 := by
+      rcases Nat.eq_zero_or_pos (oddPart (p - 1)).2 with h0 | h0
+      · rw [h0, mul_zero] at h₁; omega
+      · exact h0
+    have := Nat.le_mul_of_pos_right (2 ^ (oddPart (p - 1)).1) this
+    omega
+
+theorem size_le_of_le_four_mul {x : ℕ} (h : x ≤ 4 * p) : x.size ≤ p.size + 2 := by
+  refine Nat.size_le.mpr ?_
+  have := Nat.lt_size_self p
+  rw [pow_add]; omega
+
+/-- The loop: its multiplications, and at most `14 (log₂ p + 2)` linear operations per pass
+(the two powers and the counters). -/
+theorem tonelliLoop_cost_le (C : CostModel) (A D : ZMod p) (s i m : ℕ) (hsp : 2 ^ s ≤ p)
+    (hm : m < 2 ^ i) :
+    costOf C (tonelliLoop A D s i m) ≤
+      costOf mulCount (tonelliLoop A D s i m) * C.mulMod p.size +
+        (s - i + 1) * (14 * (Nat.log 2 p + 2) * C.lin (p.size + 2)) := by
+  have hL : 2 ≤ Nat.log 2 p + 2 := by omega
+  have hs : s ≤ p := Nat.lt_two_pow_self.le.trans hsp
+  have hsz := fun x (h : x ≤ 4 * p) ↦ size_le_of_le_four_mul (p := p) h
+  have hps : p.size ≤ p.size + 2 := by omega
   fun_induction tonelliLoop A D s i m with
-  | case1 i m hlt hz ih =>
+  | case1 i m hlt hz ih | case2 i m hlt hz ih =>
+    have hi : 2 ^ i ≤ p := (Nat.pow_le_pow_right (by norm_num) hlt.le).trans hsp
+    have hi1 : 2 ^ (i + 1) ≤ 2 * p := by rw [pow_succ]; omega
+    have he : 2 ^ (s - 1 - i) ≤ p := (Nat.pow_le_pow_right (by norm_num) (by omega)).trans hsp
+    have h₁ := power_cost_le C D (n := m) (by omega)
+    have h₂ := power_cost_le C (A * power D m) he
+    have := hsz s (by omega); have := hsz i (by omega); have := hsz (i + 1) (by omega)
+    have := hsz (s - 1) (by omega); have := hsz (s - 1 - i) (by omega)
+    have := hsz (2 ^ i) (by omega); have := hsz (2 ^ (s - 1 - i)) (by omega)
+    have := hsz m (by omega); have := hsz (m + 2 ^ i) (by omega)
+    have ih := ih (by rw [pow_succ]; omega)
+    rw [show s - i + 1 = s - (i + 1) + 1 + 1 by omega]
     cost_unfold_both tonelliLoop.counted
-    rw [power_cost zmod_mulCount C (zmod_mulCost C), power_cost zmod_mulCount C (zmod_mulCost C),
-      ih]
-    ring
-  | case2 i m hlt hz ih =>
+    cost_bound
+  | case3 i m hlt =>
+    have := hsz s (by omega)
+    have : min i.size s.size ≤ p.size + 2 := by omega
     cost_unfold_both tonelliLoop.counted
-    rw [power_cost zmod_mulCount C (zmod_mulCost C), power_cost zmod_mulCount C (zmod_mulCost C),
-      ih]
-    ring
-  | case3 i m hlt => cost_unfold_both tonelliLoop.counted
+    cost_bound
 
-/-- **The bit operations of Tonelli's algorithm** are its multiplications modulo `p`, each a
-product of residues and a reduction (`C.mulMod (size p)`). -/
-theorem tonelli_cost (C : CostModel) (a d : ZMod p) :
-    costOf C (tonelli a d) = costOf mulCount (tonelli a d) * C.mulMod p.size := by
-  cost_unfold_both tonelli.counted
-  simp only [power_cost zmod_mulCount C (zmod_mulCost C), tonelliLoop_cost C, zmod_mulCount]
-  ring
-
-/-- **Bit complexity of Tonelli's algorithm, grammar-school arithmetic**: with
-`p - 1 = 2^s t` and `k` the bit length of `p`, at most
-`(6 log₂ t + 4s² + 1)(2k² + k)` bit operations — `O(ln⁴ p)` in the worst case (`s ≈ k`)
-and `O(ln³ p)` when `s` is bounded, as the book states. -/
-theorem tonelliCost_school_le (a d : ZMod p) :
-    costOf school (tonelli a d) ≤
-      (6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1) *
-        (2 * p.size ^ 2 + p.size) := by
-  rw [tonelli_cost, school_mulMod]
-  exact Nat.mul_le_mul_right _ (tonelli_mults_le a d)
-
-end
 
 theorem oddPart_snd_le (n : ℕ) : (oddPart n).2 ≤ n := by
   fun_induction oddPart n with
   | case1 n h r ih => exact ih.trans (Nat.div_le_self _ _)
   | case2 n h => exact le_rfl
 
+theorem tonelliLoop_le (A D : ZMod p) (s : ℕ) (hsp : 2 ^ s ≤ p) : tonelliLoop A D s 1 0 ≤ p := by
+  rcases Nat.eq_zero_or_pos s with rfl | hs
+  · rw [tonelliLoop]; simp
+  · exact (tonelliLoop_lt A D s 1 0 (by norm_num) hs).le.trans hsp
+
+/-- **The bit operations of Tonelli's algorithm**: its multiplications modulo `p`, each a
+product of residues and a reduction (`C.mulMod (size p)`), and the linear work. -/
+theorem tonelli_cost_le (C : CostModel) (hp : 0 < p) (a d : ZMod p) :
+    costOf C (tonelli a d) ≤ costOf mulCount (tonelli a d) * C.mulMod p.size +
+      sqrtOverhead C p := by
+  have hL : 2 ≤ Nat.log 2 p + 2 := by omega
+  have hsp := two_pow_oddPart_le hp
+  have hsz := fun x (h : x ≤ 4 * p) ↦ size_le_of_le_four_mul (p := p) h
+  have hps : p.size ≤ p.size + 2 := by omega
+  have hsP : (oddPart (p - 1)).1 < p.size := Nat.lt_size.mpr hsp
+  have ht : (oddPart (p - 1)).2 ≤ p := (oddPart_snd_le _).trans (Nat.sub_le p 1)
+  have hO : costOf C (oddPart (p - 1)) ≤ (p.size + 1) * (6 * C.lin (p.size + 2)) := by
+    refine (oddPart_cost_le C (p - 1)).trans ?_
+    have := Nat.size_le_size (Nat.sub_le p 1)
+    exact Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left 6 (C.lin_mono (by omega)))
+  unfold sqrtOverhead
+  cost_unfold_both tonelli.counted
+  generalize (oddPart (p - 1)).1 = s at *
+  generalize (oddPart (p - 1)).2 = t at *
+  have h₁ := power_cost_le C a ht
+  have h₂ := power_cost_le C d ht
+  have h₃ := power_cost_le C a (n := (t + 1) / 2) (by omega)
+  have hl := tonelliLoop_cost_le C (power a t) (power d t) s 1 0 hsp (by norm_num)
+  have hm := tonelliLoop_le (power a t) (power d t) s hsp
+  have h₄ := power_cost_le C (power d t) (n := tonelliLoop (power a t) (power d t) s 1 0 / 2)
+    (by omega)
+  have hlp : (s - 1 + 1) * (14 * (Nat.log 2 p + 2) * C.lin (p.size + 2)) ≤
+      p.size * (14 * (Nat.log 2 p + 2) * C.lin (p.size + 2)) := Nat.mul_le_mul_right _ (by omega)
+  have := hsz t (by omega); have := hsz (t + 1) (by omega); have := hsz (1 + t) (by omega)
+  have := hsz (tonelliLoop (power a t) (power d t) s 1 0) (by omega)
+  have := hsz (p - 1) (by omega)
+  cost_bound
+
+
+
+/-- **Bit complexity of Tonelli's algorithm, grammar-school arithmetic**: with
+`p - 1 = 2^s t` and `k` the bit length of `p`, at most
+`(6 log₂ t + 4s² + 1)(2k² + k)` bit operations of multiplications, and the `O(k³)` of
+`sqrtOverhead` — `O(ln⁴ p)` in the worst case (`s ≈ k`) and `O(ln³ p)` when `s` is
+bounded, as the book states. -/
+theorem tonelliCost_school_le (hp : 0 < p) (a d : ZMod p) :
+    costOf school (tonelli a d) ≤
+      (6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1) *
+        (2 * p.size ^ 2 + p.size) + sqrtOverhead school p := by
+  refine (tonelli_cost_le school hp a d).trans (Nat.add_le_add_right ?_ _)
+  rw [school_mulMod]
+  exact Nat.mul_le_mul_right _ (tonelli_mults_le a d)
+
+theorem searchFrom_le (P : ℕ → Bool) (fuel d : ℕ) : searchFrom P fuel d ≤ d + fuel := by
+  induction fuel generalizing d with
+  | zero => rw [searchFrom]; omega
+  | succ fuel ih => rw [searchFrom]; split_ifs <;> [omega; exact (ih (d + 1)).trans (by omega)]
+
+set_option maxHeartbeats 1000000 in
+-- the four cases of the algorithm, each a sum of charges
 /-- **Complexity of Algorithm 2.3.8**: at most `6 log₂ p + 4s² + 2` multiplications modulo
 `p`, where `2^s` is the power of two in `p - 1`, each costing `C.mulMod (size p)` bit
-operations, and in the case `p ≡ 1 (mod 8)` the search for a nonresidue; so `O(ln³ p)` bit
-operations in the cases `p ≡ 3, 5, 7 (mod 8)`. -/
-theorem sqrtMod_cost_le (C : CostModel) (p : ℕ) (a : ZMod p) :
+operations, the linear work (twice `sqrtOverhead`), and in the case `p ≡ 1 (mod 8)` the search for
+a nonresidue; so `O(ln³ p)` bit operations in the cases `p ≡ 3, 5, 7 (mod 8)`. -/
+theorem sqrtMod_cost_le (C : CostModel) {p : ℕ} (hp : 2 ≤ p) (a : ZMod p) :
     costOf C (sqrtMod p a) ≤ (6 * Nat.log 2 p + 4 * (oddPart (p - 1)).1 ^ 2 + 2) * C.mulMod p.size +
-      costOf C (findNonresidue p) := by
-  have hlog : ∀ (x : ZMod p) m, m ≤ p → costOf mulCount (power x m) ≤ 2 * Nat.log 2 p :=
-    fun x m hm ↦ (power_mults_le zmod_mulCount x m).trans
-      (Nat.mul_le_mul_left 2 (Nat.log_mono_right hm))
-  have hpc := fun (x : ZMod p) m ↦ power_cost zmod_mulCount C (zmod_mulCost C) x m
+      2 * sqrtOverhead C p + costOf C (findNonresidue p) := by
+  have hL : 2 ≤ Nat.log 2 p + 2 := by omega
+  have hlog : ∀ (x : ZMod p) m, m ≤ p →
+      costOf mulCount (power x m) * C.mulMod p.size ≤ 2 * Nat.log 2 p * C.mulMod p.size :=
+    fun x m hm ↦ Nat.mul_le_mul_right _ ((power_mults_le zmod_mulCount x m).trans
+      (Nat.mul_le_mul_left 2 (Nat.log_mono_right hm)))
+  have hsz := fun x (h : x ≤ 4 * p) ↦ size_le_of_le_four_mul (p := p) h
+  have hps : p.size ≤ p.size + 2 := by omega
+  have hp2 : 2 ≤ p.size := by
+    have := Nat.size_le_size hp; rwa [Nat.size_two] at this
+  have hov : 20 * (Nat.log 2 p + 2) * C.lin (p.size + 2) ≤ sqrtOverhead C p := by
+    unfold sqrtOverhead
+    have := Nat.mul_le_mul_right (14 * (Nat.log 2 p + 2) * C.lin (p.size + 2))
+      (show 2 ≤ 2 * p.size + 4 by omega)
+    nlinarith
+  have hL' : 20 * C.lin (p.size + 2) ≤ 20 * (Nat.log 2 p + 2) * C.lin (p.size + 2) := by
+    have := Nat.mul_le_mul_right (C.lin (p.size + 2)) (show 1 ≤ Nat.log 2 p + 2 by omega)
+    nlinarith
+  -- the powers of the cases `p ≡ 3, 5, 7 (mod 8)`
+  have e₁ := power_cost_le C a (n := (p + 1) / 4) (by omega)
+  have e₂ := power_cost_le C a (n := (p + 3) / 8) (by omega)
+  have e₃ := power_cost_le C (2 : ZMod p) (n := (p - 1) / 4) (by omega)
+  have m₁ := hlog a ((p + 1) / 4) (by omega)
+  have m₂ := hlog a ((p + 3) / 8) (by omega)
+  have m₃ := hlog (2 : ZMod p) ((p - 1) / 4) (by omega)
+  have := hsz (p + 1) (by omega); have := hsz (p + 3) (by omega); have := hsz (p - 1) (by omega)
+  have := hsz (p % 8) (by omega)
+  -- the case `p ≡ 1 (mod 8)`: Tonelli, with a nonresidue
+  have ht := tonelli_cost_le C (by omega) a ((findNonresidue p : ℕ) : ZMod p)
+  have hm := Nat.mul_le_mul_right (C.mulMod p.size) (tonelli_mults_le a (findNonresidue p : ℕ))
+  have hlt : Nat.log 2 (oddPart (p - 1)).2 ≤ Nat.log 2 p :=
+    Nat.log_mono_right ((oddPart_snd_le _).trans (Nat.sub_le p 1))
+  have hlt' := Nat.mul_le_mul_right (C.mulMod p.size) (show 6 * Nat.log 2 (oddPart (p - 1)).2 +
+    4 * (oddPart (p - 1)).1 ^ 2 + 1 ≤ 6 * Nat.log 2 p + 4 * (oddPart (p - 1)).1 ^ 2 + 1 by omega)
+  have hcast : C.divMod (findNonresidue p).size p.size ≤ C.mulMod p.size := by
+    have := searchFrom_le (fun d ↦ jacobi d p = -1) p 2
+    have : (findNonresidue p).size ≤ 2 * p.size := by
+      refine (Nat.size_le_size (show findNonresidue p ≤ 2 * p from ?_)).trans ?_
+      · unfold findNonresidue; omega
+      · have := size_le_of_le_four_mul (p := p) (show 2 * p ≤ 4 * p by omega); omega
+    exact (C.divMod_mono _ this).trans (Nat.le_add_left _ _)
   cost_unfold sqrtMod.counted
-  split_ifs with h₁ h₂ h₃
-  · rw [hpc]
-    have := hlog a ((p + 1) / 4) (by omega)
-    nlinarith [Nat.zero_le (C.mulMod p.size), Nat.zero_le (costOf C (findNonresidue p))]
-  · rw [hpc, hpc]
-    have := hlog a ((p + 3) / 8) (by omega)
-    have := hlog 2 ((p - 1) / 4) (by omega)
-    nlinarith [Nat.zero_le (C.mulMod p.size), Nat.zero_le (costOf C (findNonresidue p))]
-  · rw [hpc]
-    have := hlog a ((p + 3) / 8) (by omega)
-    nlinarith [Nat.zero_le (C.mulMod p.size), Nat.zero_le (costOf C (findNonresidue p))]
-  · rw [tonelli_cost]
-    have h := tonelli_mults_le a (findNonresidue p : ℕ)
-    have ht : Nat.log 2 (oddPart (p - 1)).2 ≤ Nat.log 2 p :=
-      Nat.log_mono_right ((oddPart_snd_le _).trans (Nat.sub_le p 1))
-    nlinarith [Nat.zero_le (C.mulMod p.size)]
+  split_ifs <;> cost_bound
+
+
+end
 
 end RunningTime
 

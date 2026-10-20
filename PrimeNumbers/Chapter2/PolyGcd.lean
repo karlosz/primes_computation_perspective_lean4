@@ -40,18 +40,18 @@ theorem Trimmed.lead_ne_zero {f : Poly F} (h : Trimmed f) (hne : f ≠ []) : lea
 while (v(x) ≠ 0) (u(x), v(x)) = (v(x), u(x) mod v(x));
 ```
 -/
-def gcdLoop (u v : Poly F) : Poly F :=
+counted_def gcdLoop [Chapter9.ArithCost F] [Chapter9.InvCost F] (u v : Poly F) : Poly F :=
   if v = [] then u else gcdLoop v (trim (mod u v))
 termination_by v.length
 decreasing_by exact (length_trim_le _).trans_lt (length_divMod_snd_lt u ‹_›)
 
 /-- **Algorithm 2.2.1, step 3 [Make monic]**: `d(x) = c⁻¹ u(x)`, `c` the leading
 coefficient. -/
-def makeMonic (u : Poly F) : Poly F := smul (lead u)⁻¹ u
+counted_def makeMonic [Chapter9.ArithCost F] [Chapter9.InvCost F] (u : Poly F) : Poly F := smul (lead u)⁻¹ u
 
 /-- **Algorithm 2.2.1 (gcd for polynomials).**  For `f, g ∈ F[x]` returns the monic
 `d(x) = gcd(f(x), g(x))`. -/
-def gcd (f g : Poly F) : Poly F := makeMonic (gcdLoop (trim f) (trim g))
+counted_def gcd [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) : Poly F := makeMonic (gcdLoop (trim f) (trim g))
 
 theorem gcdLoop_trimmed {u v : Poly F} (hu : Trimmed u) (hv : Trimmed v) :
     Trimmed (gcdLoop u v) := by
@@ -89,7 +89,7 @@ theorem toPolynomial_gcd (f g : Poly F) :
     lead_eq_leadingCoeff (gcdLoop_trimmed (trimmed_trim f) (trimmed_trim g)), h]
 
 /-- "`gcd(f, g) = 1`": the Euclid loop ends in a nonzero constant. -/
-def coprime (f g : Poly F) : Bool := (gcdLoop (trim f) (trim g)).length = 1
+counted_def coprime [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) : Bool := (gcdLoop (trim f) (trim g)).length = 1
 
 theorem coprime_iff (f g : Poly F) :
     coprime f g = true ↔ IsCoprime (toPolynomial f) (toPolynomial g) := by
@@ -120,7 +120,7 @@ while (w ≠ 0) {
 }
 ```
 -/
-def xgcdLoop (s t d u v w : Poly F) : Poly F × Poly F × Poly F :=
+counted_def xgcdLoop [Chapter9.ArithCost F] [Chapter9.InvCost F] (s t d u v w : Poly F) : Poly F × Poly F × Poly F :=
   if w = [] then (s, t, d)
   else
     let qr := divMod d w
@@ -130,7 +130,7 @@ decreasing_by exact (length_trim_le _).trans_lt (length_divMod_snd_lt d ‹_›)
 
 /-- **Algorithm 2.2.2 (Extended gcd for polynomials).**  Returns `(s, t, d)` with
 `d = gcd(f, g)` monic and `s f + t g = d`. -/
-def xgcd (f g : Poly F) : Poly F × Poly F × Poly F :=
+counted_def xgcd [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) : Poly F × Poly F × Poly F :=
   let r := xgcdLoop [1] [] (trim f) [] [1] (trim g)
   let c := (lead r.2.2)⁻¹
   (smul c r.1, smul c r.2.1, smul c r.2.2)

@@ -180,11 +180,46 @@ open PrimeNumbers.Chapter9
 
 /-! ### Number of loop passes -/
 
-/-- The inner loop is free: halvings and tests of the low bits are shifts and look-ups. -/
-@[cost_simps] theorem jacobiHalve_cost (C : Chapter9.CostModel) (a m : ℕ) (t : ℤ) :
-    CostM.cost C (jacobiHalve.counted a m t) = 0 := by
-  cost_induction jacobiHalve a m t
-  assumption
+theorem jacobiHalve_snd_natAbs (a m : ℕ) {t : ℤ} (ht : t.natAbs ≤ 1) :
+    (jacobiHalve a m t).2.natAbs ≤ 1 := by
+  fun_induction jacobiHalve a m t with
+  | case1 a t h ih => exact ih (by split_ifs <;> simp [Int.natAbs_neg, ht])
+  | case2 => exact ht
+
+theorem size_div_two_add_one {a : ℕ} (ha : a ≠ 0) : (a / 2).size + 1 = a.size := by
+  have h := Nat.size_bit (b := a.bodd) (n := a.div2) (by rw [Nat.bit_bodd_div2]; exact ha)
+  rw [Nat.bit_bodd_div2, Nat.div2_val] at h
+  omega
+
+/-- **The inner loop**: a pass per halving, each a few linear operations on `K`-bit numbers;
+the halvings shorten `a` by one bit each. -/
+theorem jacobiHalve_cost_le (C : Chapter9.CostModel) {K : ℕ} (a m : ℕ) (t : ℤ)
+    (ht : t.natAbs ≤ 1) (hm : m.size ≤ K) (ha : a.size ≤ K) (h4 : 4 ≤ K) :
+    costOf C (jacobiHalve a m t) + (jacobiHalve a m t).1.size * (10 * C.lin K) ≤
+      (a.size + 1) * (10 * C.lin K) := by
+  fun_induction jacobiHalve a m t with
+  | case1 a t h ih =>
+    have hs := size_div_two_add_one h.1
+    have ih := ih (by split_ifs <;> simp [Int.natAbs_neg, ht]) (by omega)
+    have hm8 : (m % 8).size ≤ K := (Nat.size_le_size (Nat.mod_le m 8)).trans hm
+    have htK : t.natAbs.size ≤ K := (Nat.size_le_size ht).trans (by simp; omega)
+    rw [hs] at ih
+    cost_unfold jacobiHalve.counted
+    simp only [dite_eq_ite] at ih
+    split_ifs at ih ⊢ <;> cost_bound
+  | case2 a t h =>
+    cost_unfold jacobiHalve.counted
+    split_ifs <;> cost_bound
+
+/-- The inner loop makes no divisions. -/
+@[cost_simps] theorem jacobiHalve_divCount (a m : ℕ) (t : ℤ) :
+    costOf Chapter9.divCount (jacobiHalve a m t) = 0 := by
+  fun_induction jacobiHalve a m t with
+  | case1 a t h ih =>
+    cost_unfold jacobiHalve.counted
+    simp only [dite_eq_ite] at ih
+    split_ifs at ih ⊢ <;> simp_all [divCount]
+  | case2 a t h => cost_unfold jacobiHalve.counted
 
 /-- The number of passes of the outer loop of Algorithm 2.3.5 is its number of divisions,
 `costOf divCount (jacobiLoop a m t)` (the inner loop only shifts). -/
@@ -194,7 +229,6 @@ theorem jacobiLoop_divCount {a : ℕ} (ha : a ≠ 0) (m : ℕ) (t : ℤ) :
         (if (jacobiHalve a m t).1 % 4 = 3 ∧ m % 4 = 3 then -(jacobiHalve a m t).2
           else (jacobiHalve a m t).2)) + 1 := by
   cost_unfold jacobiLoop.counted
-  omega
 
 /-- Algorithm 2.3.5 makes at most `log₂ (a m) + 1` passes of its outer loop when `a < m`
 (as is the case after the initial `a = a mod m`): the product `a m` at least halves in
@@ -235,55 +269,82 @@ theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
 
 /-! ### Bit operations -/
 
-/-- As for Euclid, the quotient bits of all the divisions telescope: the total cost is at
-most `size a · (size m + passes)`. -/
-theorem jacobiBitCost_school_le (a m : ℕ) (t : ℤ) (ham : a < m) :
-    costOf school (jacobiLoop a m t) ≤ a.size * (m.size + costOf Chapter9.divCount (jacobiLoop a m t)) := by
+theorem jacobiLoop_snd_natAbs {a m : ℕ} {t : ℤ} (ht : t.natAbs ≤ 1) (r : ℕ × ℤ)
+    (hr : r = jacobiHalve a m t) (c : Prop) [Decidable c] :
+    (if c then -r.2 else r.2).natAbs ≤ 1 := by
+  have := jacobiHalve_snd_natAbs a m ht
+  subst hr; split_ifs <;> simp [Int.natAbs_neg, this]
+
+/-- As for Euclid, the quotient bits of all the divisions telescope, and so do the halvings
+of the inner loop: for `a < m` of at most `K` bits and `s` passes, at most
+`size a · (size m + s)` bit operations of divisions and `size a + 2s + 1` steps of ten linear
+operations — in any cost model whose divisions are at most grammar-school. -/
+theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y + 1) * y)
+    {K : ℕ} (a m : ℕ) (t : ℤ) (ham : a < m) (ht : t.natAbs ≤ 1) (hK : m.size ≤ K) (h4 : 4 ≤ K) :
+    costOf C (jacobiLoop a m t) ≤
+      a.size * (m.size + costOf Chapter9.divCount (jacobiLoop a m t)) +
+        (a.size + 2 * costOf Chapter9.divCount (jacobiLoop a m t) + 1) * (10 * C.lin K) := by
   fun_induction jacobiLoop a m t with
-  | case1 t => cost_unfold jacobiLoop.counted
-  | case2 m t => cost_unfold jacobiLoop.counted
+  | case1 t => cost_unfold jacobiLoop.counted; cost_bound
+  | case2 m t => cost_unfold jacobiLoop.counted; cost_bound
   | case3 a m t ha r ih =>
-    cost_unfold jacobiLoop.counted
     have hr_le : r.1 ≤ a := jacobiHalve_fst_le a m t
     have hr_pos : 0 < r.1 := Nat.pos_of_ne_zero (jacobiHalve_fst_pos ha m t)
     have hlt : m % r.1 < r.1 := Nat.mod_lt _ hr_pos
-    have ih := ih hlt
-    have hsteps : costOf Chapter9.divCount (jacobiLoop a m t) =
-        costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) + 1 := by
-      exact jacobiLoop_divCount ha m t
-    simp only [dite_eq_ite] at ih
-    generalize costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1 (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = s
-      at ih hsteps
-    generalize CostM.cost school (jacobiLoop.counted (m % r.1) r.1
-      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = c at ih ⊢
     have h₁ : (m % r.1).size ≤ r.1.size := size_le_of_lt hlt
     have h₂ : r.1.size ≤ a.size := Nat.size_le_size hr_le
     have h₃ : r.1.size ≤ m.size := Nat.size_le_size (hr_le.trans ham.le)
-    have h₄ : school.divMod m.size r.1.size = (m.size - r.1.size + 1) * r.1.size := rfl
-    rw [hsteps, h₄]
-    calc (m.size - r.1.size + 1) * r.1.size + c
-        ≤ (m.size - r.1.size + 1) * r.1.size + r.1.size * (r.1.size + s) :=
-          Nat.add_le_add_left (ih.trans (Nat.mul_le_mul_right _ h₁)) _
-      _ = r.1.size * (m.size - r.1.size + 1 + r.1.size + s) := by ring
-      _ = r.1.size * (m.size + (s + 1)) := by
-          rw [show m.size - r.1.size + 1 + r.1.size = m.size + 1 by omega]; ring
-      _ ≤ a.size * (m.size + (s + 1)) := Nat.mul_le_mul_right _ h₂
+    have haK : a.size ≤ K := (Nat.size_le_size ham.le).trans hK
+    have hrK : r.1.size ≤ K := h₃.trans hK
+    have ih := ih hlt (jacobiLoop_snd_natAbs ht r rfl _) (h₃.trans hK)
+    have hsteps := jacobiLoop_divCount ha m t
+    have hh := jacobiHalve_cost_le C a m t ht hK haK h4
+    have hd := hC m.size r.1.size
+    have hr2 : r.2.natAbs.size ≤ K :=
+      (Nat.size_le_size (jacobiHalve_snd_natAbs a m ht)).trans (by simp; omega)
+    simp only [dite_eq_ite] at ih
+    rw [hsteps]
+    generalize costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1
+      (if r.1 % 4 = 3 ∧ m % 4 = 3 then -r.2 else r.2)) = s at ih ⊢
+    -- the divisions telescope
+    have key : (m.size - r.1.size + 1) * r.1.size + (m % r.1).size * (r.1.size + s) ≤
+        a.size * (m.size + (s + 1)) :=
+      calc _ ≤ (m.size - r.1.size + 1) * r.1.size + r.1.size * (r.1.size + s) := by gcongr
+        _ = r.1.size * (m.size + (s + 1)) := by
+          rw [show (m.size - r.1.size + 1) * r.1.size + r.1.size * (r.1.size + s) =
+            r.1.size * (m.size - r.1.size + 1 + r.1.size + s) by ring,
+            show m.size - r.1.size + 1 + r.1.size = m.size + 1 by omega]; ring
+        _ ≤ _ := Nat.mul_le_mul_right _ h₂
+    -- and so do the halvings
+    have hP : ((m % r.1).size + 2 * s + 1) * (10 * C.lin K) ≤
+        (r.1.size + 2 * s + 1) * (10 * C.lin K) := by gcongr
+    cost_unfold jacobiLoop.counted
+    split_ifs at ih ⊢ <;> cost_bound
 
-/-- **Bit complexity of the Jacobi symbol algorithm.**  For `a < m`, with `m` of `k` bits,
-Algorithm 2.3.5 spends at most `k (3k + 1)` bit operations on its divisions in the
-grammar-school model: `O(ln² m)`, "about as hard as taking a gcd". -/
-theorem jacobiBitCost_school_le' (a m : ℕ) (t : ℤ) (ham : a < m) :
-    costOf school (jacobiLoop a m t) ≤ m.size * (3 * m.size + 1) := by
-  refine (jacobiBitCost_school_le a m t ham).trans ?_
+/-- **Bit complexity of the Jacobi symbol algorithm.**  For `a < m`, with `m` of `k`
+bits, Algorithm 2.3.5 spends at most `k (3k + 1) + 10 (5k + 3)(k + 6)` bit operations in
+the grammar-school model: `O(ln² m)`, "about as hard as taking a gcd". -/
+theorem jacobiBitCost_school_le (a m : ℕ) (ham : a < m) :
+    costOf school (jacobiLoop a m 1) ≤
+      m.size * (3 * m.size + 1) + 10 * (5 * m.size + 3) * (m.size + 6) := by
+  refine (jacobiBitCost_le school (fun _ _ ↦ le_rfl) (K := m.size + 4) a m 1 ham (by simp)
+    (by omega) (by omega)).trans ?_
   have h₁ : a.size ≤ m.size := size_le_of_lt ham
-  have h₂ := jacobiSteps_le a m t ham
-  have h₃ : costOf Chapter9.divCount (jacobiLoop a m t) ≤ 2 * m.size + 1 := by
+  have h₂ := jacobiSteps_le a m 1 ham
+  have h₃ : costOf Chapter9.divCount (jacobiLoop a m 1) ≤ 2 * m.size + 1 := by
     split_ifs at h₂ with h0
     · omega
     · have := log_two_le_size (a * m)
       have := size_mul_le a m
       omega
-  exact Nat.mul_le_mul h₁ (by omega)
+  have hl : school.lin (m.size + 4) = m.size + 6 := by
+    simp [CostModel.lin, CostModel.add, school]; omega
+  rw [hl]
+  have := Nat.mul_le_mul h₁ (show m.size + costOf Chapter9.divCount (jacobiLoop a m 1) ≤
+    3 * m.size + 1 by omega)
+  have := Nat.mul_le_mul_right (10 * (m.size + 6)) (show a.size + 2 * costOf Chapter9.divCount
+    (jacobiLoop a m 1) + 1 ≤ 5 * m.size + 3 by omega)
+  nlinarith
 
 end RunningTime
 

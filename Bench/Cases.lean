@@ -46,7 +46,7 @@ def sqMinusTwo : IntPoly := [-2, 0, 1]
 
 def gcdCases : List Case := [
   { problem := "gcd and inverses", name := "euclid", ref := "Alg 2.1.2"
-    param := "bits of the inputs", bound := "k(3k+2)", growth := .poly 2
+    param := "bits of the inputs", bound := "k(3k+6) + 6", growth := .poly 2
     sizes := pow2s 8 15
     prepare := fun k ↦ task (randBits 1 k, randBits 2 k) fun (x, y) ↦ euclid x y },
   { problem := "gcd and inverses", name := "extEuclid", ref := "Alg 2.1.4"
@@ -141,11 +141,11 @@ def mulCases : List Case := [
     sizes := pow2s 6 12
     prepare := fun k ↦ task (randBits 1 k, randBits 2 k) fun (x, y) ↦ karatsuba k.log2 x y },
   { problem := "integer multiplication", name := "nussMul", ref := "Alg 9.5.25"
-    param := "bits of the factors", bound := "292 k (log₂ k + 3)⁴ (bitModel)", growth := .poly 1
+    param := "bits of the factors", bound := "360000 k (log₂ k + 3)⁴ (school)", growth := .poly 1
     sizes := pow2s 8 15
     prepare := fun k ↦ task (randBits 1 k, randBits 2 k) fun (x, y) ↦ nussMul x y },
   { problem := "integer multiplication", name := "nussbaumer (negacyclic, bits)"
-    ref := "Alg 9.5.25", param := "length 2^k", bound := "2^k (2k² + 1) · 8 (2k + 2)² (bitModel)"
+    ref := "Alg 9.5.25", param := "length 2^k", bound := "2^k (2k² + 1) · 8 (2k + 73)² (school)"
     growth := .poly 1, sizes := pow2s 8 17
     prepare := fun m ↦ task (bitsOfPow2 m.log2 (randBits 1 m), bitsOfPow2 m.log2 (randBits 2 m))
       fun (a, b) ↦ nussbaumer m.log2 a b } ]
@@ -216,7 +216,7 @@ def multipointCases : List Case := [
 
 def sieveCases : List Case := [
   { problem := "sieving", name := "sievePrimes", ref := "§3.2.1"
-    param := "N", bound := "O(N log log N) writes", growth := .poly 1
+    param := "N", bound := "O(N log log N) steps", growth := .poly 1
     sizes := pow2s 14 22
     prepare := fun N ↦ task N fun N ↦ (sievePrimes N).length } ]
 
@@ -296,7 +296,7 @@ def factoringCases : List Case := [
     sizes := steps 20 40 4
     prepare := fun k ↦ task (semiprimes k) fun ns ↦ ns.map pollardStrassen },
   { problem := "factoring", name := "pollardStrassenFast", ref := "§5.5, Thm 5.5.3"
-    param := "bits of n = pq (balanced)", bound := "2^35 n^{1/4} (log₂ n + 3)⁷ (nussModel)"
+    param := "bits of n = pq (balanced)", bound := "2^45 n^{1/4} (log₂ n + 8)⁷ (nussModel)"
     growth := .exp 0.25, sizes := steps 24 56 4
     prepare := fun k ↦ task (semiprimes k) fun ns ↦ ns.map pollardStrassenFast },
   { problem := "factoring", name := "pollardPMinusOne", ref := "Alg 5.4.1"

@@ -9,8 +9,10 @@ Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Algorithm 9.
 * `isqrt_eq`         — it returns `⌊√N⌋` (Mathlib's `Nat.sqrt N`).
 * `isqrtSteps_le`    — the Newton iteration runs at most `⌈k/2⌉ + 1` times, `k` the bit
                        length of `N`: each pass at least halves the distance to `⌊√N⌋`.
-* `isqrtCost_le`, `isqrtCost_school_le` — hence at most `((k + 1)/2 + 2)(k + 1)²` bit
-                       operations with grammar-school division.
+* `isqrtCost_le`, `isqrtCost_school_le` — hence at most
+                       `((k + 1)/2 + 2)((k + 1)² + 3(k + 4))` bit operations with
+                       grammar-school division (a division and three linear operations
+                       per step).
 
 The book states that `O(ln ln N)` iterations suffice (the convergence is quadratic), which
 would give `O(ln² N · ln ln N)`; only the linear rate, giving `O(ln³ N)`, is proved here.
@@ -146,42 +148,74 @@ theorem isqrt_divs_le (N : ℕ) :
     (le_of_eq Nat.size_pow)
   omega
 
-/-- Each pass costs one division by a number no longer than the starting value. -/
-theorem isqrtCost_le (C : CostModel) {N X B : ℕ}
-    (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (x : ℕ) (hx : x ≤ X) :
-    costOf C (isqrtLoop N x) ≤ costOf divCount (isqrtLoop N x) * B := by
+/-- Each pass costs one division by a number no longer than the starting value, and three
+linear operations on numbers of at most `K ≥ 2` bits. -/
+theorem isqrtCost_le (C : CostModel) {N X B K : ℕ}
+    (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (hK : (N + X).size ≤ K) (h2K : 2 ≤ K) (x : ℕ)
+    (hx : x ≤ X) :
+    costOf C (isqrtLoop N x) ≤ costOf divCount (isqrtLoop N x) * (B + 3 * C.lin K) := by
   induction x using Nat.strong_induction_on with | _ x ih =>
   have := hB x.size (Nat.size_le_size hx)
+  have hq : N / x ≤ N := Nat.div_le_self N x
+  have h₁ : (x + N / x).size ≤ K := (Nat.size_le_size (by omega)).trans hK
+  have h₂ : x.size ≤ K := (Nat.size_le_size (by omega)).trans hK
+  have h₃ : (N / x).size ≤ K := (Nat.size_le_size (by omega)).trans hK
   rw [isqrtLoop_divCount]
   by_cases hlt : (x + N / x) / 2 < x
   · have ih := ih _ hlt (by omega)
     cost_unfold isqrtLoop.counted
-    simp only [hlt, ↓reduceIte, add_mul, one_mul] at ih ⊢; omega
+    simp only [hlt, add_mul, one_mul] at ih ⊢
+    cost_bound
   · cost_unfold isqrtLoop.counted
-    simp only [hlt, ↓reduceIte] at *; omega
+    cost_bound
+
+theorem size_add_two_pow_le (N : ℕ) : (N + 2 ^ ((N.size + 1) / 2)).size ≤ N.size + 1 := by
+  refine Nat.size_le.mpr ?_
+  have h₁ : N < 2 ^ N.size := Nat.lt_size_self N
+  have h₂ : 2 ^ ((N.size + 1) / 2) ≤ 2 ^ N.size ∨ N.size = 0 := by
+    rcases Nat.eq_zero_or_pos N.size with h | h
+    · exact Or.inr h
+    · exact Or.inl (Nat.pow_le_pow_right (by norm_num) (by omega))
+  rcases h₂ with h₂ | h₂
+  · rw [pow_succ]; omega
+  · rw [h₂] at h₁ ⊢; simp at h₁ ⊢; omega
 
 /-- **Bit complexity of Algorithm 9.2.11, grammar-school division**: at most
-`((k + 1)/2 + 2)(k + 1)²` bit operations for a `k`-bit `N`. -/
+`((k + 1)/2 + 2)((k + 1)² + 3(k + 4))` bit operations for a `k`-bit `N`. -/
 theorem isqrtCost_school_le (N : ℕ) :
     costOf school (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤
-      ((N.size + 1) / 2 + 2) * (N.size + 1) ^ 2 := by
+      ((N.size + 1) / 2 + 2) * ((N.size + 1) ^ 2 + 3 * (N.size + 4)) := by
   have hdivs := isqrt_divs_le N
   have hX : (2 ^ ((N.size + 1) / 2)).size = (N.size + 1) / 2 + 1 := Nat.size_pow
   refine (isqrtCost_le school (X := 2 ^ ((N.size + 1) / 2)) (B := (N.size + 1) ^ 2)
-    (fun b hb ↦ ?_) _ le_rfl).trans (Nat.mul_le_mul_right _ hdivs)
-  rw [hX] at hb
-  change (N.size - b + 1) * b ≤ (N.size + 1) ^ 2
-  rw [sq]
-  exact Nat.mul_le_mul (by omega) (by omega)
+    (fun b hb ↦ ?_) ((size_add_two_pow_le N).trans (Nat.le_succ _)) (by omega) _ le_rfl).trans (Nat.mul_le_mul hdivs ?_)
+  · rw [hX] at hb
+    change (N.size - b + 1) * b ≤ (N.size + 1) ^ 2
+    rw [sq]
+    exact Nat.mul_le_mul (by omega) (by omega)
+  · simp [CostModel.lin, CostModel.add, school]; omega
+
+/-- The cost of `isqrt`: the Newton iteration and the computation of its starting value. -/
+theorem isqrt_cost_le (C : CostModel) (N : ℕ) :
+    costOf C (isqrt N) ≤ costOf C (isqrtLoop N (2 ^ ((N.size + 1) / 2))) +
+      5 * C.lin (N.size + 2) := by
+  have := Nat.size_le_size (show N.size + 1 ≤ 2 ^ N.size by
+    have := Nat.lt_two_pow_self (n := N.size); omega)
+  have h₁ : (N.size + 1).size ≤ N.size + 1 := Nat.size_le.mpr (Nat.lt_two_pow_self.trans_le
+    (Nat.pow_le_pow_right (by norm_num) (by omega)))
+  have h₂ : (2 ^ ((N.size + 1) / 2)).size ≤ N.size + 1 := by
+    rw [Nat.size_pow]; omega
+  have h₃ : N.size.size ≤ N.size + 1 := (size_le_self N.size).trans (Nat.le_succ _)
+  cost_unfold isqrt.counted
+  cost_bound
 
 /-- The cost charged for a call of `Nat.sqrt` in a counted algorithm. -/
 theorem sqrt_counted_cost (C : CostModel) (N : ℕ) :
-    CostM.cost C (Nat.sqrt.counted N) = costOf C (isqrtLoop N (2 ^ ((N.size + 1) / 2))) := by
-  simp only [Nat.sqrt.counted, isqrt.counted]; cost_simp
+    CostM.cost C (Nat.sqrt.counted N) = costOf C (isqrt N) := rfl
 
-/-- The bound of `isqrtCost_school_le` as a function of the bit length `k`: a valid
-"square root cost" for analyses that use integer square roots. -/
-def schoolSqrt (k : ℕ) : ℕ := ((k + 1) / 2 + 2) * (k + 1) ^ 2
+/-- The bound of `isqrtCost_school_le` as a function of the bit length `k`, with the
+starting value: a valid "square root cost" for analyses that use integer square roots. -/
+def schoolSqrt (k : ℕ) : ℕ := ((k + 1) / 2 + 3) * (k + 4) ^ 2
 
 theorem schoolSqrt_mono : Monotone schoolSqrt := fun a b h ↦
   Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)
@@ -190,7 +224,16 @@ theorem schoolSqrt_mono : Monotone schoolSqrt := fun a b h ↦
 `schoolSqrt k`. -/
 theorem sqrt_counted_cost_school_le (N : ℕ) :
     CostM.cost school (Nat.sqrt.counted N) ≤ schoolSqrt N.size := by
-  rw [sqrt_counted_cost]; exact isqrtCost_school_le N
+  rw [sqrt_counted_cost]
+  refine (isqrt_cost_le school N).trans ?_
+  have := isqrtCost_school_le N
+  have hl : school.lin (N.size + 2) = N.size + 4 := by
+    simp [CostModel.lin, CostModel.add, school]; omega
+  rw [hl]
+  unfold schoolSqrt
+  set h := (N.size + 1) / 2
+  have : 5 * (N.size + 4) ≤ (h + 2) * (3 * N.size + 3) + (N.size + 4) ^ 2 := by nlinarith
+  nlinarith
 
 /-- **The worst cost of an integer square root** of a number of at most `k` bits. -/
 def sqrtCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits k fun t ↦ costOf C (Nat.sqrt t)

@@ -30,12 +30,6 @@ theorem mulCorrect_mul : MulCorrect (Chapter2.Poly.mul (F := R)) := fun f g ↦ 
 theorem mulCorrect_mulMod (n : ℕ) [NeZero n] : MulCorrect (mulMod n) :=
   fun f g ↦ toPolynomial_mulMod f g
 
-theorem toPolynomial_append (A B : Chapter2.Poly R) :
-    toPolynomial (A ++ B) = toPolynomial A + X ^ A.length * toPolynomial B := by
-  induction A with
-  | nil => simp
-  | cons c A ih => simp [ih, pow_succ]; ring
-
 /-- Truncation `L mod t^k` is `take k`. -/
 theorem X_pow_dvd_sub_take (L : Chapter2.Poly R) (k : ℕ) :
     X ^ k ∣ toPolynomial L - toPolynomial (L.take k) := by
@@ -54,7 +48,7 @@ h = u;
 for (1 ≤ i ≤ k) { K = 2^i;  h = h (2 - a h) mod t^K; }
 ```
 -/
-counted_def invNewton [MulCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+counted_def invNewton [ArithCost R] (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
     (a : Chapter2.Poly R)
     (u : R) : ℕ → Chapter2.Poly R
   | 0 => [u]
@@ -106,48 +100,56 @@ theorem length_invNewton_le (mulF : Chapter2.Poly R → Chapter2.Poly R → Chap
   | zero => simp [invNewton]
   | succ k => simp [invNewton]
 
-/-- The cost of scaling a polynomial: one product per coefficient. -/
-theorem smul_cost_le [MulCost R] (C : CostModel) {s : ℕ}
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s) (c : R) (f : Chapter2.Poly R) :
-    costOf C (Chapter2.Poly.smul c f) ≤ f.length * s := by
-  cost_unfold Chapter2.Poly.smul.counted
-  exact sum_map_le_length_mul _ _ fun x _ ↦ hs c x
-
 /-- **Cost of Newton inversion (Algorithm 9.6.2)**: `k` iterations, each with two products
-(by the routine `mulF`, whose charge `mc` is at most `M` on inputs of length `≤ D`) and at
-most `2D` scalar products (each at most `s`), as long as `2^k ≤ D`. -/
-theorem invNewton_cost_le [MulCost R] (C : CostModel)
+(by the routine `mulF`, whose charge `mc` is at most `M` on inputs of length `≤ D`), a
+scaling, a subtraction and two truncations of polynomials of length `O(D)` (each
+coefficient operation at most `s`), and a power of two, as long as `2^k ≤ D`. -/
+theorem invNewton_cost_le [ArithCost R] (C : CostModel)
     {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {M s D : ℕ}
     (hM : ∀ f g : Chapter2.Poly R, f.length ≤ D → g.length ≤ D → CostM.cost C (mc f g) ≤ M)
     (hlen : ∀ f g : Chapter2.Poly R, (mulF f g).length ≤ f.length + g.length)
-    (hs : ∀ x y : R, MulCost.mulCost C x y ≤ s)
+    (hs : ArithCost.Bounded R C s)
     (a : Chapter2.Poly R) (ha : a.length ≤ D) (u : R) (k : ℕ) (hk : 2 ^ k ≤ D) :
-    CostM.cost C (invNewton.counted mulF a u k mc) ≤ k * (2 * M + 2 * D * s) := by
+    CostM.cost C (invNewton.counted mulF a u k mc) ≤
+      k * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) + C.unit := by
   induction k with
   | zero => cost_unfold invNewton.counted
   | succ k ih =>
     have h2 : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
     have ih := ih (by omega)
-    have hh := length_invNewton_le mulF a u k
-    have hm₁ := hM a (invNewton mulF a u k) ha (by omega)
-    have hm₂ := hM (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))
-      (by omega) (by simp only [List.length_take]; omega)
-    have hs₁ := smul_cost_le C hs 2 (invNewton mulF a u k)
-    have hl := hlen (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))
-    have hs₂ := smul_cost_le C hs (-1) (mulF (invNewton mulF a u k)
-      ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1))))
-    simp only [List.length_take] at hl
     cost_unfold invNewton.counted
-    cost_unfold Chapter2.Poly.sub.counted
-    have : (invNewton mulF a u k).length * s +
-        (mulF (invNewton mulF a u k) ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))).length
-          * s ≤ 2 * D * s := by
-      have : (invNewton mulF a u k).length +
-          (mulF (invNewton mulF a u k)
-            ((mulF a (invNewton mulF a u k)).take (2 ^ (k + 1)))).length ≤ 2 * D := by omega
+    set h := invNewton mulF a u k
+    have hh : h.length ≤ 2 ^ k := length_invNewton_le mulF a u k
+    have hm₁ := hM a h ha (by omega)
+    set e := (mulF a h).take (2 ^ (k + 1))
+    have he : e.length ≤ 2 * D := by simp only [e, List.length_take]; omega
+    have hm₂ := hM h e (by omega) (by simp only [e, List.length_take]; omega)
+    have hl := hlen h e
+    have hs₁ := Chapter2.Poly.smul_cost_le C hs 2 h
+    have hs₂ := Chapter2.Poly.sub_cost_le C hs (Chapter2.Poly.smul 2 h) (mulF h e)
+    simp only [Chapter2.Poly.length_smul] at hs₂
+    -- the lengths, and the power of two, of at most `size D + 2` bits
+    have hkD : k < D.size := Nat.lt_size.2 (by omega)
+    have hp : (2 ^ (k + 1)).size ≤ D.size + 2 := by rw [Nat.size_pow]; omega
+    have hk1 : (k + 1).size ≤ D.size + 2 := (Nat.size_le.2 Nat.lt_two_pow_self).trans (by omega)
+    have hks : k.size ≤ D.size + 2 := (Nat.size_le.2 Nat.lt_two_pow_self).trans (by omega)
+    have hDs : ∀ m, m ≤ 3 * D + 3 → m.size ≤ D.size + 2 := fun m hm ↦ Nat.size_le.2 (by
+      have := Nat.lt_size_self D; rw [pow_add]; omega)
+    have := hlen a h
+    have := hDs h.length (by omega); have := hDs (mulF a h).length (by omega)
+    have := hDs (mulF h e).length (by omega)
+    have := hDs e.length (by omega); have := hDs (2 ^ (k + 1)) (by omega)
+    have u₁ : (min (2 ^ (k + 1)) (mulF a h).length + 1) * C.unit ≤ (2 * D + 1) * C.unit :=
+      Nat.mul_le_mul_right _ (by omega)
+    have u₂ : (min (2 ^ (k + 1)) (Chapter2.Poly.sub (Chapter2.Poly.smul 2 h) (mulF h e)).length + 1)
+        * C.unit ≤ (2 * D + 1) * C.unit := Nat.mul_le_mul_right _ (by omega)
+    have v₁ : (h.length + 2) * (C.unit + s) ≤ (D + 2) * (C.unit + s) :=
+      Nat.mul_le_mul_right _ (by omega)
+    have v₂ : (max h.length (mulF h e).length + 1) * (C.unit + s) + ((mulF h e).length + 3) *
+        (C.unit + s) ≤ (6 * D + 4) * (C.unit + s) := by
+      have : max h.length (mulF h e).length + 1 + ((mulF h e).length + 3) ≤ 6 * D + 4 := by omega
       nlinarith
-    rw [add_mul]
-    omega
+    cost_bound
 
 end PrimeNumbers.Chapter9

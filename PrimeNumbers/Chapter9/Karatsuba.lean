@@ -114,11 +114,13 @@ theorem karatsubaCost_mono (c : ℕ) : Monotone (karatsubaCost c) := by
 
 /-- **A sub-quadratic cost model**: multiplying numbers of at most `a` and `b` bits is
 charged as Karatsuba multiplication at the next power of two `2^⌈log₂ max a b⌉`, with `c`
-bit operations of linear work per bit per level (`c = 16` is ample).  Division is charged
-as in the grammar-school model. -/
+bit operations of linear work per bit per level (`c = 16` is ample).  Division and linear
+operations are charged as in the grammar-school model. -/
 def karatsubaModel (c : ℕ) : CostModel where
   mul a b := karatsubaCost c (Nat.clog 2 (max a b))
   divMod a b := (a - b + 1) * b
+  addRate := 1
+  unit := 1
   mul_mono h₁ h₂ := karatsubaCost_mono c (Nat.clog_mono_right 2 (max_le_max h₁ h₂))
   divMod_mono b h := Nat.mul_le_mul_right b (by omega)
 

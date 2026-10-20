@@ -84,8 +84,11 @@ open PrimeNumbers.Chapter9
 
 /-! ### Bit operations -/
 
+/-- Each pass is a modular squaring and two linear operations on `(2 size M + 1)`-bit
+numbers. -/
 theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
-    costOf C (lucasLehmerLoop M v k) ≤ k * C.mulMod M.size := by
+    costOf C (lucasLehmerLoop M v k) ≤
+      k * (C.mulMod M.size + 2 * C.lin (2 * M.size + 1)) + C.unit := by
   induction k generalizing v with
   | zero => cost_unfold lucasLehmerLoop.counted
   | succ k ih =>
@@ -100,21 +103,35 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
       have := size_le_of_lt hlt
       have := size_mul_le M M
       omega
+    have hsize' : (v * v + M).size ≤ 2 * M.size + 1 := by
+      refine Nat.size_le.mpr ?_
+      have := Nat.lt_size_self M
+      have : v * v < M * M := Nat.mul_self_lt_mul_self hv
+      have : M * M < 2 ^ (2 * M.size) := by
+        rw [two_mul, pow_add]; exact Nat.mul_lt_mul'' (by omega) (by omega)
+      rw [pow_succ]; omega
+    have hvv : (v * v).size ≤ 2 * M.size + 1 :=
+      (Nat.size_le_size (Nat.le_add_right _ M)).trans hsize'
+    have hM : M.size ≤ 2 * M.size + 1 := by omega
+    have hM2 : 2 ≤ 2 * M.size + 1 := by have := Nat.size_pos.mpr (show 0 < M by omega); omega
     have h₁ : C.mul v.size v.size ≤ C.mul M.size M.size :=
       C.mul_mono (size_le_of_lt hv) (size_le_of_lt hv)
     have h₂ := C.divMod_mono M.size hsize
     cost_unfold lucasLehmerLoop.counted
-    simp only [add_mul, one_mul, CostModel.mulMod] at ih ⊢
-    omega
+    simp only [CostModel.mulMod] at ih ⊢
+    cost_bound
 
 /-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
-primality of `2^p - 1` takes at most `(p - 2)(2p² + p)` bit operations, i.e. `O(p³)`. -/
+primality of `2^p - 1` takes at most `(p - 2)(2p² + 5p + 6) + 1` bit operations, i.e.
+`O(p³)`. -/
 theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
-    costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ (p - 2) * (2 * p ^ 2 + p) := by
+    costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ (p - 2) * (2 * p ^ 2 + 5 * p + 6) + 1 := by
   have h8 : 2 ^ 3 ≤ 2 ^ p := Nat.pow_le_pow_right (by norm_num) hp
-  refine (lucasLehmerCost_le school (by omega) (p - 2)).trans (Nat.mul_le_mul_left _ ?_)
+  refine (lucasLehmerCost_le school (by omega) (p - 2)).trans
+    (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
   have hsize : (2 ^ p - 1).size ≤ p := Nat.size_le.mpr (by omega)
   rw [school_mulMod]
+  simp only [CostModel.lin, CostModel.add, school, max_self]
   nlinarith [Nat.pow_le_pow_left hsize 2]
 
 end RunningTime

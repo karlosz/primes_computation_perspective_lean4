@@ -273,51 +273,59 @@ theorem rhoLogStep_bounded {p N g t : ℕ} (hp : 0 < p) (hN : 0 < N) {s : ℕ ×
   split_ifs <;> exact ⟨Nat.mod_lt _ hp, by first | exact Nat.mod_lt _ hN | exact ha,
     by first | exact Nat.mod_lt _ hN | exact hb⟩
 
-/-- One step of the walk: one multiplication of residues modulo `p` and its reduction, and
-at most two reductions of exponents modulo `N`. -/
+/-- The cost of one step of the walk: one multiplication of residues modulo `p` and its
+reduction, at most two reductions of exponents modulo `N`, and the linear work (the tests
+`x mod 3`, the doublings and increments of the exponents). -/
+def rhoLogStepBound (C : CostModel) (p N : ℕ) : ℕ :=
+  C.mulMod p.size + 2 * C.divMod (N.size + 1) N.size + 6 * C.lin (p.size + N.size + 1)
+
 theorem rhoLogStep_cost_le (C : CostModel) {p N g t : ℕ} (hg : g < p) (ht : t < p)
     {s : ℕ × ℕ × ℕ} (hs : RhoLogBounded p N s) :
-    costOf C (rhoLogStep p N g t s) ≤ C.mulMod p.size + 2 * C.divMod (N.size + 1) N.size := by
+    costOf C (rhoLogStep p N g t s) ≤ rhoLogStepBound C p N := by
   obtain ⟨x, a, b⟩ := s
   obtain ⟨hx, ha, hb⟩ := hs
   simp only at hx ha hb
-  have hsz : ∀ e, e ≤ 2 * N → C.divMod e.size N.size ≤ C.divMod (N.size + 1) N.size :=
-    fun e he ↦ C.divMod_mono _ (by
-      rw [Nat.size_le, pow_succ]; have := Nat.lt_size_self N; omega)
-  have h₁ := hsz (2 * a) (by omega)
-  have h₂ := hsz (2 * b) (by omega)
-  have h₃ := hsz (a + 1) (by omega)
-  have h₄ := hsz (b + 1) (by omega)
+  have hNs : ∀ e, e ≤ 2 * N → e.size ≤ N.size + 1 := fun e he ↦ by
+    rw [Nat.size_le, pow_succ]; have := Nat.lt_size_self N; omega
+  have h₁ := C.divMod_mono N.size (hNs (2 * a) (by omega))
+  have h₂ := C.divMod_mono N.size (hNs (2 * b) (by omega))
+  have h₃ := C.divMod_mono N.size (hNs (a + 1) (by omega))
+  have h₄ := C.divMod_mono N.size (hNs (b + 1) (by omega))
+  have := size_le_of_lt hx; have := size_le_of_lt ha; have := size_le_of_lt hb
+  have h2 : 2 ≤ p.size + N.size + 1 := by
+    have := Nat.size_pos.mpr (show 0 < p by omega); omega
+  unfold rhoLogStepBound
   cost_unfold rhoLogStep.counted
   split_ifs
-  · have := mul_add_divMod_le C hx hx; omega
-  · have := mul_add_divMod_le C ht hx; omega
-  · have := mul_add_divMod_le C hg hx; omega
+  · have := mul_add_divMod_le C hx hx; cost_bound
+  · have := mul_add_divMod_le C ht hx; cost_bound
+  · have := mul_add_divMod_le C hg hx; cost_bound
 
 /-- **Bit complexity of the rho method for discrete logarithms**, for any cost model: each
-pass of the walk costs three steps (`rhoLogStep_cost_le`: a modular multiplication and two
-reductions modulo `N`); at the collision the candidate logarithm is computed (at most `S`,
-one modular inverse modulo `N` and a few reductions) and checked by a modular power (at
-most `P`). -/
+pass of the walk costs three steps (`rhoLogStep_cost_le`) and a comparison; at the
+collision the candidate logarithm is computed (at most `S`, one modular inverse modulo `N`
+and a few reductions) and checked by a modular power (at most `P`). -/
 theorem rhoLogLoop_cost_le (C : CostModel) {p N g t S P : ℕ} (hg : g < p) (ht : t < p)
     (hN : 0 < N) (hS : ∀ a b A B, costOf C (rhoLogSolve N a b A B) ≤ S)
     (hP : ∀ l, costOf C (powMod g l p) ≤ P) {u v : ℕ × ℕ × ℕ}
     (hu : RhoLogBounded p N u) (hv : RhoLogBounded p N v) (fuel : ℕ) :
     costOf C (rhoLogLoop p N g t u v fuel) ≤
-      fuel * (3 * (C.mulMod p.size + 2 * C.divMod (N.size + 1) N.size)) + C.divMod t.size p.size +
-        S + P := by
+      fuel * (3 * rhoLogStepBound C p N + C.lin p.size) + C.divMod t.size p.size + S + P +
+        2 * C.lin p.size := by
   have hp : 0 < p := by omega
   induction fuel generalizing u v with
-  | zero => cost_unfold rhoLogLoop.counted
+  | zero => cost_unfold rhoLogLoop.counted; cost_bound
   | succ fuel ih =>
     have hv₁ := rhoLogStep_bounded (g := g) (t := t) hp hN hv
     have h₁ := rhoLogStep_cost_le C hg ht hu
     have h₂ := rhoLogStep_cost_le C hg ht hv
     have h₃ := rhoLogStep_cost_le C hg ht hv₁
-    have ih := ih (rhoLogStep_bounded (g := g) (t := t) hp hN hu)
-      (rhoLogStep_bounded (g := g) (t := t) hp hN hv₁)
+    have hu' := rhoLogStep_bounded (g := g) (t := t) hp hN hu
+    have hv' := rhoLogStep_bounded (g := g) (t := t) hp hN hv₁
+    have ih := ih hu' hv'
+    have := size_le_of_lt hu'.1; have := size_le_of_lt hv'.1
+    have := size_le_of_lt (Nat.mod_lt t hp)
     cost_unfold rhoLogLoop.counted
-    rw [add_mul, one_mul]
     split_ifs
     · have := hS (rhoLogStep p N g t u).2.1 (rhoLogStep p N g t u).2.2
         (rhoLogStep p N g t (rhoLogStep p N g t v)).2.1
@@ -325,8 +333,8 @@ theorem rhoLogLoop_cost_le (C : CostModel) {p N g t S P : ℕ} (hg : g < p) (ht 
       have := hP (rhoLogSolve N (rhoLogStep p N g t u).2.1 (rhoLogStep p N g t u).2.2
         (rhoLogStep p N g t (rhoLogStep p N g t v)).2.1
         (rhoLogStep p N g t (rhoLogStep p N g t v)).2.2)
-      omega
-    · omega
+      cost_bound
+    · cost_bound
 
 end RunningTime
 
