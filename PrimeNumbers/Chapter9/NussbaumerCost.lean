@@ -117,7 +117,7 @@ theorem sum_zipWith_le {α β : Type} (f : α → β → ℕ) {s : ℕ} :
     fun a ha b hb ↦ by
       have := Nat.size_le.2 (hu a ha); have := Nat.size_le.2 (hv b hb); omega
   rw [hl, min_self] at *
-  nlinarith
+  cost_bound
 
 @[cost_le] theorem vsub_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
     (hl : u.length = v.length) : costOf school (vsub u v) ≤ u.length * (β + 2) + 2 := by
@@ -126,17 +126,16 @@ theorem sum_zipWith_le {α β : Type} (f : α → β → ℕ) {s : ℕ} :
     fun a ha b hb ↦ by
       have := Nat.size_le.2 (hu a ha); have := Nat.size_le.2 (hv b hb); omega
   rw [hl, min_self] at *
-  nlinarith
+  cost_bound
 
 theorem size_two_mul {m : ℕ} (hm : 1 ≤ m) : (2 * m).size = m.size + 1 := by
   rw [show 2 * m = m <<< 1 by rw [Nat.shiftLeft_eq]; ring, Nat.size_shiftLeft (by omega)]
 
 @[cost_le] theorem rotLow_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j ≤ m) :
     costOf school (rotLow m j u) ≤ 4 * m + 7 := by
-  have := size_le_self m; have := Nat.size_le_size hj
   cost_unfold rotLow.counted
   simp only [List.length_drop, List.length_map, hu]
-  omega
+  cost_bound
 
 @[cost_le] theorem rot_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j < 2 * m) :
     costOf school (rot m j u) ≤ 7 * m + 12 := by
@@ -148,7 +147,7 @@ theorem size_two_mul {m : ℕ} (hm : 1 ≤ m) : (2 * m).size = m.size + 1 := by
   · have := rotLow_cost_le hu h.le; omega
   · have := rotLow_cost_le hu (show j - m ≤ m by omega)
     rw [length_rotLow hu (by omega)]
-    omega
+    cost_bound
 
 @[cost_le] theorem evens_cost_le {α : Type} : ∀ l : List α, costOf school (evens l) ≤ l.length + 1
   | a :: b :: l => by
@@ -188,7 +187,6 @@ theorem size_add_two_sq_le {m : ℕ} (hm : 1 ≤ m) : (m.size + 2) ^ 2 ≤ 16 * 
       simp at hi; omega)
     have hr := rot_cost_le (ho o (by simp)) (Nat.mod_lt (e * i) (show 0 < 2 * m by omega))
     have hsq := size_add_two_sq_le hm
-    have hs1 : 1 ≤ m.size := Nat.size_pos.mpr hm
     have hm2 := Nat.lt_size_self m
     have hes : e.size ≤ 2 * m.size + 2 := Nat.size_le.mpr (by
       calc e < 2 ^ m.size * 2 ^ m.size * 4 := by nlinarith
@@ -204,9 +202,7 @@ theorem size_add_two_sq_le {m : ℕ} (hm : 1 ≤ m) : (m.size + 2) ^ 2 ≤ 16 * 
     have t₁ : e.size * i.size ≤ (2 * m.size + 2) * (m.size + 1) := Nat.mul_le_mul hes his
     have t₂ : ((e * i).size - (m.size + 1) + 1) * (m.size + 1) ≤
         (2 * m.size + 3) * (m.size + 1) := Nat.mul_le_mul_right _ (by omega)
-    have t₃ : (2 * m.size + 2) * (m.size + 1) + (2 * m.size + 3) * (m.size + 1) + 2 * m.size + 8 ≤
-        5 * (m.size + 2) ^ 2 := by nlinarith
-    nlinarith
+    cost_bound
 
 /-- **Running time of the FFT**: `2^l (l m (β + l + 70) + 5)` bit operations for `2^l`
 vectors of length `m` with entries below `2^β` (`2^l ≤ 2m`, the root `x^e` with
@@ -445,15 +441,15 @@ per entry. -/
           omega)
         have := Nat.mul_le_mul hrK h₃
         have : max j.size (r * l).size ≤ K := by omega
-        nlinarith
+        cost_bound
     simp only [List.length_range] at this
-    omega
+    cost_bound
   have outer := sum_map_le_length_mul (List.range r) _ inner
   simp only [List.length_range] at outer
   have : r * (m₁ * ((K + 1) ^ 2 + K + 2) + 2 * m₁ + 2) =
       2 ^ K * ((K + 1) ^ 2 + K + 2) + 2 * 2 ^ K + 2 * r := by rw [← hr]; ring
   rw [this] at outer
-  nlinarith
+  cost_bound
 
 /-- Reassembling `r` blocks of length `m₁` into `2^K = r m₁` coefficients: a division and a
 remainder of indices per entry. -/
@@ -475,10 +471,9 @@ remainder of indices per entry. -/
     (s := 2 * (K + 1) ^ 2 + 2) fun i hi ↦ by
       have hi := Nat.size_le.2 (List.mem_range.1 hi)
       have : (i.size - r.size + 1) * r.size ≤ (K + 1) * (K + 1) := Nat.mul_le_mul (by omega) hrK
-      nlinarith
+      cost_bound
   simp only [List.length_range] at hsum₂
-  have : r * (m₁ + 1) = 2 ^ K + r := by rw [mul_add, hr, mul_one]
-  nlinarith
+  cost_bound
 
 /-- The arithmetic of the recursion: what one level costs, beyond its `2r` half-size
 products, fits in the slack of `2k² + 1` over `2 (2k₁² + 1)`. -/
@@ -571,10 +566,10 @@ set_option maxHeartbeats 4000000 in
   generalize blocks r m₁ b ++ List.replicate r (List.replicate m₁ 0) = B at hBv hBl ⊢
   rw [two_mul, ← hL] at hAl hBl
   -- the transforms
-  obtain ⟨lFA, vFA, cFA⟩ := fft_cost hm₁pos (k₂ + 1) e β A hAl hAv (by rw [hL]; omega)
-    (by rw [he]; nlinarith)
-  obtain ⟨lFB, vFB, cFB⟩ := fft_cost hm₁pos (k₂ + 1) e β B hBl hBv (by rw [hL]; omega)
-    (by rw [he]; nlinarith)
+  have hem : e * 2 ^ (k₂ + 1) ≤ 4 * m₁ * m₁ := by
+    rw [he]; have := Nat.mul_le_mul_left (4 * m₁) hm₁pos; omega
+  obtain ⟨lFA, vFA, cFA⟩ := fft_cost hm₁pos (k₂ + 1) e β A hAl hAv (by rw [hL]; omega) hem
+  obtain ⟨lFB, vFB, cFB⟩ := fft_cost hm₁pos (k₂ + 1) e β B hBl hBv (by rw [hL]; omega) hem
   generalize fft m₁ e A = FA at lFA vFA cFA ⊢
   generalize fft m₁ e B = FB at lFB vFB cFB ⊢
   rw [lFA, lFB, min_self]
@@ -594,8 +589,9 @@ set_option maxHeartbeats 4000000 in
   generalize List.zipWith (nussbaumer k₁) FA FB = P at vP lP ⊢
   -- the inverse transform
   obtain ⟨lC, vC, cC⟩ := fft_cost hm₁pos (k₂ + 1) (2 * m₁ - e) _ P lP vP (by rw [hL]; omega)
-    (by have := Nat.mul_le_mul_right (2 ^ (k₂ + 1)) (show 2 * m₁ - e ≤ 2 * m₁ by omega)
-        rw [hL] at this ⊢; nlinarith)
+    (by have h₁ := Nat.mul_le_mul_right (2 ^ (k₂ + 1)) (show 2 * m₁ - e ≤ 2 * m₁ by omega)
+        have := Nat.mul_le_mul_left m₁ hrm₁
+        rw [hL] at h₁ ⊢; linarith)
   generalize fft m₁ (2 * m₁ - e) P = Cf at lC vC cC ⊢
   rw [lC]
   have lCd : (Cf.map fun v ↦ v.map (· / 2 ^ (k₂ + 1))).length = 2 ^ (k₂ + 1) := by simp [lC]
@@ -685,7 +681,7 @@ set_option maxHeartbeats 4000000 in
   have hkG : k + 3 ≤ G := by omega
   set Y := N * G * (k₂ + 1) with hY
   have hNG : N * G ≤ Y := Nat.le_mul_of_pos_right _ (by omega)
-  have hN72 : 72 * N ≤ N * G := by nlinarith
+  have hN72 : 72 * N ≤ N * G := by have := Nat.mul_le_mul_left N hG72; omega
   have hGN : G ≤ N * G := Nat.le_mul_of_pos_left _ (by omega)
   have hrN : r ≤ N := by rw [← hrm]; exact Nat.le_mul_of_pos_right _ (by omega)
   have hm₁N : m₁ ≤ N := by rw [← hrm]; exact Nat.le_mul_of_pos_left _ (by omega)
@@ -825,7 +821,7 @@ theorem carry_cost {D : ℕ} : ∀ (c : ℤ) (ds : List ℤ), c.natAbs ≤ 2 ^ D
     have hc' : ((c + d) / 2).natAbs ≤ 2 ^ D := by
       have := Int.natAbs_add_le c d
       have : ((c + d) / 2).natAbs ≤ ((c + d).natAbs + 1) / 2 := by omega
-      omega
+      cost_bound
     obtain ⟨h1, h2, h3⟩ := carry_cost ((c + d) / 2) ds hc' fun x hx ↦ hds x (by simp [hx])
     refine ⟨fun x hx ↦ ?_, by simpa [carry] using h2, ?_⟩
     · simp only [carry, List.mem_cons] at hx
@@ -845,11 +841,9 @@ theorem carry_cost {D : ℕ} : ∀ (c : ℤ) (ds : List ℤ), c.natAbs ≤ 2 ^ D
 theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     costOf school (bitsOfPow2 k x) ≤ 2 ^ k * (18 * k + 8)
   | 0, x, hx => by
-    have : x.size ≤ 1 := Nat.size_le.2 (by simpa using hx)
-    have : (x % 2).size ≤ 1 := Nat.size_le.2 (by omega)
     cost_unfold bitsOfPow2.counted
     rw [show Nat.size 2 = 2 by decide]
-    omega
+    cost_bound
   | k + 1, x, hx => by
     have h₁ := bitsOfPow2_cost_le k (x % 2 ^ 2 ^ k) (Nat.mod_lt x (Nat.two_pow_pos (2 ^ k)))
     have h₂ := bitsOfPow2_cost_le k (x >>> 2 ^ k) (by
@@ -878,7 +872,7 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     have : d.natAbs.size ≤ 1 := Nat.size_le.2 (by omega)
     cost_unfold ofBitsNat.counted
     simp
-    omega
+    cost_bound
   | k + 1, l, hl, hd => by
     have hh : l.length / 2 = 2 ^ k := by rw [hl, pow_succ]; omega
     have hdrop : (l.drop (2 ^ k)).length = 2 ^ k := by
@@ -904,7 +898,6 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     have hs₁ : (ofBitsNat (l.drop (2 ^ k))).size ≤ 2 ^ k := Nat.size_le.2 b₁
     have hs₂ : (ofBitsNat (l.take (2 ^ k))).size ≤ 2 ^ k := Nat.size_le.2 b₂
     have hls : l.length.size ≤ k + 2 := by rw [hl, Nat.size_pow]
-    have hnot : ¬ l.length ≤ 1 := by rw [hl]; have := Nat.one_lt_two_pow (n := k + 1) (by omega); omega
     have hk : k + 2 ≤ 2 ^ (k + 1) := by have := Nat.lt_two_pow_self (n := k + 1); omega
     cost_unfold ofBitsNat.counted
     simp only [show Nat.size 2 = 2 by decide]
@@ -920,13 +913,10 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     nlinarith
 
 @[cost_le] theorem mulLog_cost_le (x y : ℕ) : costOf school (mulLog x y) ≤ 6 * max x.size y.size + 9 := by
-  have := size_le_self (max x.size y.size)
   have := (size_le_self (2 * max x.size y.size))
-  have : min x.size.size y.size.size ≤ max x.size y.size := by
-    have := size_le_self x.size; have := size_le_self y.size; omega
   cost_unfold mulLog.counted
   rw [show Nat.size 2 = 2 by decide]
-  omega
+  cost_bound
 
 set_option maxHeartbeats 1000000 in
 -- the unfolded cost of `nussMul` is a long sum of charges
@@ -1034,7 +1024,7 @@ of two zero-bit numbers still takes the few steps of the call). -/
       simp only [nussModel_mul]
       have := Nat.one_le_pow 4 ((max a b).size + 3) (by omega)
       have : 360000 * 1 ≤ 360000 * max a b := by omega
-      nlinarith
+      cost_bound
   refine (nussMul_cost_le_mulLog x y).trans ?_
   set N := max x.size y.size
   have hN : 1 ≤ N := by

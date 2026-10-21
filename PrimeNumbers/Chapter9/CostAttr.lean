@@ -66,7 +66,7 @@ initialize registerBuiltinAttribute {
   name := `cost_le
   descr := "a bound on the cost of a call, instantiated by `cost_bound`"
   add := fun decl _ kind => MetaM.run' do
-    let some k ← costLemmaKey? (← getConstInfo decl).type
+    let some k ← costLemmaKey? (← getConstVal decl).type
       | throwError "@[cost_le]: `{decl}` does not conclude `costOf C (f …) ≤ B`"
     costLeExt.add (k, decl) kind
 }
@@ -75,7 +75,7 @@ initialize registerBuiltinAttribute {
   name := `val_le
   descr := "a bound on the value of a function, used by `cost_bound` for bit lengths"
   add := fun decl _ kind => MetaM.run' do
-    let some k ← valLemmaKey? (← getConstInfo decl).type
+    let some k ← valLemmaKey? (← getConstVal decl).type
       | throwError "@[val_le]: `{decl}` does not conclude `f … < B` or `f … ≤ B`"
     valLeExt.add (k, decl) kind
 }
