@@ -199,7 +199,7 @@ and five steps on the exponent (of at most `k` bits) per level. -/
   · exact Nat.zero_le _
   · exact pow_mults_le h₁ x n
 
-theorem power_cost [One M] (C : CostModel) {K : ℕ}
+@[cost_le] theorem power_cost [One M] (C : CostModel) {K : ℕ}
     (hK : ∀ a b : M, MulCost.mulCost C a b = K) (x : M) {k : ℕ} (n : ℕ) (hn : n.size ≤ k) :
     costOf C (power x n) ≤
       costOf mulCount (power x n) * K + (Nat.log 2 n + 2) * 5 * C.lin (k + 2) := by

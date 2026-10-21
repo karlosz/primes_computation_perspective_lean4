@@ -304,7 +304,7 @@ end Bound
 /-- **Bit complexity of trial division, grammar-school arithmetic.**  Algorithm 3.1.1
 factors a `k`-bit number `n ≥ 3` in at most `(2 log₂ n + √n + 3) · 2(k + 3)²` bit
 operations, i.e. `O(√n ln² n)`. -/
-theorem trialDivisionCost_school_le {n : ℕ} (hn : 3 ≤ n) :
+@[cost_le] theorem trialDivisionCost_school_le {n : ℕ} (hn : 3 ≤ n) :
     costOf school (trialDivision n) ≤
       (2 * Nat.log 2 n + Nat.sqrt n + 3) * (2 * (n.size + 3) ^ 2) := by
   refine (trialDivisionCost_le school hn).trans (Nat.mul_le_mul_left _ ?_)

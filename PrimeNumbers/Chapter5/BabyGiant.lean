@@ -204,7 +204,7 @@ theorem babyTable_lt (p g : ℕ) (i cur count : ℕ) (m : Std.HashMap ℕ ℕ)
 
 /-- One modular multiplication per baby step, and the insertion and the index, on numbers
 of at most `K` bits. -/
-theorem babyCost_le (C : CostModel) {p g K : ℕ} (hg : g < p) (i : ℕ) {cur : ℕ} (hcur : cur < p)
+@[cost_le] theorem babyCost_le (C : CostModel) {p g K : ℕ} (hg : g < p) (i : ℕ) {cur : ℕ} (hcur : cur < p)
     (count : ℕ) (m : Std.HashMap ℕ ℕ) (hp : p.size ≤ K) (hK : (i + count).size ≤ K) :
     costOf C (babyTable p g i cur count m) ≤
       count * (C.mulMod p.size + 3 * C.lin K) + C.unit := by
@@ -217,7 +217,7 @@ theorem babyCost_le (C : CostModel) {p g K : ℕ} (hg : g < p) (i : ℕ) {cur : 
 /-- One modular multiplication per giant step taken, a look-up and the index; on success
 the product `j b` and a sum, on numbers of at most `K` bits (the table's indices are at
 most `B`). -/
-theorem giantCost_le (C : CostModel) {p b h B K : ℕ} (m : Std.HashMap ℕ ℕ) (hh : h < p)
+@[cost_le] theorem giantCost_le (C : CostModel) {p b h B K : ℕ} (m : Std.HashMap ℕ ℕ) (hh : h < p)
     (hm : ∀ (y i : ℕ), m[y]? = some i → i ≤ B) (hp : p.size ≤ K) (hK : (B + b * b).size ≤ K)
     (j : ℕ) {y : ℕ} (hy : y < p) (count : ℕ) (hj : j + count ≤ b) :
     costOf C (giantLoop p b h m j y count) ≤
@@ -247,7 +247,7 @@ def bsgsWidth (p n : ℕ) : ℕ := p.size + 2 * (Nat.sqrt n + 1).size + 3
 `2b + 2 log₂ b` modular multiplications (the book's "`O(√n)` group operations"), three
 reductions modulo `p`, the product `j b`, and `O(b)` linear operations (the table's
 insertions and look-ups, the indices). -/
-theorem bsgsCost_le (C : CostModel) {p g t : ℕ} (hg : g < p) (ht : t < p) (n : ℕ) :
+@[cost_le] theorem bsgsCost_le (C : CostModel) {p g t : ℕ} (hg : g < p) (ht : t < p) (n : ℕ) :
     costOf C (bsgs p g t n) ≤
       costOf C (Nat.sqrt n) + costOf C (modInv g p) + 3 * C.divMod p.size p.size +
         (2 * Nat.log 2 (Nat.sqrt n + 1) + 2 * (Nat.sqrt n + 1)) * C.mulMod p.size +
@@ -278,7 +278,7 @@ square root by Algorithm 9.2.11 and the inverse by Algorithm 2.1.4: with `k` the
 of `p`, `b = ⌊√n⌋ + 1` and `w = bsgsWidth p n`, at most
 `schoolSqrt (size n) + 6(k + 1)(3k + 2) + 5k + 4 + (2 log₂ b + 2b)(2k² + k) + (size b)² +
 (6b + 6 log₂ b + 12)(w + 2)` bit operations — `O(√n ln² p)`. -/
-theorem bsgsCost_school_le {p g t : ℕ} (hg0 : 0 < g) (hg : g < p) (ht : t < p) (n : ℕ) :
+@[cost_le] theorem bsgsCost_school_le {p g t : ℕ} (hg0 : 0 < g) (hg : g < p) (ht : t < p) (n : ℕ) :
     costOf school (bsgs p g t n) ≤
       schoolSqrt n.size + (6 * (p.size + 1) * (3 * p.size + 2) + 2 * p.size + 4) +
         3 * p.size +

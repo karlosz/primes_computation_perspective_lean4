@@ -233,7 +233,7 @@ Algorithms 9.6.1, 9.6.2, 9.6.4)**, for any cost model with superadditive multipl
 `D` points, at most `(⌈log₂ D⌉ + 1) · nodeBound D` bit operations — `O(log D)` levels, each
 costing `O(log D)` products of polynomials of length `O(D)` (`polyMulBound`) — plus the
 bookkeeping on lengths, of `K = size (D + δ + 2)` bits. -/
-theorem multipointEvalFast_cost_le (C : CostModel) {n : ℕ} [NeZero n] (hC : C.SuperadditiveMul)
+@[cost_le] theorem multipointEvalFast_cost_le (C : CostModel) {n : ℕ} [NeZero n] (hC : C.SuperadditiveMul)
     (δ : ℕ) (x : Chapter2.Poly (ZMod n)) (T : List (ZMod n)) (hx : x.length ≤ T.length + 1) :
     costOf C (multipointEvalFast n δ x T) ≤
       (Nat.clog 2 T.length + 1) * nodeBound C n δ (T.length + δ + 2).size T.length +

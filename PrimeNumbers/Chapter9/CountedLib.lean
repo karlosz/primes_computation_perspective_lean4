@@ -97,7 +97,7 @@ def _root_.Nat.clog.counted {m : Type → Type} [Monad m] [NatArith m] (b n : �
 
 /-- Each level of `logGo` squares the base once and divides once, by numbers `≤ n`, with
 four steps on the exponent around them; there are at most `k` levels when `n < b^(2^k)`. -/
-theorem logGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
+@[cost_le] theorem logGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
     ∀ (b k : ℕ), 2 ≤ b → n < b ^ 2 ^ k → k ≤ n.size →
       costOf C (logGo n b fuel) ≤
         (k + 1) * (C.mul n.size n.size + C.divBound n.size + 4 * C.lin (n.size + 1)) := by
@@ -128,7 +128,7 @@ theorem logGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
 
 /-- The charge for `Nat.log b n` (`b ≥ 2`): at most `size n` levels, each a squaring and a
 division of numbers `≤ n`. -/
-theorem ilog_cost_le (C : CostModel) {b n : ℕ} (hb : 2 ≤ b) :
+@[cost_le] theorem ilog_cost_le (C : CostModel) {b n : ℕ} (hb : 2 ≤ b) :
     costOf C (Nat.log b n) ≤
       (n.size + 2) * (C.mul n.size n.size + C.divBound n.size + 4 * C.lin (n.size + 1)) := by
   show CostM.cost C (ilog.counted b n) ≤ _

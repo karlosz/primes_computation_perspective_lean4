@@ -351,7 +351,7 @@ end
 of `n` and `K` that of `B`, the sieve (`sieve_cost_le`, `sievePrimes_cost_le`), for each
 prime `p ≤ B` the exponent `a_p` (`logBound`, `O(K³)`), `pm1Steps B` modular powers of
 at most `(4 log₂ B + 1)(k + 1)² + 6(log₂ B + 2)(K + 4)` bit operations each, and the gcd. -/
-theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
+@[cost_le] theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
     costOf school (pollardPMinusOne n B c) ≤
       (3 * (B + 6 + costOf writeCount (sieveLoop B 2 (sieveInit B))) + 4 * (B + 2)) *
           (B.size + 4) + (2 * B + 1) * ((B + 2).size * (B + 2).size) + 1 +
@@ -383,7 +383,7 @@ theorem pm1Cost_school_le {n B c : ℕ} (hc : c < n) :
 /-- **Bit complexity of the second stage**, for any cost model: per prime `Q ∈ (B, B']`
 one modular power with exponent at most `B'` (in practice the small difference
 `Q - prevQ`), two modular multiplications and four linear operations. -/
-theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ)
+@[cost_le] theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ)
     (Qs : List ℕ) (hh : h < n) (hP : P < n) (hprev : prevQ ≤ B') (hQs : ∀ Q ∈ Qs, Q ≤ B') :
     costOf C (stage2Loop n c₁ prevQ h P Qs) ≤
       Qs.length * (powBound C n B' + C.mulMod n.size +
@@ -411,7 +411,7 @@ theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h
 /-- **Bit complexity of the second stage, grammar-school arithmetic**: at most
 `(4 log₂ B' + 5)(k + 1)² + 6(log₂ B' + 2)(K' + 4) + 4(k + K' + 3)` bit operations per prime
 `Q ∈ (B, B']`, `K'` the bit length of `B'`. -/
-theorem stage2Cost_school_le {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ) (Qs : List ℕ)
+@[cost_le] theorem stage2Cost_school_le {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h P : ℕ) (Qs : List ℕ)
     (hh : h < n) (hP : P < n) (hprev : prevQ ≤ B') (hQs : ∀ Q ∈ Qs, Q ≤ B') :
     costOf school (stage2Loop n c₁ prevQ h P Qs) ≤
       Qs.length * ((4 * Nat.log 2 B' + 5) * (n.size + 1) ^ 2 +

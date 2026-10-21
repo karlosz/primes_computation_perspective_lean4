@@ -247,7 +247,7 @@ theorem size_pack_le_of_le {b w : ℕ} (hbw : b ≤ w) {L : List ℕ} (hL : ∀ 
 the steps through the list and an addition and a shift of numbers of at most `w · len` bits;
 per node, a small product `b · (len/2)` (at most `X`) and two steps on the lengths (of at most
 `K` bits). -/
-theorem pack_cost_le (C : CostModel) {b w K X : ℕ} (hbw : b ≤ w) (h2K : 2 ≤ K) :
+@[cost_le] theorem pack_cost_le (C : CostModel) {b w K X : ℕ} (hbw : b ≤ w) (h2K : 2 ≤ K) :
     ∀ L : List ℕ, (∀ x ∈ L, x < 2 ^ w) → L.length.size ≤ K →
       C.mul b.size (L.length / 2).size ≤ X →
       costOf C (pack b L) ≤
@@ -315,7 +315,7 @@ theorem size_shiftRight_le (N s : ℕ) : (N >>> s).size ≤ N.size - s := by
 `b (count + 1)` bits: per level, the steps of the appends and a reduction, a shift and a
 power of two on numbers of at most `2b · count` bits; per node, a small product `b · (count/2)`
 (at most `X`) and four steps on the counts (of at most `K` bits). -/
-theorem unpack_cost_le (C : CostModel) {b K X : ℕ} (hb : 1 ≤ b) (h2K : 2 ≤ K) :
+@[cost_le] theorem unpack_cost_le (C : CostModel) {b K X : ℕ} (hb : 1 ≤ b) (h2K : 2 ≤ K) :
     ∀ count N : ℕ, N.size ≤ b * (count + 1) → count.size ≤ K →
       C.mul b.size (count / 2).size ≤ X →
       costOf C (unpack b N count) ≤

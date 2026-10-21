@@ -277,7 +277,7 @@ theorem jacobiLoop_snd_natAbs {a m : ℕ} {t : ℤ} (ht : t.natAbs ≤ 1) (r : �
 of the inner loop: for `a < m` of at most `K` bits and `s` passes, at most
 `size a · (size m + s)` bit operations of divisions and `size a + 2s + 1` steps of ten linear
 operations — in any cost model whose divisions are at most grammar-school. -/
-theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y + 1) * y)
+@[cost_le] theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y + 1) * y)
     {K : ℕ} (a m : ℕ) (t : ℤ) (ham : a < m) (ht : t.natAbs ≤ 1) (hK : m.size ≤ K) (h4 : 4 ≤ K) :
     costOf C (jacobiLoop a m t) ≤
       a.size * (m.size + costOf Chapter9.divCount (jacobiLoop a m t)) +
@@ -317,7 +317,7 @@ theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y 
 /-- **Bit complexity of the Jacobi symbol algorithm.**  For `a < m`, with `m` of `k`
 bits, Algorithm 2.3.5 spends at most `k (3k + 1) + 10 (5k + 3)(k + 6)` bit operations in
 the grammar-school model: `O(ln² m)`, "about as hard as taking a gcd". -/
-theorem jacobiBitCost_school_le (a m : ℕ) (ham : a < m) :
+@[cost_le] theorem jacobiBitCost_school_le (a m : ℕ) (ham : a < m) :
     costOf school (jacobiLoop a m 1) ≤
       m.size * (3 * m.size + 1) + 10 * (5 * m.size + 3) * (m.size + 6) := by
   refine (jacobiBitCost_le school (fun _ _ ↦ le_rfl) (K := m.size + 4) a m 1 ham (by simp)

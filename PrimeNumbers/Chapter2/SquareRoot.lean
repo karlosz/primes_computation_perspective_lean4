@@ -517,7 +517,7 @@ at most `6 log₂ t + 4s² + 1` multiplications modulo `p` — the book's
 "`O(s² + ln t)` modular operations".  Each costs at most `C.mulMod (size p)` bit
 operations (`tonelli_cost`), so with grammar-school arithmetic the worst case (`s` large)
 is `O(ln⁴ p)` and the typical case (`s` small) is `O(ln³ p)`. -/
-theorem tonelli_mults_le (a d : ZMod p) :
+@[cost_le] theorem tonelli_mults_le (a d : ZMod p) :
     costOf mulCount (tonelli a d) ≤
       6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1 := by
   cost_unfold tonelli.counted
@@ -589,7 +589,7 @@ theorem size_le_of_le_four_mul {x : ℕ} (h : x ≤ 4 * p) : x.size ≤ p.size +
 
 /-- The loop: its multiplications, and at most `14 (log₂ p + 2)` linear operations per pass
 (the two powers and the counters). -/
-theorem tonelliLoop_cost_le (C : CostModel) (A D : ZMod p) (s i m : ℕ) (hsp : 2 ^ s ≤ p)
+@[cost_le] theorem tonelliLoop_cost_le (C : CostModel) (A D : ZMod p) (s i m : ℕ) (hsp : 2 ^ s ≤ p)
     (hm : m < 2 ^ i) :
     costOf C (tonelliLoop A D s i m) ≤
       costOf mulCount (tonelliLoop A D s i m) * C.mulMod p.size +
@@ -642,7 +642,7 @@ product of residues and a reduction (`C.mulMod (size p)`), and the linear work. 
 `(6 log₂ t + 4s² + 1)(2k² + k)` bit operations of multiplications, and the `O(k³)` of
 `sqrtOverhead` — `O(ln⁴ p)` in the worst case (`s ≈ k`) and `O(ln³ p)` when `s` is
 bounded, as the book states. -/
-theorem tonelliCost_school_le (hp : 0 < p) (a d : ZMod p) :
+@[cost_le] theorem tonelliCost_school_le (hp : 0 < p) (a d : ZMod p) :
     costOf school (tonelli a d) ≤
       (6 * Nat.log 2 (oddPart (p - 1)).2 + 4 * (oddPart (p - 1)).1 ^ 2 + 1) *
         (2 * p.size ^ 2 + p.size) + sqrtOverhead school p := by

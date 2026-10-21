@@ -213,7 +213,7 @@ most `2 log₂ N + 1` times. -/
 /-- **The bit cost of the Euclid loop** (grammar-school): the divisions telescope to
 `size y · (size x + passes)`, and each pass (and the last test) adds a call and a test
 `y > 0`, two steps. -/
-theorem euclidBitCost_school_le {x y : ℕ} (hyx : y ≤ x) :
+@[cost_le] theorem euclidBitCost_school_le {x y : ℕ} (hyx : y ≤ x) :
     costOf school (euclid x y) ≤
       y.size * (x.size + costOf divCount (euclid x y)) + 2 * (costOf divCount (euclid x y) + 1) := by
   fun_induction euclid x y with
@@ -350,7 +350,7 @@ the inputs `X, Y` have at most `k` bits, the cost is at most
 `4k · (max (size g) (size w) + passes)` for the divisions and products, and `3k + 5` per
 pass for the three subtractions, the call and the test.  The cofactors never exceed the
 inputs (`CofactorInv`), and the quotient bits telescope as in Exercise 2.6. -/
-theorem extEuclidCost_school_le {k X Y : ℕ} (hX : X.size ≤ k) (hY : Y.size ≤ k)
+@[cost_le] theorem extEuclidCost_school_le {k X Y : ℕ} (hX : X.size ≤ k) (hY : Y.size ≤ k)
     (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) (hg : 0 < g) (hgk : g.size ≤ k) (hwk : w.size ≤ k)
     (hau : CofactorInv a u g w Y) (hbv : CofactorInv b v g w X) :
     costOf school (extEuclidLoop a b g u v w) ≤

@@ -166,7 +166,7 @@ open PrimeNumbers.Chapter9
 
 /-- Each pass costs two multiplications of numbers `≤ A`, a square root of a number of at
 most `2 size A` bits, and four linear operations. -/
-theorem fermatCost_le (C : CostModel) {n a A : ℕ} (hA : 1 ≤ A) (fuel : ℕ)
+@[cost_le] theorem fermatCost_le (C : CostModel) {n a A : ℕ} (hA : 1 ≤ A) (fuel : ℕ)
     (h : a + fuel ≤ A + 1) (hna : n ≤ a * a) :
     costOf C (fermatLoop n a fuel) ≤
       fuel * (2 * C.mul A.size A.size + sqrtCost C (2 * A.size) + 4 * C.lin (2 * A.size)) +
@@ -186,7 +186,7 @@ theorem fermatCost_le (C : CostModel) {n a A : ℕ} (hA : 1 ≤ A) (fuel : ℕ)
 `(n + 9)/6 + 1 - ⌈√n⌉` passes, each costing two multiplications, one integer square root
 of numbers no longer than `n` squared and four linear operations: `O(n)` passes in the
 worst case — "much more tedious than trial division", as the book says. -/
-theorem fermatCost_le' (C : CostModel) {n : ℕ} (hn : 2 ≤ n) :
+@[cost_le] theorem fermatCost_le' (C : CostModel) {n : ℕ} (hn : 2 ≤ n) :
     costOf C (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
       ((n + 9) / 6 + 1 - ceilSqrt n) * (2 * C.mul n.size n.size + sqrtCost C (2 * n.size) +
         4 * C.lin (2 * n.size)) + C.unit := by
@@ -200,17 +200,12 @@ theorem fermatCost_le' (C : CostModel) {n : ℕ} (hn : 2 ≤ n) :
       (sqrtCost_mono C (by omega))) (Nat.mul_le_mul_left _ (C.lin_mono (by omega)))
 
 /-- **Bit complexity of the Fermat method, grammar-school arithmetic**, with the integer
-square roots computed by Algorithm 9.2.11 (`sqrtCost_school_le`): at most
-`((n + 9)/6 + 1 - ⌈√n⌉) · (2k² + schoolSqrt (2k) + 8k + 8) + 1` bit operations, `k` the bit
-length of `n` — that is `O(n ln³ n)` in the worst case. -/
-theorem fermatCost_school_le {n : ℕ} (hn : 2 ≤ n) :
+square roots computed by Algorithm 9.2.11 (`sqrtCost_school_le`): `O(n ln³ n)` bit
+operations in the worst case. -/
+theorem fermatCost_school : ∀ᴼ (n : ℕ), 2 ≤ n →
     costOf school (fermatLoop n (ceilSqrt n) ((n + 9) / 6 + 1 - ceilSqrt n)) ≤
-      ((n + 9) / 6 + 1 - ceilSqrt n) *
-        (2 * (n.size * n.size) + schoolSqrt (2 * n.size) + 8 * n.size + 8) + 1 := by
-  refine (fermatCost_le' school hn).trans (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
-  have := sqrtCost_school_le (2 * n.size)
-  rw [school_mul, school_lin]
-  omega
+      O(n * (n.size ^ 2 + schoolSqrt (2 * n.size)) + 1) := by
+  cost_O
 
 end RunningTime
 

@@ -269,7 +269,7 @@ theorem markSteps_mul_le {p : ℕ} (hp : 0 < p) (bits : Array Bool) (j : ℕ) :
   | case2 bits j h => rw [markSteps_done h]; omega
 
 /-- For `p² ≤ N`, the sieve strikes out the multiples of `p` in at most `3 N/p + 8` steps. -/
-theorem markSteps_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Array Bool}
+@[cost_le] theorem markSteps_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Array Bool}
     (hsize : bits.size = N + 1) : costOf writeCount (markMultiples p bits (p * p)) ≤
       3 * (N / p) + 8 := by
   have h₁ := markSteps_mul_le hp bits (p * p)
@@ -283,7 +283,7 @@ theorem markSteps_sq_le {N p : ℕ} (hp : 0 < p) (hpN : p * p ≤ N) {bits : Arr
   nlinarith
 
 /-- The steps of the main loop: at most `3 ⌊N/p⌋ + 11` for each `p ≤ √N`, and one to stop. -/
-theorem sieveLoopSteps_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1) :
+@[cost_le] theorem sieveLoopSteps_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1) :
     costOf writeCount (sieveLoop N p bits) ≤
       3 * ∑ q ∈ Finset.Ico p (Nat.sqrt N + 1), N / q + 11 * (Nat.sqrt N + 1 - p) + 1 := by
   fun_induction sieveLoop N p bits with
@@ -309,7 +309,7 @@ theorem sieveLoopSteps_le (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N
 
 /-- Only primes strike out: the main loop takes at most `3 ⌊N/p⌋ + 11` steps for each prime
 `p ≤ √N`, and `11` for each other `p ≤ √N`. -/
-theorem sieveLoopSteps_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
+@[cost_le] theorem sieveLoopSteps_le_primes (N p : ℕ) (bits : Array Bool) (hsize : bits.size = N + 1)
     (hp : 2 ≤ p) (hinv : SieveInv N p bits) :
     costOf writeCount (sieveLoop N p bits) ≤
       3 * (∑ q ∈ Finset.Ico p (Nat.sqrt N + 1), if q.Prime then N / q else 0) +
@@ -348,7 +348,7 @@ theorem size_le_of_le_two_mul_add_two {x N : ℕ} (h : x ≤ 2 * N + 2) : x.size
 
 /-- Each step of `markMultiples` is at most one linear operation on `(size N + 2)`-bit
 numbers. -/
-theorem markMultiples_cost_le (C : CostModel) {N p : ℕ} (bits : Array Bool) (j : ℕ)
+@[cost_le] theorem markMultiples_cost_le (C : CostModel) {N p : ℕ} (bits : Array Bool) (j : ℕ)
     (hs : bits.size ≤ N + 1) (hp : p ≤ N + 1) (hj : j ≤ 2 * N + 2) :
     costOf C (markMultiples p bits j) ≤
       costOf writeCount (markMultiples p bits j) * C.lin (N.size + 2) := by
@@ -427,7 +427,7 @@ most `2N + 1` products `p · p` of numbers `≤ N + 2`. -/
 /-- **Running time of the sieve of Eratosthenes**: at most `3 ∑_{p=2}^{⌊√N⌋} ⌊N/p⌋ +
 11 √N + 1` steps (one term for each `p`, whether prime or not; over primes only the sum is
 `∼ N ln ln N`, which needs Mertens' theorem 1.4.2). -/
-theorem sieveSteps_le (N : ℕ) :
+@[cost_le] theorem sieveSteps_le (N : ℕ) :
     costOf writeCount (sieveLoop N 2 (sieveInit N)) ≤
       3 * ∑ i ∈ Finset.range (Nat.sqrt N - 1), N / (i + 2) + 11 * Nat.sqrt N + 1 := by
   have := sieveLoopSteps_le N 2 (sieveInit N) (by simp [sieveInit])

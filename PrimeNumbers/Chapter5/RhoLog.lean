@@ -300,7 +300,7 @@ def rhoLogStepBound (C : CostModel) (p N : ℕ) : ℕ :=
 pass of the walk costs three steps (`rhoLogStep_cost_le`) and a comparison; at the
 collision the candidate logarithm is computed (at most `S`, one modular inverse modulo `N`
 and a few reductions) and checked by a modular power (at most `P`). -/
-theorem rhoLogLoop_cost_le (C : CostModel) {p N g t S P : ℕ} (hg : g < p) (ht : t < p)
+@[cost_le] theorem rhoLogLoop_cost_le (C : CostModel) {p N g t S P : ℕ} (hg : g < p) (ht : t < p)
     (hN : 0 < N) (hS : ∀ a b A B, costOf C (rhoLogSolve N a b A B) ≤ S)
     (hP : ∀ l, costOf C (powMod g l p) ≤ P) {u v : ℕ × ℕ × ℕ}
     (hu : RhoLogBounded p N u) (hv : RhoLogBounded p N v) (fuel : ℕ) :

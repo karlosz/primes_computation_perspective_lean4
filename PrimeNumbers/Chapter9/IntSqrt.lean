@@ -178,7 +178,7 @@ theorem size_add_two_pow_le (N : ℕ) : (N + 2 ^ ((N.size + 1) / 2)).size ≤ N.
 
 /-- **Bit complexity of Algorithm 9.2.11, grammar-school division**: at most
 `((k + 1)/2 + 2)((k + 1)² + 3(k + 4))` bit operations for a `k`-bit `N`. -/
-theorem isqrtCost_school_le (N : ℕ) :
+@[cost_le] theorem isqrtCost_school_le (N : ℕ) :
     costOf school (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤
       ((N.size + 1) / 2 + 2) * ((N.size + 1) ^ 2 + 3 * (N.size + 4)) := by
   have hdivs := isqrt_divs_le N

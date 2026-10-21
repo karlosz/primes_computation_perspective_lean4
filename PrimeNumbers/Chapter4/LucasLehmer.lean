@@ -86,7 +86,7 @@ open PrimeNumbers.Chapter9
 
 /-- Each pass is a modular squaring and two linear operations on `(2 size M + 1)`-bit
 numbers. -/
-theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
+@[cost_le] theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
     costOf C (lucasLehmerLoop M v k) ≤
       k * (C.mulMod M.size + 2 * C.lin (2 * M.size + 1)) + C.unit := by
   induction k generalizing v with
@@ -104,17 +104,11 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
     cost_bound
 
 /-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
-primality of `2^p - 1` takes at most `(p - 2)(2p² + 5p + 6) + 1` bit operations, i.e.
-`O(p³)`. -/
-@[cost_le] theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
-    costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ (p - 2) * (2 * p ^ 2 + 5 * p + 6) + 1 := by
-  have h8 : 2 ^ 3 ≤ 2 ^ p := Nat.pow_le_pow_right (by norm_num) hp
-  refine (lucasLehmerCost_le school (by omega) (p - 2)).trans
-    (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
-  have hsize : (2 ^ p - 1).size ≤ p := Nat.size_le.mpr (by omega)
-  rw [school_mulMod]
-  simp only [CostModel.lin, CostModel.add, school, max_self]
-  nlinarith [Nat.pow_le_pow_left hsize 2]
+primality of `2^p - 1` takes `O(p³)` bit operations. -/
+theorem lucasLehmerCost_school : ∀ᴼ (p : ℕ), 3 ≤ p →
+    costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ O(p ^ 3) := by
+  cost_O [Nat.pow_le_pow_right (show 0 < 2 by norm_num) ‹3 ≤ p›,
+    (Nat.size_le.mpr (Nat.sub_lt (Nat.two_pow_pos p) one_pos) : (2 ^ p - 1).size ≤ p)]
 
 end RunningTime
 

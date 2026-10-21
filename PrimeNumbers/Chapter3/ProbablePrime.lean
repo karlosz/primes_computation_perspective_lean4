@@ -248,13 +248,9 @@ open PrimeNumbers.Chapter9
   cost_bound
 
 /-- **Bit complexity of the Fermat test**: `O(ln³ n)` with grammar-school arithmetic. -/
-theorem probablePrimeCost_school_le {n a : ℕ} (ha : a < n) :
-    costOf school (probablePrime n a) ≤
-      (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 + 6 * (Nat.log 2 n + 2) * (n.size + 4) := by
-  refine (probablePrimeCost_le school ha).trans ?_
-  rw [school_mulMod, school_divMod_self, school_lin]
-  nlinarith [Nat.zero_le (Nat.log 2 n), Nat.zero_le n.size,
-    Nat.zero_le (Nat.log 2 n * n.size)]
+theorem probablePrimeCost_school : ∀ᴼ (n a : ℕ), a < n →
+    costOf school (probablePrime n a) ≤ O(n.size ^ 3) := by
+  cost_O
 
 @[cost_le] theorem sprpLoopCost_le (C : CostModel) {n b : ℕ} (hb : b < n) (j : ℕ) :
     costOf C (sprpLoop n b j) ≤ j * (C.mulMod n.size + 3 * C.lin n.size) + C.unit := by
@@ -268,7 +264,7 @@ theorem probablePrimeCost_school_le {n a : ℕ} (ha : a < n) :
 `n - 1 = 2^s t`, the power `a^t` and the `s - 1` squarings together use at most
 `2 log₂ n` modular multiplications; splitting off `2^s` and the exponent arithmetic are
 `O(log n)` linear operations. -/
-theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha : a < n) :
+@[cost_le] theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha : a < n) :
     costOf C (strongProbablePrime n a) ≤
       C.divMod n.size n.size + Nat.log 2 n * (2 * C.mulMod n.size) +
         9 * (Nat.log 2 n + n.size + 4) * C.lin (n.size + 2) := by
@@ -288,15 +284,20 @@ theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha 
   split_ifs <;> cost_bound
 
 /-- **Bit complexity of the strong probable prime test, grammar-school arithmetic**:
-at most `(4 log₂ n + 1)(k + 1)² + 9(log₂ n + k + 4)(k + 4)` bit operations, i.e.
-`O(ln³ n)` per base. -/
-theorem strongProbablePrimeCost_school_le {n a : ℕ} (hn : 1 < n) (ha : a < n) :
-    costOf school (strongProbablePrime n a) ≤
-      (4 * Nat.log 2 n + 1) * (n.size + 1) ^ 2 + 9 * (Nat.log 2 n + n.size + 4) * (n.size + 4) := by
-  refine (strongProbablePrimeCost_le school hn ha).trans ?_
-  rw [school_mulMod, school_divMod_self, school_lin]
-  nlinarith [Nat.zero_le (Nat.log 2 n), Nat.zero_le n.size,
-    Nat.zero_le (Nat.log 2 n * n.size)]
+`O(ln³ n)` bit operations per base. -/
+theorem strongProbablePrimeCost_school : ∀ᴼ (n a : ℕ), 1 < n → a < n →
+    costOf school (strongProbablePrime n a) ≤ O(n.size ^ 3) := by
+  cost_O
+
+open Asymptotics Filter in
+/-- **The book's form**: a strong probable prime test to a fixed base takes `O(ln³ n)` bit
+operations with grammar-school arithmetic. -/
+theorem strongProbablePrime_isBigO :
+    (fun n ↦ (costOf school (strongProbablePrime n 2) : ℝ)) =O[atTop] fun n ↦ Real.log n ^ 3 := by
+  obtain ⟨c, hc⟩ := strongProbablePrimeCost_school
+  refine (isBigO_of_uniform (g := fun n ↦ n.size ^ 3) c ?_).trans ?_
+  · filter_upwards [eventually_ge_atTop 3] with n hn using hc n 2 (by omega) (by omega)
+  · simpa using size_isBigO_log.pow 3
 
 end RunningTime
 

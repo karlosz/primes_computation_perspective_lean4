@@ -260,13 +260,11 @@ modular multiplications, one gcd with `n` and six linear operations. -/
   | zero => cost_unfold pollardRhoLoop.counted
   | succ fuel ih => cost_unfold pollardRhoLoop.counted; cost_bound
 
-/-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 21k + 18`
-bit operations per pass of [Factor search]. -/
-theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV : V < n)
-    (fuel : ℕ) :
-    costOf school (pollardRhoLoop n a U V fuel) ≤
-      fuel * (9 * n.size ^ 2 + 21 * n.size + 18) + 1 := by
-  cost_bound
+/-- **Bit complexity of Pollard rho, grammar-school arithmetic**: `O(ln² n)` bit operations
+per pass of [Factor search]. -/
+theorem pollardRhoCost_school : ∀ᴼ (n a U V fuel : ℕ), a < n → U < n → V < n →
+    costOf school (pollardRhoLoop n a U V fuel) ≤ O(fuel * n.size ^ 2 + 1) := by
+  cost_O
 
 end RunningTime
 

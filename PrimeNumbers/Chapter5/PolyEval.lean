@@ -182,7 +182,7 @@ open PrimeNumbers.Chapter9
 
 /-- One block costs at most `B` multiplications of an `n`-residue by a number `≤ M`, and
 two linear operations per factor (and the initial reduction `1 mod n`). -/
-theorem blockProdCost_le (C : CostModel) {n M : ℕ} (hn : 0 < n) {m : ℕ} (hm : m ≤ M) (i : ℕ)
+@[cost_le] theorem blockProdCost_le (C : CostModel) {n M : ℕ} (hn : 0 < n) {m : ℕ} (hm : m ≤ M) (i : ℕ)
     (hi : i ≤ M) :
     costOf C (blockProd n m i) ≤
       i * (C.mul n.size M.size + C.divMod (n.size + M.size) n.size +
@@ -200,7 +200,7 @@ by a number of at most `2 log₂ B` bits, and `B` gcds with `n`, besides the pro
 the reductions `1 mod n` and the linear work `L` on numbers of `size n + size B²` bits.  The
 final scan of one interval adds at most `B` divisions.  With Algorithm 9.6.7 in place of
 `blockProd` the `B²` becomes `O(B ln² B)`: see `pollardStrassenFast`. -/
-theorem findBlockCost_le (C : CostModel) {n B : ℕ} (hn : 0 < n)
+@[cost_le] theorem findBlockCost_le (C : CostModel) {n B : ℕ} (hn : 0 < n)
     (j fuel : ℕ) (hj : j + fuel ≤ B + 1) :
     costOf C (findBlock n B j fuel) ≤
       fuel * (B * (C.mul n.size (B * B).size + C.divMod (n.size + (B * B).size) n.size +
@@ -394,7 +394,7 @@ bit length of `n`, the cost is at most
 With products of length-`m` polynomials costing `M(m (k + log m))` bit operations
 (`polyMulBound`), this is `O(M(n^{1/4} log n) log² n)` — the book's `O(n^{1/4})` up to
 logarithmic factors with a quasi-linear multiplication. -/
-theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ}
+@[cost_le] theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ}
     (hn : 1 < n) {B : ℕ} (hB : iroot 4 n + 1 = B) :
     costOf C (pollardStrassenFast n) ≤
       B * (3 * C.mul (n.size + 4) (n.size + 4)) + psValuesBound C n B +

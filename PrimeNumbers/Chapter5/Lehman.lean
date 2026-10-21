@@ -696,7 +696,7 @@ private theorem size_sub_mul_le {a A : ℕ} (c : ℕ) (ha : a ≤ A) :
 `fuel` passes: the squaring `a²`, the product `4k · n`, the square root `b` and the check
 `b²`; `M` a multiplication and `S` a square root of the sizes involved), plus the final gcd
 if it succeeds. -/
-theorem lehmanInnerCost_le (C : CostModel) {n k A : ℕ} (hA : 1 ≤ A) (h4k : 4 * k ≤ A)
+@[cost_le] theorem lehmanInnerCost_le (C : CostModel) {n k A : ℕ} (hA : 1 ≤ A) (h4k : 4 * k ≤ A)
     (hn : n ≤ A) (a fuel : ℕ) (h : a + fuel ≤ A + 1) :
     costOf C (lehmanInner n k a fuel) ≤
       fuel * (3 * C.mul A.size A.size + sqrtCost C (2 * A.size) + 5 * C.lin (2 * A.size + 2)) +
@@ -719,7 +719,7 @@ being at most `A` (of `K` bits): at most `3 M + S + 5 L` per pass, with the pass
 by `lehmanPassBound`; `2 M + 2 S + D + 9 L` per value of `k` (the product `4k · n`,
 `⌈√(4kn)⌉`, `⌊√k⌋` and one division); and the final gcd — `M = C.mul K K`,
 `S = sqrtCost C (2K)`, `D = C.divBound K`, `L = C.lin (2K + 2)` a linear operation. -/
-theorem lehmanCost_le (C : CostModel) {n r6 A : ℕ} (hA1 : 1 ≤ A) (hr6 : r6 ≤ A) (hn : n ≤ A)
+@[cost_le] theorem lehmanCost_le (C : CostModel) {n r6 A : ℕ} (hA1 : 1 ≤ A) (hr6 : r6 ≤ A) (hn : n ≤ A)
     (k fuel : ℕ)
     (hA : ∀ k', k ≤ k' → k' < k + fuel →
       ceilSqrt (4 * k' * n) + (r6 / (4 * Nat.sqrt k') + 2) ≤ A + 1 ∧ 4 * k' * n ≤ A ∧
@@ -823,7 +823,7 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
 /-- The search for `⌊n^{1/e}⌋` makes one power `(c + 1)^e` per candidate tried: if each
 costs at most `W`, the search from `c` costs at most `(result + 1 - c) · (W + 3 L)`, with
 `L` a linear operation (the increment and the comparison). -/
-theorem rootLoop_cost_le (C : CostModel) {e n W : ℕ} (he : e ≠ 0)
+@[cost_le] theorem rootLoop_cost_le (C : CostModel) {e n W : ℕ} (he : e ≠ 0)
     (hW : ∀ c, c ^ e ≤ n → PowCost.powCost C (c + 1) e ≤ W) (fuel : ℕ) :
     ∀ c, c ^ e ≤ n → costOf C (rootLoop e n c fuel) ≤
       (rootLoop e n c fuel + 1 - c) * (W + 3 * C.lin (n.size + 1)) := by
@@ -884,7 +884,7 @@ three products of numbers of at most `size n + 4` bits, and three linear operati
 
 /-- The scan for a small divisor: one division of `n` per candidate `d ≤ N`, and three
 linear operations. -/
-theorem smallDivisor_cost_le (C : CostModel) {n N : ℕ} (hn : n ≤ N) (fuel : ℕ) :
+@[cost_le] theorem smallDivisor_cost_le (C : CostModel) {n N : ℕ} (hn : n ≤ N) (fuel : ℕ) :
     ∀ d, d + fuel ≤ N + 1 → costOf C (smallDivisor n d fuel) ≤
       fuel * (C.divBound N.size + 3 * C.lin (N.size + 1)) + C.unit := by
   induction fuel with

@@ -1198,12 +1198,18 @@ def provePolyLe (P Q : Expr) : FactM (Option Expr) := do
     edges := edges.push row
   -- distribute the coefficients of `P` over those of `Q` (a maximal flow)
   let some flow := maxFlow (p.map (·.1)) (q.map (·.1))
-      (edges.map (·.map Option.isSome)) | return none
+      (edges.map (·.map Option.isSome)) |
+    if cost_bound.profile.get (← getOptions) then
+      logInfo m!"cost_bound: no flow from {p} to {q}, edges {edges.map (·.map Option.isSome)}"
+    return none
   let mut facts := #[]
   for i in [:p.size] do
     for j in [:q.size] do
       if (flow[i]!)[j]! > 0 then
         if let some f := (edges[i]!)[j]! then facts := facts.push f
+  -- (the monomials of `Q` are nonnegative)
+  for (_, M) in q do
+    facts := facts.push (← withMain do mkAppM ``Nat.zero_le #[← atomsProd M])
   withMain do
     let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
     try

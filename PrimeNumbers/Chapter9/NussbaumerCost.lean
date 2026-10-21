@@ -320,7 +320,7 @@ theorem ncTerm_bound {β m s : ℕ} {b : List ℤ} (hb : Bdd β b) : ∀ (i : �
     rw [ncTerm, List.length_cons, add_mul, one_mul]
     omega
 
-theorem ncTerm_cost_le {β m s K : ℕ} {b : List ℤ} (hb : Bdd β b) (hm : m ≤ 2 ^ K) (hs : s < m) :
+@[cost_le] theorem ncTerm_cost_le {β m s K : ℕ} {b : List ℤ} (hb : Bdd β b) (hm : m ≤ 2 ^ K) (hs : s < m) :
     ∀ (i : ℕ) (as : List ℤ), Bdd β as → i + as.length ≤ m →
     costOf school (ncTerm m s b i as) ≤
       as.length * (β * β + 4 * β + 5 * K + b.length + 13) + 1
@@ -370,7 +370,7 @@ theorem ncTerm_cost_le {β m s K : ℕ} {b : List ℤ} (hb : Bdd β b) (hm : m �
 
 /-- The schoolbook negacyclic product of vectors of length `2^k` with entries below `2^β`
 (the base case of Nussbaumer's recursion). -/
-theorem ncSchool_cost_le {β k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k) (hb : b.length = 2 ^ k)
+@[cost_le] theorem ncSchool_cost_le {β k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k) (hb : b.length = 2 ^ k)
     (hab : Bdd β a) (hbb : Bdd β b) : costOf school (ncSchool (2 ^ k) a b) ≤
       2 ^ k * (2 ^ k * (β * β + 4 * β + 5 * k + 2 ^ k + 13) + 3) + 3 := by
   cost_unfold ncSchool.counted
