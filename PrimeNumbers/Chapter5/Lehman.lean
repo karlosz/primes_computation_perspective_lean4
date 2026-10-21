@@ -671,7 +671,7 @@ section BitCost
 open PrimeNumbers.Chapter9 PrimeNumbers.Chapter2
 
 /-- The cost charged for `⌈√m⌉`: a square root, a squaring and two linear operations. -/
-theorem ceilSqrt_counted_cost (C : CostModel) (m : ℕ) :
+@[cost_le] theorem ceilSqrt_counted_cost (C : CostModel) (m : ℕ) :
     costOf C (ceilSqrt m) ≤ costOf C (Nat.sqrt m) + C.mul (Nat.sqrt m).size (Nat.sqrt m).size +
       2 * C.lin (m.size + 1) := by
   have := Nat.size_le_size (Nat.sqrt_le_self m)
@@ -708,24 +708,7 @@ theorem lehmanInnerCost_le (C : CostModel) {n k A : ℕ} (hA : 1 ≤ A) (h4k : 4
     have hb : Nat.sqrt (a * a - 4 * k * n) ≤ a := by
       have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) (4 * k * n))
       rwa [Nat.sqrt_eq] at this
-    have hs := Nat.size_le_size haA
-    have h₁ := C.mul_le_mul_bound hs hs
-    have h₂ := C.mul_le_mul_bound (Nat.size_le_size h4k) (Nat.size_le_size hn)
-    have h₃ := C.mul_le_mul_bound (Nat.size_le_size (hb.trans haA))
-      (Nat.size_le_size (hb.trans haA))
-    have h₄ := sqrt_cost_le C (size_sub_mul_le (4 * k * n) haA)
     have ih := ih (a + 1) (by omega)
-    have hgcd := gcd_cost_le C (size_add_le_succ haA (hb.trans haA))
-      ((Nat.size_le_size hn).trans (Nat.le_succ _))
-    have haa : (a * a).size ≤ 2 * A.size := by
-      have := size_sub_mul_le 0 haA; simpa using this
-    have h4 : (4 * k * n).size ≤ 2 * A.size := by
-      have := size_mul_le (4 * k) n; have := Nat.size_le_size h4k; have := Nat.size_le_size hn
-      omega
-    have h5 := size_sub_mul_le (4 * k * n) haA
-    have h6 : Nat.size 4 ≤ 2 * A.size + 2 := by
-      rw [show Nat.size 4 = 3 by decide]; have := Nat.size_pos.mpr hA; omega
-    have h7 := Nat.size_le_size (hb.trans haA)
     cost_unfold lehmanInner.counted
     simp only [lehmanInner]
     split_ifs at ih ⊢ <;> (try simp only [Option.isSome_some, not_true_eq_false] at *) <;>
@@ -758,20 +741,7 @@ theorem lehmanCost_le (C : CostModel) {n r6 A : ℕ} (hA1 : 1 ≤ A) (hr6 : r6 �
     have hs : Nat.sqrt (4 * k * n) ≤ A := (Nat.sqrt_le_self _).trans hk₂
     have hsk : 4 * Nat.sqrt k ≤ A := by have := Nat.sqrt_le_self k; omega
     have hA2 : A.size ≤ 2 * A.size := by omega
-    have e₁ := C.mul_le_mul_bound (Nat.size_le_size hk₃) (Nat.size_le_size hn)
     have e₂ := sqrt_cost_le C ((Nat.size_le_size hk₂).trans hA2)
-    have e₃ := C.mul_le_mul_bound (Nat.size_le_size hs) (Nat.size_le_size hs)
-    have e₄ := sqrt_cost_le C ((Nat.size_le_size (show k ≤ A by omega)).trans hA2)
-    have e₅ := C.divMod_le_divBound (Nat.size_le_size hr6) (Nat.size_le_size hsk)
-    have hceil := ceilSqrt_counted_cost C (4 * k * n)
-    have hl := C.lin_mono (show (4 * k * n).size + 1 ≤ 2 * A.size + 2 by
-      have := Nat.size_le_size hk₂; omega)
-    have := Nat.size_le_size (show k ≤ A by omega)
-    have := Nat.size_le_size (show k + 1 ≤ A + 1 by omega)
-    have := Nat.size_le_size (show r6 / (4 * Nat.sqrt k) ≤ A from (Nat.div_le_self _ _).trans hr6)
-    have := Nat.size_le_size (show Nat.sqrt k ≤ A from (Nat.sqrt_le_self k).trans (by omega))
-    have hA1' : 1 ≤ A.size := Nat.size_pos.mpr hA1
-    have := Nat.size_le_size (show A + 1 ≤ 2 * A by omega)
     cost_unfold lehmanOuter.counted
     rw [lehmanPassBound_succ]
     rcases hm : lehmanInner n k (ceilSqrt (4 * k * n)) (r6 / (4 * Nat.sqrt k) + 2) with _ | d
@@ -882,7 +852,7 @@ theorem rootLoop_cost_le (C : CostModel) {e n W : ℕ} (he : e ≠ 0)
 
 /-- **Cost of `⌊n^{1/4}⌋`** by the upward search: at most `⌊n^{1/4}⌋ + 1` fourth powers, each
 three products of numbers of at most `size n + 4` bits, and three linear operations. -/
-theorem iroot4_cost_le (C : CostModel) (n : ℕ) :
+@[cost_le] theorem iroot4_cost_le (C : CostModel) (n : ℕ) :
     costOf C (iroot 4 n) ≤ (iroot 4 n + 1) *
       (3 * C.mul (n.size + 4) (n.size + 4) + 3 * C.lin (n.size + 1)) + C.unit := by
   have hn : n + 1 ≤ 2 ^ n.size := Nat.lt_size_self n
@@ -921,10 +891,6 @@ theorem smallDivisor_cost_le (C : CostModel) {n N : ℕ} (hn : n ≤ N) (fuel : 
   | zero => intro d _; cost_unfold smallDivisor.counted
   | succ fuel ih =>
     intro d hd
-    have ih := ih (d + 1) (by omega)
-    have := C.divMod_le_divBound (Nat.size_le_size hn) (Nat.size_le_size (show d ≤ N by omega))
-    have := Nat.size_le_size (show d ≤ N by omega)
-    have := Nat.size_le_size (Nat.mod_le n d) |>.trans (Nat.size_le_size hn)
     cost_unfold smallDivisor.counted
     split_ifs <;> cost_bound
 

@@ -49,6 +49,44 @@ theorem log_two_le_size (n : ℕ) : Nat.log 2 n ≤ n.size := by
   · simp
   · exact (Nat.lt_size.mpr (Nat.pow_log_le_self 2 hn.ne')).le
 
+theorem size_le_self (x : ℕ) : x.size ≤ x := Nat.size_le.mpr Nat.lt_two_pow_self
+
+/-- A sum has at most one bit more than the longer summand. -/
+theorem size_add_le (a b : ℕ) : (a + b).size ≤ max a.size b.size + 1 := by
+  rw [Nat.size_le, pow_succ]
+  have ha := Nat.lt_size_self a
+  have hb := Nat.lt_size_self b
+  have h₁ : 2 ^ a.size ≤ 2 ^ max a.size b.size :=
+    Nat.pow_le_pow_right (by norm_num) (le_max_left _ _)
+  have h₂ : 2 ^ b.size ≤ 2 ^ max a.size b.size :=
+    Nat.pow_le_pow_right (by norm_num) (le_max_right _ _)
+  omega
+
+/-- A sum has at most as many bits as its summands together (a bound without `max`). -/
+theorem size_add_le_add (a b : ℕ) : (a + b).size ≤ a.size + b.size := by
+  rcases Nat.eq_zero_or_pos a with rfl | ha
+  · simp
+  rcases Nat.eq_zero_or_pos b with rfl | hb
+  · simp
+  have h₁ := size_add_le a b
+  have : 0 < a.size := Nat.size_pos.mpr ha
+  have : 0 < b.size := Nat.size_pos.mpr hb
+  omega
+
+/-- A product plus a carry stays below the product of the bounds: `p q + c < A B`.  (So the
+operand `x y + c` of a modular multiplication with `x, y, c < n` has at most `2 size n`
+bits.) -/
+theorem mul_add_lt_mul_of_lt_left {p q c A B : ℕ} (hp : p < A) (hq : q < B) (hc : c < A) :
+    p * q + c < A * B := by
+  obtain ⟨A, rfl⟩ : ∃ A', A = A' + 1 := ⟨A - 1, by omega⟩
+  obtain ⟨B, rfl⟩ : ∃ B', B = B' + 1 := ⟨B - 1, by omega⟩
+  have := Nat.mul_le_mul (Nat.lt_succ_iff.mp hp) (Nat.lt_succ_iff.mp hq)
+  nlinarith
+
+theorem mul_add_lt_mul_of_lt_right {p q c A B : ℕ} (hp : p < A) (hq : q < B) (hc : c < B) :
+    p * q + c < A * B := by
+  rw [Nat.mul_comm p, Nat.mul_comm A]; exact mul_add_lt_mul_of_lt_left hq hp hc
+
 /-! ## Cost models -/
 
 /-- A cost model: what each primitive of the machine costs.  Nothing an algorithm does is
@@ -206,6 +244,7 @@ theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 @[simp] theorem opCount_unit : opCount.unit = 0 := rfl
 @[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
 @[simp] theorem school_unit : school.unit = 1 := rfl
+@[simp] theorem school_addRate : school.addRate = 1 := rfl
 @[simp] theorem school_add (a b : ℕ) : school.add a b = max a b + 1 := by
   simp [CostModel.add, school]
 @[simp] theorem mulCount_add (a b : ℕ) : mulCount.add a b = 0 := by simp [CostModel.add, mulCount]

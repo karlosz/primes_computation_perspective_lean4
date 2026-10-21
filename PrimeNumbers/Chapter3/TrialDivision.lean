@@ -28,7 +28,7 @@ counted_def divideOut (d N : ℕ) (F : List ℕ) : ℕ × List ℕ :=
 termination_by N
 decreasing_by exact Nat.div_lt_self (by omega) (by omega)
 
-theorem divideOut_fst_le (d N : ℕ) (F : List ℕ) : (divideOut d N F).1 ≤ N := by
+@[val_le] theorem divideOut_fst_le (d N : ℕ) (F : List ℕ) : (divideOut d N F).1 ≤ N := by
   fun_induction divideOut d N F with
   | case1 N F h ih => exact ih.trans (Nat.div_le_self _ _)
   | case2 => exact le_rfl
@@ -234,30 +234,25 @@ theorem divideOut_fst_pos {d N : ℕ} (hN : 0 < N) (F : List ℕ) : 0 < (divideO
   | case1 N F h ih => exact ih (Nat.div_pos (Nat.le_of_dvd hN h.2.2) (by omega))
   | case2 => exact hN
 
-theorem divideOutCost_le {d N : ℕ} (hd2 : 2 ≤ d) (hd : d ≤ n) (hN0 : 0 < N) (hN : N ≤ n)
+@[cost_le] theorem divideOutCost_le {d N : ℕ} (hd2 : 2 ≤ d) (hd : d ≤ n) (hN0 : 0 < N) (hN : N ≤ n)
     (F : List ℕ) :
     costOf C (divideOut d N F) ≤ costOf opCount (divideOut d N F) * opBound C n := by
-  have hdiv := fun (N : ℕ) (hN : N ≤ n) ↦ C.divMod_le_divBound (Nat.size_le_size hN)
-    (Nat.size_le_size hd)
   fun_induction divideOut d N F with
   | case1 N F h ih =>
     have ih := ih (Nat.div_pos (Nat.le_of_dvd hN0 h.2.2) (by omega)) ((Nat.div_le_self _ _).trans hN)
-    have := hdiv N hN
     cost_unfold_both divideOut.counted
     unfold opBound at *
     cost_bound
   | case2 N F h =>
-    have := hdiv N hN
     cost_unfold_both divideOut.counted
     unfold opBound
     simp only [show 1 < d by omega, hN0] at *
     cost_bound
 
-theorem trialCost_le {d N : ℕ} (hN0 : 0 < N) (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d)
+@[cost_le] theorem trialCost_le {d N : ℕ} (hN0 : 0 < N) (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d)
     (hdn : d ≤ n) :
     costOf C (trialLoop d N F) ≤ costOf opCount (trialLoop d N F) * opBound C n := by
   have hmul := fun (d : ℕ) (hd : d ≤ n) ↦ C.mul_mono (Nat.size_le_size hd) (Nat.size_le_size hd)
-  have hn : 1 ≤ n.size := Nat.size_pos.mpr (by omega)
   have hsq : ∀ d ≤ n, (d * d).size ≤ 2 * n.size + 1 := fun d hd ↦ by
     have := size_mul_le d d; have := Nat.size_le_size hd; omega
   fun_induction trialLoop d N F with
@@ -268,22 +263,19 @@ theorem trialCost_le {d N : ℕ} (hN0 : 0 < N) (hN : N ≤ n) (F : List ℕ) (hd
     have hdo := divideOutCost_le C hd2 (hdN.trans hN) hN0 hN F
     have hm := hmul d hdn
     have hs := hsq d hdn
-    have hmin : min (d * d).size N.size ≤ 2 * n.size + 1 := by omega
     cost_unfold_both trialLoop.counted
     simp only [r] at ih
     unfold opBound at *
     cost_bound
   | case2 d F hlt =>
-    have hm := hmul d hdn; have hs := hsq d hdn
     cost_unfold_both trialLoop.counted; unfold opBound; cost_bound
   | case3 d N F hlt hN1 =>
-    have hm := hmul d hdn; have hs := hsq d hdn
     cost_unfold_both trialLoop.counted; unfold opBound; cost_bound
 
 /-- **Bit complexity of trial division**, for any cost model: at most
 `2 log₂ n + √n + 3` divisions and multiplications, each of numbers no longer than `n`, with
 the linear work of their passes. -/
-theorem trialDivisionCost_le (hn : 3 ≤ n) :
+@[cost_le] theorem trialDivisionCost_le (hn : 3 ≤ n) :
     costOf C (trialDivision n) ≤ (2 * Nat.log 2 n + Nat.sqrt n + 3) * opBound C n := by
   have h₁ := divideOutCost_le C (n := n) (d := 2) le_rfl (by omega) (by omega) le_rfl []
   have h₂ := trialCost_le C (divideOut_fst_pos (d := 2) (show 0 < n by omega) [])

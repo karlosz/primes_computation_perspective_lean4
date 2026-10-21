@@ -169,7 +169,7 @@ theorem two_pow_clog_le {k : ℕ} (hk : 1 ≤ k) : 2 ^ Nat.clog 2 k ≤ 2 * k :=
     omega
 
 /-- The charge for `⌈log₂ k⌉`, `k ≤ N`. -/
-theorem clog_cost_le (C : CostModel) {k N : ℕ} (hk : k ≤ N) :
+@[cost_le] theorem clog_cost_le (C : CostModel) {k N : ℕ} (hk : k ≤ N) :
     costOf C (Nat.clog 2 k) ≤ (N.size + 2) * (C.mul (2 * N.size) (2 * N.size) +
       2 * C.divBound (2 * N.size) + 4 * C.lin (2 * N.size + 1)) := by
   have hs := Nat.size_le_size hk
@@ -193,45 +193,25 @@ theorem fastModMonic_cost_le [ArithCost R] (C : CostModel)
         (f.length.size + 2) * (C.mul (2 * f.length.size) (2 * f.length.size) +
           2 * C.divBound (2 * f.length.size) + 4 * C.lin (2 * f.length.size + 1)) +
         (16 * D + 20) * (C.unit + s) + 8 * C.lin (D.size + 2) := by
-  have hDs : ∀ m, m ≤ 3 * D + 3 → m.size ≤ D.size + 2 := fun m hm ↦ Nat.size_le.2 (by
-    have := Nat.lt_size_self D; rw [pow_add]; omega)
-  have hlf := hDs f.length (by omega)
-  have hlg := hDs g.length (by omega)
-  have hlg1 := hDs (g.length - 1) (by omega)
   cost_unfold fastModMonic.counted
   split_ifs with h
   · cost_bound
   · set k := f.length - (g.length - 1) with hkdef
     have hk1 : 1 ≤ k := by omega
     have hkf : k ≤ f.length := by omega
-    have hgf : g.length ≤ f.length := by omega
-    have hks := hDs k (by omega)
     have hpow := two_pow_clog_le hk1
     have hcl := Nat.clog_mono_right 2 hkf
-    have h₀ := clog_cost_le C hkf
     have h₁ := invNewton_cost_le C mc hM hlen hs g.reverse (by simp; omega) 1 (Nat.clog 2 k)
       (by omega)
-    have h₁' : Nat.clog 2 k * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) ≤
-        Nat.clog 2 f.length * (2 * M + (11 * D + 9) * (C.unit + s) + 4 * C.lin (D.size + 2)) :=
-      Nat.mul_le_mul_right _ hcl
     have hinv := length_invNewton_le mulF g.reverse 1 (Nat.clog 2 k)
     have h₂ := hM f.reverse (invNewton mulF g.reverse 1 (Nat.clog 2 k)) (by simp; omega)
       (by omega)
     set rq := (mulF f.reverse (invNewton mulF g.reverse 1 (Nat.clog 2 k))).take k
     have hrq : rq.length ≤ k := by simp [rq]
-    have hrqs := hDs rq.length (by omega)
-    have hkr := hDs (k - rq.length) (by omega)
     set q := (rq ++ List.replicate (k - rq.length) 0).reverse
     have hq : q.length = k := by simp [q]; omega
     have h₃ := hM q g (by omega) (by omega)
     have hl := hlen q g
-    have h₄ := Chapter2.Poly.sub_cost_le C hs f (mulF q g)
-    have u₂ : (max f.length (mulF q g).length + 1) * (C.unit + s) + ((mulF q g).length + 3) *
-        (C.unit + s) ≤ (4 * D + 4) * (C.unit + s) := by
-      have : max f.length (mulF q g).length + 1 + ((mulF q g).length + 3) ≤ 4 * D + 4 := by omega
-      calc _ = (max f.length (mulF q g).length + 1 + ((mulF q g).length + 3)) * (C.unit + s) := by
-            ring
-        _ ≤ _ := Nat.mul_le_mul_right _ this
     have hl' : (rq ++ List.replicate (k - rq.length) 0).length = k := by simp; omega
     cost_bound
 

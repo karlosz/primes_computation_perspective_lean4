@@ -357,8 +357,6 @@ theorem markMultiples_cost_le (C : CostModel) {N p : ℕ} (bits : Array Bool) (j
     have ih := ih (by rw [Array.size_setIfInBounds]; exact hs) (by omega)
     have h₁ := size_le_of_le_two_mul_add_two hj
     have h₂ := size_le_of_le_two_mul_add_two (show p ≤ 2 * N + 2 by omega)
-    have h₃ := size_le_of_le_two_mul_add_two (show bits.size.size ≤ 2 * N + 2 from
-      (size_le_self _).trans (by omega))
     have e : costOf writeCount (markMultiples p bits j) =
         3 + costOf writeCount (markMultiples p (bits.setIfInBounds j false) (j + p)) := by
       cost_unfold markMultiples.counted
@@ -367,21 +365,18 @@ theorem markMultiples_cost_le (C : CostModel) {N p : ℕ} (bits : Array Bool) (j
     cost_bound
   | case2 bits j h =>
     have h₁ := size_le_of_le_two_mul_add_two hj
-    have h₃ := size_le_of_le_two_mul_add_two (show bits.size.size ≤ 2 * N + 2 from
-      (size_le_self _).trans (by omega))
     rw [markSteps_done h]
     cost_unfold markMultiples.counted
     split_ifs <;> cost_bound
 
 /-- The bit operations of the main loop: three linear operations per step, and the
 products `p · p` (the test `p² ≤ N` and the start `p²` of the multiples), `p ≤ N + 2`. -/
-theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : p ≤ N + 2)
+@[cost_le] theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : p ≤ N + 2)
     (hsize : bits.size = N + 1) :
     costOf C (sieveLoop N p bits) ≤ 3 * costOf writeCount (sieveLoop N p bits) * C.lin (N.size + 2) +
       (2 * (N + 2 - p) + 1) * C.mul (N + 2).size (N + 2).size := by
   have hM : ∀ p ≤ N + 2, C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size := fun p hp ↦
     C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
-  have hNs : (N + 2).size ≤ N.size + 2 := size_le_of_le_two_mul_add_two (by omega)
   fun_induction sieveLoop N p bits with
   | case1 p bits h ih =>
     have hpp : p ≤ N := (Nat.le_mul_self p).trans h.1
@@ -391,11 +386,8 @@ theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : 
       · rw [(markMultiples_spec p bits (p * p) h.2).1, hsize]
       · exact hsize
     have ih := ih (by omega) hsize'
-    have hm := hM p hp
     have hmk := markMultiples_cost_le C (N := N) (p := p) bits (p * p) (by omega) (by omega)
       (by omega)
-    have h₁ : p.size ≤ N.size + 2 := size_le_of_le_two_mul_add_two (by omega)
-    have h₂ : min (p * p).size N.size ≤ N.size + 2 := by omega
     have e : costOf writeCount (sieveLoop N p bits) = 3 +
         ((if bit bits p = true then costOf writeCount (markMultiples p bits (p * p)) else 0) +
           costOf writeCount (sieveLoop N (p + 1)
@@ -406,8 +398,6 @@ theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : 
     simp only [dite_eq_ite] at ih
     split_ifs at ih ⊢ <;> cost_bound
   | case2 p bits h =>
-    have hm := hM p hp
-    have h₂ : min (p * p).size N.size ≤ N.size + 2 := by omega
     have e : costOf writeCount (sieveLoop N p bits) = 1 := by
       cost_unfold sieveLoop.counted
     rw [e]
@@ -416,20 +406,18 @@ theorem sieveLoop_cost_le (C : CostModel) (N p : ℕ) (bits : Array Bool) (hp : 
 
 /-- **Bit operations of the sieve**: filling the array, the steps of the main loop, and at
 most `2N + 1` products `p · p` of numbers `≤ N + 2`. -/
-theorem sieve_cost_le (C : CostModel) (N : ℕ) :
+@[cost_le] theorem sieve_cost_le (C : CostModel) (N : ℕ) :
     costOf C (sieve N) ≤ 3 * (N + 6 + costOf writeCount (sieveLoop N 2 (sieveInit N))) *
       C.lin (N.size + 2) + (2 * N + 1) * C.mul (N + 2).size (N + 2).size := by
   have h := sieveLoop_cost_le C N 2 (sieveInit N) (by omega) (by simp [sieveInit])
   rw [show 2 * (N + 2 - 2) + 1 = 2 * N + 1 by omega] at h
-  have hN : N.size ≤ N.size + 2 := by omega
   cost_unfold sieve.counted
   cost_unfold sieveInit.counted
   cost_bound
 
 /-- Reading off the primes: a pass over the array. -/
-theorem sievePrimes_cost_le (C : CostModel) (N : ℕ) :
+@[cost_le] theorem sievePrimes_cost_le (C : CostModel) (N : ℕ) :
     costOf C (sievePrimes N) ≤ costOf C (sieve N) + 4 * (N + 2) * C.lin (N.size + 2) := by
-  have hN : N.size ≤ N.size + 2 := by omega
   cost_unfold sievePrimes.counted
   simp only [List.map_const', List.sum_replicate, List.length_range, smul_eq_mul]
   cost_bound

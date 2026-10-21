@@ -150,7 +150,7 @@ counted_def trim [Chapter9.CmpCost F] : Poly F → Poly F
     · rw [toPolynomial_cons, ← ih, h.1, h.2]; simp
     · rw [toPolynomial_cons, toPolynomial_cons, ih]
 
-theorem length_trim_le (f : Poly F) : (trim f).length ≤ f.length := by
+@[val_le] theorem length_trim_le (f : Poly F) : (trim f).length ≤ f.length := by
   induction f with
   | nil => simp [trim]
   | cons a f ih =>
@@ -246,7 +246,7 @@ theorem divMod_cons (a : F) (f g : Poly F) : divMod (a :: f) g =
 counted_def mod [Chapter9.ArithCost F] [Chapter9.InvCost F] (f g : Poly F) : Poly F :=
   (divMod f g).2
 
-theorem length_divMod_snd_lt (f : Poly F) {g : Poly F} (hg : g ≠ []) :
+@[val_le] theorem length_divMod_snd_lt (f : Poly F) {g : Poly F} (hg : g ≠ []) :
     (divMod f g).2.length < g.length := by
   have hpos : 0 < g.length := List.length_pos_iff.mpr hg
   induction f with
@@ -336,14 +336,14 @@ open Chapter9
 variable {F : Type} [CommRing F] [ArithCost F] (C : CostModel) {s : ℕ}
 
 /-- Scaling: a step and a product per coefficient. -/
-theorem smul_cost_le (hs : ArithCost.Bounded F C s) (c : F) (f : Poly F) :
+@[cost_le] theorem smul_cost_le (hs : ArithCost.Bounded F C s) (c : F) (f : Poly F) :
     costOf C (smul c f) ≤ (f.length + 2) * (C.unit + s) := by
   cost_unfold smul.counted
   have := sum_map_le_length_mul f (fun x ↦ MulCost.mulCost C c x) fun x _ ↦ (hs c x).1
   nlinarith
 
 /-- Adding: a step and a sum per coefficient of the longer polynomial. -/
-theorem add_cost_le (hs : ArithCost.Bounded F C s) :
+@[cost_le] theorem add_cost_le (hs : ArithCost.Bounded F C s) :
     ∀ f g : Poly F, costOf C (add f g) ≤ (max f.length g.length + 1) * (C.unit + s)
   | [], g => by
     cost_unfold add.counted
@@ -360,7 +360,7 @@ theorem add_cost_le (hs : ArithCost.Bounded F C s) :
     simp only [List.length_cons, Nat.add_max_add_right] at *
     nlinarith
 
-theorem sub_cost_le (hs : ArithCost.Bounded F C s) (f g : Poly F) :
+@[cost_le] theorem sub_cost_le (hs : ArithCost.Bounded F C s) (f g : Poly F) :
     costOf C (sub f g) ≤ (max f.length g.length + 1) * (C.unit + s) +
       (g.length + 3) * (C.unit + s) := by
   have h₁ := smul_cost_le C hs (-1) g
@@ -369,7 +369,7 @@ theorem sub_cost_le (hs : ArithCost.Bounded F C s) (f g : Poly F) :
   cost_unfold sub.counted
   nlinarith
 
-theorem length_mul_le_add : ∀ f g : Poly F, (mul f g).length ≤ f.length + g.length
+@[val_le] theorem length_mul_le_add : ∀ f g : Poly F, (mul f g).length ≤ f.length + g.length
   | [], g => by simp [mul]
   | a :: f, g => by
     have := length_mul_le_add f g
@@ -377,7 +377,7 @@ theorem length_mul_le_add : ∀ f g : Poly F, (mul f g).length ≤ f.length + g.
 
 /-- **The schoolbook product**: at each of the `len f` levels, a scaling of `g` and an
 addition, `O(len f + len g)` coefficient operations. -/
-theorem mul_cost_le (hs : ArithCost.Bounded F C s) : ∀ f g : Poly F,
+@[cost_le] theorem mul_cost_le (hs : ArithCost.Bounded F C s) : ∀ f g : Poly F,
     costOf C (mul f g) ≤ (f.length + 1) * ((2 * (f.length + g.length) + 5) * (C.unit + s))
   | [], g => by
     cost_unfold mul.counted

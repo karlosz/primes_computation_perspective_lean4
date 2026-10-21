@@ -94,7 +94,7 @@ theorem invNewton_spec {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.
 
 /-! ## Running time -/
 
-theorem length_invNewton_le (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
+@[val_le] theorem length_invNewton_le (mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R)
     (a : Chapter2.Poly R) (u : R) (k : ℕ) : (invNewton mulF a u k).length ≤ 2 ^ k := by
   cases k with
   | zero => simp [invNewton]
@@ -116,8 +116,6 @@ theorem invNewton_cost_le [ArithCost R] (C : CostModel)
   induction k with
   | zero => cost_unfold invNewton.counted
   | succ k ih =>
-    have h2 : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
-    have ih := ih (by omega)
     cost_unfold invNewton.counted
     set h := invNewton mulF a u k
     have hh : h.length ≤ 2 ^ k := length_invNewton_le mulF a u k
@@ -126,30 +124,9 @@ theorem invNewton_cost_le [ArithCost R] (C : CostModel)
     have he : e.length ≤ 2 * D := by simp only [e, List.length_take]; omega
     have hm₂ := hM h e (by omega) (by simp only [e, List.length_take]; omega)
     have hl := hlen h e
-    have hs₁ := Chapter2.Poly.smul_cost_le C hs 2 h
     have hs₂ := Chapter2.Poly.sub_cost_le C hs (Chapter2.Poly.smul 2 h) (mulF h e)
     simp only [Chapter2.Poly.length_smul] at hs₂
     -- the lengths, and the power of two, of at most `size D + 2` bits
-    have hkD : k < D.size := Nat.lt_size.2 (by omega)
-    have hp : (2 ^ (k + 1)).size ≤ D.size + 2 := by rw [Nat.size_pow]; omega
-    have hk1 : (k + 1).size ≤ D.size + 2 := (Nat.size_le.2 Nat.lt_two_pow_self).trans (by omega)
-    have hks : k.size ≤ D.size + 2 := (Nat.size_le.2 Nat.lt_two_pow_self).trans (by omega)
-    have hDs : ∀ m, m ≤ 3 * D + 3 → m.size ≤ D.size + 2 := fun m hm ↦ Nat.size_le.2 (by
-      have := Nat.lt_size_self D; rw [pow_add]; omega)
-    have := hlen a h
-    have := hDs h.length (by omega); have := hDs (mulF a h).length (by omega)
-    have := hDs (mulF h e).length (by omega)
-    have := hDs e.length (by omega); have := hDs (2 ^ (k + 1)) (by omega)
-    have u₁ : (min (2 ^ (k + 1)) (mulF a h).length + 1) * C.unit ≤ (2 * D + 1) * C.unit :=
-      Nat.mul_le_mul_right _ (by omega)
-    have u₂ : (min (2 ^ (k + 1)) (Chapter2.Poly.sub (Chapter2.Poly.smul 2 h) (mulF h e)).length + 1)
-        * C.unit ≤ (2 * D + 1) * C.unit := Nat.mul_le_mul_right _ (by omega)
-    have v₁ : (h.length + 2) * (C.unit + s) ≤ (D + 2) * (C.unit + s) :=
-      Nat.mul_le_mul_right _ (by omega)
-    have v₂ : (max h.length (mulF h e).length + 1) * (C.unit + s) + ((mulF h e).length + 3) *
-        (C.unit + s) ≤ (6 * D + 4) * (C.unit + s) := by
-      have : max h.length (mulF h e).length + 1 + ((mulF h e).length + 3) ≤ 6 * D + 4 := by omega
-      nlinarith
     cost_bound
 
 end PrimeNumbers.Chapter9

@@ -99,24 +99,6 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
       have h₁ : v * v ≤ c * c := Nat.mul_le_mul (by omega) (by omega)
       have h₂ : (c + 1) * (c + 1) = c * c + 2 * c + 1 := by ring
       omega
-    have hsize : (v * v + M - 2).size ≤ 2 * M.size := by
-      have := size_le_of_lt hlt
-      have := size_mul_le M M
-      omega
-    have hsize' : (v * v + M).size ≤ 2 * M.size + 1 := by
-      refine Nat.size_le.mpr ?_
-      have := Nat.lt_size_self M
-      have : v * v < M * M := Nat.mul_self_lt_mul_self hv
-      have : M * M < 2 ^ (2 * M.size) := by
-        rw [two_mul, pow_add]; exact Nat.mul_lt_mul'' (by omega) (by omega)
-      rw [pow_succ]; omega
-    have hvv : (v * v).size ≤ 2 * M.size + 1 :=
-      (Nat.size_le_size (Nat.le_add_right _ M)).trans hsize'
-    have hM : M.size ≤ 2 * M.size + 1 := by omega
-    have hM2 : 2 ≤ 2 * M.size + 1 := by have := Nat.size_pos.mpr (show 0 < M by omega); omega
-    have h₁ : C.mul v.size v.size ≤ C.mul M.size M.size :=
-      C.mul_mono (size_le_of_lt hv) (size_le_of_lt hv)
-    have h₂ := C.divMod_mono M.size hsize
     cost_unfold lucasLehmerLoop.counted
     simp only [CostModel.mulMod] at ih ⊢
     cost_bound
@@ -124,7 +106,7 @@ theorem lucasLehmerCost_le (C : CostModel) {M v : ℕ} (hv : v < M) (k : ℕ) :
 /-- **Bit complexity of the Lucas–Lehmer test, grammar-school arithmetic**: deciding the
 primality of `2^p - 1` takes at most `(p - 2)(2p² + 5p + 6) + 1` bit operations, i.e.
 `O(p³)`. -/
-theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
+@[cost_le] theorem lucasLehmerCost_school_le {p : ℕ} (hp : 3 ≤ p) :
     costOf school (lucasLehmerLoop (2 ^ p - 1) 4 (p - 2)) ≤ (p - 2) * (2 * p ^ 2 + 5 * p + 6) + 1 := by
   have h8 : 2 ^ 3 ≤ 2 ^ p := Nat.pow_le_pow_right (by norm_num) hp
   refine (lucasLehmerCost_le school (by omega) (p - 2)).trans

@@ -265,12 +265,12 @@ theorem pm1Steps_le (B : ℕ) : pm1Steps B ≤ (primesUpTo B).length * Nat.log 2
       exact Nat.log_anti_left (by norm_num) (mem_primesUpTo.mp hp).1.two_le)
   simpa [pm1Steps] using this
 
-theorem ladder_lt {n p c : ℕ} (hc : c < n) (j : ℕ) : ladder n p c j < n := by
+@[val_le] theorem ladder_lt {n p c : ℕ} (hc : c < n) (j : ℕ) : ladder n p c j < n := by
   induction j generalizing c with
   | zero => exact hc
   | succ j ih => exact ih (powMod_lt _ _ (by omega))
 
-theorem ladders_lt {n B c : ℕ} (hc : c < n) : ladders n B c < n := by
+@[val_le] theorem ladders_lt {n B c : ℕ} (hc : c < n) : ladders n B c < n := by
   rw [ladders]
   generalize primesUpTo B = L
   induction L generalizing c with
@@ -297,7 +297,7 @@ theorem powMod_cost_le_powBound {c p : ℕ} (hp : p ≤ B) (hc : c < n) :
   unfold powBound
   nlinarith
 
-theorem ladderCost_le {p c : ℕ} (hp : p ≤ B) (hc : c < n) (j : ℕ) :
+@[cost_le] theorem ladderCost_le {p c : ℕ} (hp : p ≤ B) (hc : c < n) (j : ℕ) :
     costOf C (ladder n p c j) ≤ j * powBound C n B + C.unit := by
   induction j generalizing c with
   | zero => cost_unfold ladder.counted
@@ -315,7 +315,7 @@ def logBound (C : CostModel) (B : ℕ) : ℕ :=
 /-- **Bit complexity of step 2 of Pollard `p - 1`**, for any cost model: the sieve for the
 primes `p ≤ B`; for each, the exponent `a_p = ⌊log_p B⌋` (`logBound`) and two steps; and
 `pm1Steps B` modular powers with exponents at most `B`. -/
-theorem laddersCost_le {c : ℕ} (hc : c < n) :
+@[cost_le] theorem laddersCost_le {c : ℕ} (hc : c < n) :
     costOf C (ladders n B c) ≤ costOf C (primesUpTo B) +
       ((primesUpTo B).length * (logBound C B + 2 * C.unit) + pm1Steps B * powBound C n B) +
         2 * C.unit := by
@@ -338,21 +338,10 @@ theorem laddersCost_le {c : ℕ} (hc : c < n) :
 
 /-- **Bit complexity of Pollard `p - 1`**, for any cost model: step 2 (`laddersCost_le`), the
 reduction of `c - 1` modulo `n` and one gcd with `n`. -/
-theorem pm1Cost_le {c : ℕ} (hc : c < n) :
+@[cost_le] theorem pm1Cost_le {c : ℕ} (hc : c < n) :
     costOf C (pollardPMinusOne n B c) ≤ costOf C (primesUpTo B) +
       ((primesUpTo B).length * (logBound C B + 2 * C.unit) + pm1Steps B * powBound C n B) +
       C.divMod (n.size + 1) n.size + gcdCost C n.size + 5 * C.lin (n.size + 1) := by
-  have h₁ := laddersCost_le C (B := B) hc
-  have hd := Nat.mod_lt (ladders n B c + n - 1) (by omega : 0 < n)
-  have h₂ := gcd_cost_le C (le_refl n.size) (Nat.size_le_size hd.le)
-  have hl := ladders_lt (n := n) (B := B) hc
-  have hs : (ladders n B c + n).size ≤ n.size + 1 := by
-    rw [Nat.size_le, pow_succ]
-    have := Nat.lt_size_self n
-    omega
-  have h₃ : C.divMod (ladders n B c + n - 1).size n.size ≤ C.divMod (n.size + 1) n.size :=
-    C.divMod_mono _ ((Nat.size_le_size (Nat.sub_le _ 1)).trans hs)
-  have := size_le_of_lt hl
   cost_unfold pollardPMinusOne.counted
   cost_bound
 
@@ -407,28 +396,15 @@ theorem stage2Cost_le (C : CostModel) {n c₁ B' : ℕ} (hc : c₁ < n) (prevQ h
     have hQ : Q ≤ B' := hQs Q (by simp)
     have h₁ := powMod_cost_le_powBound C (n := n) (B := B') (c := c₁) (p := Q - prevQ)
       (by omega) hc
-    have hpw : powMod c₁ (Q - prevQ) n < n := powMod_lt _ _ hn
-    have h₂ := mul_add_divMod_le C hh hpw
     have hh' : h * powMod c₁ (Q - prevQ) n % n < n := Nat.mod_lt _ hn
     -- `h' + n - 1 < 2n` has at most `k + 1` bits
     have hsz' : (h * powMod c₁ (Q - prevQ) n % n + n).size ≤ n.size + 1 := by
       rw [Nat.size_le, pow_succ]
       have := Nat.lt_size_self n
       omega
-    have hsz : (h * powMod c₁ (Q - prevQ) n % n + n - 1).size ≤ n.size + 1 :=
-      (Nat.size_le_size (Nat.sub_le _ 1)).trans hsz'
-    have h₃ : C.mul P.size (h * powMod c₁ (Q - prevQ) n % n + n - 1).size +
-        C.divMod (P * (h * powMod c₁ (Q - prevQ) n % n + n - 1)).size n.size ≤
-        C.mul n.size (n.size + 1) + C.divMod (2 * n.size + 1) n.size := by
-      refine Nat.add_le_add (C.mul_mono (size_le_of_lt hP) hsz) (C.divMod_mono _ ?_)
-      have := size_mul_le P (h * powMod c₁ (Q - prevQ) n % n + n - 1)
-      have := size_le_of_lt hP
-      omega
     have ih := ih Q (h * powMod c₁ (Q - prevQ) n % n)
       (P * (h * powMod c₁ (Q - prevQ) n % n + n - 1) % n) hh' (Nat.mod_lt _ hn) hQ
       (fun Q' hQ' ↦ hQs Q' (by simp [hQ']))
-    have := Nat.size_le_size hQ; have := Nat.size_le_size hprev
-    have := size_le_of_lt hh'
     cost_unfold stage2Loop.counted
     cost_bound
 

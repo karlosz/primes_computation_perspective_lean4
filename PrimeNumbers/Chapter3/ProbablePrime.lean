@@ -241,16 +241,9 @@ open PrimeNumbers.Chapter9
 /-! ### Bit operations -/
 
 /-- **Bit complexity of the Fermat test**, for any cost model: one modular power. -/
-theorem probablePrimeCost_le (C : CostModel) {n a : ℕ} (ha : a < n) :
+@[cost_le] theorem probablePrimeCost_le (C : CostModel) {n a : ℕ} (ha : a < n) :
     costOf C (probablePrime n a) ≤ C.divMod n.size n.size + Nat.log 2 n * (2 * C.mulMod n.size) +
       (Nat.log 2 n + 2) * 6 * C.lin (n.size + 2) := by
-  have h := powModCost_le C ha (k := n.size) (n - 1) (Nat.size_le_size (Nat.sub_le n 1))
-  have hl := Nat.log_mono_right (b := 2) (Nat.sub_le n 1)
-  have h₁ := Nat.mul_le_mul_right (2 * C.mulMod n.size) hl
-  have h₂ := Nat.mul_le_mul_right (6 * C.lin (n.size + 2))
-    (show Nat.log 2 (n - 1) + 1 ≤ Nat.log 2 n + 1 by omega)
-  have := Nat.size_pos.mpr (show 0 < n by omega)
-  have := size_le_of_lt (powMod_lt a (n - 1) (show 0 < n by omega))
   cost_unfold probablePrime.counted
   cost_bound
 
@@ -263,15 +256,11 @@ theorem probablePrimeCost_school_le {n a : ℕ} (ha : a < n) :
   nlinarith [Nat.zero_le (Nat.log 2 n), Nat.zero_le n.size,
     Nat.zero_le (Nat.log 2 n * n.size)]
 
-theorem sprpLoopCost_le (C : CostModel) {n b : ℕ} (hb : b < n) (j : ℕ) :
+@[cost_le] theorem sprpLoopCost_le (C : CostModel) {n b : ℕ} (hb : b < n) (j : ℕ) :
     costOf C (sprpLoop n b j) ≤ j * (C.mulMod n.size + 3 * C.lin n.size) + C.unit := by
-  have h1 : 1 ≤ n.size := Nat.size_pos.mpr (by omega)
   induction j generalizing b with
   | zero => cost_unfold sprpLoop.counted
   | succ j ih =>
-    have hstep := mul_add_divMod_le C hb hb
-    have ih := ih (b := b * b % n) (Nat.mod_lt _ (by omega))
-    have := size_le_of_lt (Nat.mod_lt (b * b) (show 0 < n by omega))
     cost_unfold sprpLoop.counted
     split_ifs <;> cost_bound
 
@@ -284,20 +273,11 @@ theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha 
       C.divMod n.size n.size + Nat.log 2 n * (2 * C.mulMod n.size) +
         9 * (Nat.log 2 n + n.size + 4) * C.lin (n.size + 2) := by
   obtain ⟨hst, ht⟩ := oddPart_spec (n := n - 1) (by omega)
-  have hO : costOf C (oddPart (n - 1)) ≤ (n.size + 1) * (6 * C.lin (n.size + 2)) := by
-    refine (oddPart_cost_le C (n - 1)).trans ?_
-    have := Nat.size_le_size (Nat.sub_le n 1)
-    exact Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left 6 (C.lin_mono (by omega)))
-  have hsn := Nat.size_le_size (Nat.sub_le n 1)
-  have hs1 := Chapter9.size_le_self ((oddPart (n - 1)).1)
   cost_unfold strongProbablePrime.counted
   generalize (oddPart (n - 1)).1 = s at *
   generalize (oddPart (n - 1)).2 = t at *
   have htn : t ≤ n := by
     have : t ≤ 2 ^ s * t := Nat.le_mul_of_pos_left _ (Nat.one_le_two_pow); omega
-  have hpow := powModCost_le C ha (k := n.size) t (Nat.size_le_size htn)
-  have hb := powMod_lt a t (show 0 < n by omega)
-  have hloop := sprpLoopCost_le C (b := powMod a t n) hb (s - 1)
   -- `log₂ t + s ≤ log₂ n`, because `2^s t = n - 1`
   have hlog : Nat.log 2 t + s ≤ Nat.log 2 n := by
     refine Nat.le_log_of_pow_le (by norm_num) ?_
@@ -305,23 +285,6 @@ theorem strongProbablePrimeCost_le (C : CostModel) {n a : ℕ} (hn : 1 < n) (ha 
     calc 2 ^ (Nat.log 2 t + s) = 2 ^ s * 2 ^ Nat.log 2 t := by rw [pow_add, mul_comm]
       _ ≤ 2 ^ s * t := Nat.mul_le_mul_left _ h₁
       _ ≤ n := by omega
-  have hmul : Nat.log 2 t * (2 * C.mulMod n.size) + (s - 1) * C.mulMod n.size ≤
-      Nat.log 2 n * (2 * C.mulMod n.size) := by
-    have : 2 * Nat.log 2 t + (s - 1) ≤ 2 * Nat.log 2 n := by omega
-    calc Nat.log 2 t * (2 * C.mulMod n.size) + (s - 1) * C.mulMod n.size
-        = (2 * Nat.log 2 t + (s - 1)) * C.mulMod n.size := by ring
-      _ ≤ 2 * Nat.log 2 n * C.mulMod n.size := Nat.mul_le_mul_right _ this
-      _ = _ := by ring
-  have hlin : (Nat.log 2 t + 1) * 6 * C.lin (n.size + 2) + (s - 1) * (3 * C.lin n.size) +
-      (n.size + 1) * (6 * C.lin (n.size + 2)) + 7 * C.lin (n.size + 2) ≤
-      9 * (Nat.log 2 n + n.size + 4) * C.lin (n.size + 2) := by
-    have h₁ := Nat.mul_le_mul_left (3 * (s - 1)) (C.lin_mono (show n.size ≤ n.size + 2 by omega))
-    have h₂ := Nat.mul_le_mul_right (C.lin (n.size + 2)) (show (Nat.log 2 t + 1) * 6 +
-      3 * (s - 1) + (n.size + 1) * 6 + 7 ≤ 9 * (Nat.log 2 n + n.size + 4) by omega)
-    linarith
-  have h1 : 1 ≤ n.size := Nat.size_pos.mpr (by omega)
-  have := size_le_of_lt hb
-  have hs2 : s.size ≤ n.size + 2 := by have := log_two_le_size n; omega
   split_ifs <;> cost_bound
 
 /-- **Bit complexity of the strong probable prime test, grammar-school arithmetic**:

@@ -28,7 +28,7 @@ theorem le_ceilSqrt_mul_self (n : ℕ) : n ≤ ceilSqrt n * ceilSqrt n := by
   · exact h.ge
   · exact (Nat.lt_succ_sqrt n).le
 
-theorem ceilSqrt_le {n a : ℕ} (h : n ≤ a * a) : ceilSqrt n ≤ a := by
+@[val_le] theorem ceilSqrt_le {n a : ℕ} (h : n ≤ a * a) : ceilSqrt n ≤ a := by
   have h₁ : Nat.sqrt n ≤ a := by
     have := Nat.sqrt_le_sqrt h
     rwa [Nat.sqrt_eq] at this
@@ -179,18 +179,6 @@ theorem fermatCost_le (C : CostModel) {n a A : ℕ} (hA : 1 ≤ A) (fuel : ℕ)
     have hb : Nat.sqrt (a * a - n) ≤ a := by
       have := Nat.sqrt_le_sqrt (Nat.sub_le (a * a) n)
       rwa [Nat.sqrt_eq] at this
-    have h₁ := C.mul_le_mul_bound (Nat.size_le_size haA) (Nat.size_le_size haA)
-    have h₂ := C.mul_le_mul_bound (Nat.size_le_size (hb.trans haA))
-      (Nat.size_le_size (hb.trans haA))
-    have haa : (a * a).size ≤ 2 * A.size := by
-      have := size_mul_le a a; have := Nat.size_le_size haA; omega
-    have h₃ := sqrt_cost_le C (t := a * a - n) (k := 2 * A.size)
-      ((Nat.size_le_size (Nat.sub_le (a * a) n)).trans haa)
-    have hn : n.size ≤ 2 * A.size := (Nat.size_le_size hna).trans haa
-    have hbb : (Nat.sqrt (a * a - n) * Nat.sqrt (a * a - n)).size ≤ 2 * A.size :=
-      (Nat.size_le_size (Nat.mul_le_mul hb hb)).trans haa
-    have ha2 : a.size ≤ 2 * A.size := by have := Nat.size_le_size haA; omega
-    have h1A : 1 ≤ 2 * A.size := by have := Nat.size_pos.mpr (show 0 < A by omega); omega
     cost_unfold fermatLoop.counted
     split_ifs <;> cost_bound
 

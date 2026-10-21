@@ -107,7 +107,7 @@ theorem size_div_two_add_one_le {d : ℕ} (hd : 0 < d) : (d / 2).size + 1 ≤ d.
 
 /-- Each Newton step at least halves the distance to `s = ⌊√N⌋`, so there are at most
 `size (x - s)` steps (and one more division). -/
-theorem isqrt_divs_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) :
+@[cost_le] theorem isqrt_divs_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) :
     costOf divCount (isqrtLoop N x) ≤ (x - Nat.sqrt N).size + 1 := by
   induction x using Nat.strong_induction_on with | _ x ih =>
   rw [isqrtLoop_divCount]
@@ -137,7 +137,7 @@ theorem isqrt_divs_le_size (N x : ℕ) (hx : 0 < x) (h : N < (x + 1) * (x + 1)) 
 
 /-- **Algorithm 9.2.11 makes at most `⌈k/2⌉ + 1` Newton steps**, `k` the bit length of `N`:
 at most `⌈k/2⌉ + 2` divisions. -/
-theorem isqrt_divs_le (N : ℕ) :
+@[cost_le] theorem isqrt_divs_le (N : ℕ) :
     costOf divCount (isqrtLoop N (2 ^ ((N.size + 1) / 2))) ≤ (N.size + 1) / 2 + 2 := by
   have h₁ : N < 2 ^ N.size := Nat.lt_size_self N
   have h₂ : 2 ^ N.size ≤ 2 ^ ((N.size + 1) / 2) * 2 ^ ((N.size + 1) / 2) := by
@@ -150,16 +150,12 @@ theorem isqrt_divs_le (N : ℕ) :
 
 /-- Each pass costs one division by a number no longer than the starting value, and three
 linear operations on numbers of at most `K ≥ 2` bits. -/
-theorem isqrtCost_le (C : CostModel) {N X B K : ℕ}
+@[cost_le] theorem isqrtCost_le (C : CostModel) {N X B K : ℕ}
     (hB : ∀ b ≤ X.size, C.divMod N.size b ≤ B) (hK : (N + X).size ≤ K) (h2K : 2 ≤ K) (x : ℕ)
     (hx : x ≤ X) :
     costOf C (isqrtLoop N x) ≤ costOf divCount (isqrtLoop N x) * (B + 3 * C.lin K) := by
   induction x using Nat.strong_induction_on with | _ x ih =>
   have := hB x.size (Nat.size_le_size hx)
-  have hq : N / x ≤ N := Nat.div_le_self N x
-  have h₁ : (x + N / x).size ≤ K := (Nat.size_le_size (by omega)).trans hK
-  have h₂ : x.size ≤ K := (Nat.size_le_size (by omega)).trans hK
-  have h₃ : (N / x).size ≤ K := (Nat.size_le_size (by omega)).trans hK
   rw [isqrtLoop_divCount]
   by_cases hlt : (x + N / x) / 2 < x
   · have ih := ih _ hlt (by omega)
@@ -196,16 +192,11 @@ theorem isqrtCost_school_le (N : ℕ) :
   · simp [CostModel.lin, CostModel.add, school]; omega
 
 /-- The cost of `isqrt`: the Newton iteration and the computation of its starting value. -/
-theorem isqrt_cost_le (C : CostModel) (N : ℕ) :
+@[cost_le] theorem isqrt_cost_le (C : CostModel) (N : ℕ) :
     costOf C (isqrt N) ≤ costOf C (isqrtLoop N (2 ^ ((N.size + 1) / 2))) +
       5 * C.lin (N.size + 2) := by
-  have := Nat.size_le_size (show N.size + 1 ≤ 2 ^ N.size by
-    have := Nat.lt_two_pow_self (n := N.size); omega)
   have h₁ : (N.size + 1).size ≤ N.size + 1 := Nat.size_le.mpr (Nat.lt_two_pow_self.trans_le
     (Nat.pow_le_pow_right (by norm_num) (by omega)))
-  have h₂ : (2 ^ ((N.size + 1) / 2)).size ≤ N.size + 1 := by
-    rw [Nat.size_pow]; omega
-  have h₃ : N.size.size ≤ N.size + 1 := (size_le_self N.size).trans (Nat.le_succ _)
   cost_unfold isqrt.counted
   cost_bound
 
@@ -238,13 +229,13 @@ theorem sqrt_counted_cost_school_le (N : ℕ) :
 /-- **The worst cost of an integer square root** of a number of at most `k` bits. -/
 def sqrtCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits k fun t ↦ costOf C (Nat.sqrt t)
 
-theorem sqrt_cost_le (C : CostModel) {t k : ℕ} (ht : t.size ≤ k) :
+@[cost_le] theorem sqrt_cost_le (C : CostModel) {t k : ℕ} (ht : t.size ≤ k) :
     costOf C (Nat.sqrt t) ≤ sqrtCost C k :=
   le_maxOnBits (fun t ↦ costOf C (Nat.sqrt t)) ht
 
 theorem sqrtCost_mono (C : CostModel) : Monotone (sqrtCost C) := maxOnBits_mono _
 
-theorem sqrtCost_school_le (k : ℕ) : sqrtCost school k ≤ schoolSqrt k :=
+@[cost_le] theorem sqrtCost_school_le (k : ℕ) : sqrtCost school k ≤ schoolSqrt k :=
   maxOnBits_le fun t ht ↦ (sqrt_counted_cost_school_le t).trans (schoolSqrt_mono ht)
 
 end PrimeNumbers.Chapter9

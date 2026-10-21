@@ -279,7 +279,7 @@ reduction, at most two reductions of exponents modulo `N`, and the linear work (
 def rhoLogStepBound (C : CostModel) (p N : ℕ) : ℕ :=
   C.mulMod p.size + 2 * C.divMod (N.size + 1) N.size + 6 * C.lin (p.size + N.size + 1)
 
-theorem rhoLogStep_cost_le (C : CostModel) {p N g t : ℕ} (hg : g < p) (ht : t < p)
+@[cost_le] theorem rhoLogStep_cost_le (C : CostModel) {p N g t : ℕ} (hg : g < p) (ht : t < p)
     {s : ℕ × ℕ × ℕ} (hs : RhoLogBounded p N s) :
     costOf C (rhoLogStep p N g t s) ≤ rhoLogStepBound C p N := by
   obtain ⟨x, a, b⟩ := s
@@ -289,11 +289,6 @@ theorem rhoLogStep_cost_le (C : CostModel) {p N g t : ℕ} (hg : g < p) (ht : t 
     rw [Nat.size_le, pow_succ]; have := Nat.lt_size_self N; omega
   have h₁ := C.divMod_mono N.size (hNs (2 * a) (by omega))
   have h₂ := C.divMod_mono N.size (hNs (2 * b) (by omega))
-  have h₃ := C.divMod_mono N.size (hNs (a + 1) (by omega))
-  have h₄ := C.divMod_mono N.size (hNs (b + 1) (by omega))
-  have := size_le_of_lt hx; have := size_le_of_lt ha; have := size_le_of_lt hb
-  have h2 : 2 ≤ p.size + N.size + 1 := by
-    have := Nat.size_pos.mpr (show 0 < p by omega); omega
   unfold rhoLogStepBound
   cost_unfold rhoLogStep.counted
   split_ifs
@@ -317,22 +312,14 @@ theorem rhoLogLoop_cost_le (C : CostModel) {p N g t S P : ℕ} (hg : g < p) (ht 
   | zero => cost_unfold rhoLogLoop.counted; cost_bound
   | succ fuel ih =>
     have hv₁ := rhoLogStep_bounded (g := g) (t := t) hp hN hv
-    have h₁ := rhoLogStep_cost_le C hg ht hu
-    have h₂ := rhoLogStep_cost_le C hg ht hv
-    have h₃ := rhoLogStep_cost_le C hg ht hv₁
     have hu' := rhoLogStep_bounded (g := g) (t := t) hp hN hu
     have hv' := rhoLogStep_bounded (g := g) (t := t) hp hN hv₁
-    have ih := ih hu' hv'
     have := size_le_of_lt hu'.1; have := size_le_of_lt hv'.1
-    have := size_le_of_lt (Nat.mod_lt t hp)
     cost_unfold rhoLogLoop.counted
     split_ifs
     · have := hS (rhoLogStep p N g t u).2.1 (rhoLogStep p N g t u).2.2
         (rhoLogStep p N g t (rhoLogStep p N g t v)).2.1
         (rhoLogStep p N g t (rhoLogStep p N g t v)).2.2
-      have := hP (rhoLogSolve N (rhoLogStep p N g t u).2.1 (rhoLogStep p N g t u).2.2
-        (rhoLogStep p N g t (rhoLogStep p N g t v)).2.1
-        (rhoLogStep p N g t (rhoLogStep p N g t v)).2.2)
       cost_bound
     · cost_bound
 

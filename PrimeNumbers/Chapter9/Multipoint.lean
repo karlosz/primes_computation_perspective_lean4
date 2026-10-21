@@ -39,7 +39,7 @@ counted_def eval [ArithCost R] : Chapter2.Poly R → R → R
   | c :: f, x => c + x * eval f x
 
 /-- Horner's rule costs a step, a product and a sum per coefficient. -/
-theorem eval_cost_le [ArithCost R] (C : CostModel) {s : ℕ} (hs : ArithCost.Bounded R C s)
+@[cost_le] theorem eval_cost_le [ArithCost R] (C : CostModel) {s : ℕ} (hs : ArithCost.Bounded R C s)
     (f : Chapter2.Poly R) (x : R) :
     costOf C (eval f x) ≤ (f.length + 1) * (C.unit + 2 * s) := by
   induction f with
@@ -72,7 +72,7 @@ counted_def divModMonic [ArithCost R] :
 counted_def modMonic [ArithCost R] (f g : Chapter2.Poly R) : Chapter2.Poly R :=
   (divModMonic f g).2
 
-theorem length_divModMonic_snd_lt (f : Chapter2.Poly R) {g : Chapter2.Poly R} (hg : g ≠ []) :
+@[val_le] theorem length_divModMonic_snd_lt (f : Chapter2.Poly R) {g : Chapter2.Poly R} (hg : g ≠ []) :
     (divModMonic f g).2.length < g.length := by
   have hpos : 0 < g.length := List.length_pos_iff.mpr hg
   induction f with

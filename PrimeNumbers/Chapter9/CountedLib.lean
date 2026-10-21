@@ -12,8 +12,6 @@ import this file (and through it `counted_def`).
 
 namespace PrimeNumbers.Chapter9
 
-theorem size_le_self (x : ℕ) : x.size ≤ x := Nat.size_le.mpr Nat.lt_two_pow_self
-
 /-- `Nat.log.go`, Mathlib's implementation of `Nat.log` by repeated squaring of the base. -/
 counted_def logGo (n : ℕ) : (b fuel : ℕ) → ℕ × ℕ
   | _, 0 => (n, 0)
@@ -62,7 +60,7 @@ theorem iclog_eq (b n : ℕ) : iclog b n = Nat.clog b n := by
 def _root_.Nat.clog.counted {m : Type → Type} [Monad m] [NatArith m] (b n : ℕ) : m ℕ :=
   iclog.counted b n
 
-theorem logGo_fst_le (n b fuel : ℕ) : (logGo n b fuel).1 ≤ n := by
+@[val_le] theorem logGo_fst_le (n b fuel : ℕ) : (logGo n b fuel).1 ≤ n := by
   induction fuel generalizing b with
   | zero => simp [logGo]
   | succ fuel ih =>
@@ -77,7 +75,7 @@ theorem logGo_fst_le (n b fuel : ℕ) : (logGo n b fuel).1 ≤ n := by
       · exact this
       · exact (Nat.div_le_self _ _).trans this
 
-theorem logGo_snd_lt {n : ℕ} (fuel : ℕ) :
+@[val_le] theorem logGo_snd_lt {n : ℕ} (fuel : ℕ) :
     ∀ (b k : ℕ), 2 ≤ b → n < b ^ 2 ^ k → (logGo n b fuel).2 < 2 ^ k := by
   induction fuel with
   | zero => intro b k _ _; simp [logGo]
@@ -119,7 +117,6 @@ theorem logGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
       have ih := ih (b * b) k (by nlinarith) hk' (by omega)
       have hq := logGo_fst_le n (b * b) fuel
       have he := logGo_snd_lt fuel (b * b) k (by nlinarith) hk'
-      have hbn := Nat.size_le_size (not_lt.mp hnb)
       cost_unfold logGo.counted
       rcases h : logGo n (b * b) fuel with ⟨q, e⟩
       rw [h] at hq he
@@ -142,7 +139,7 @@ theorem ilog_cost_le (C : CostModel) {b n : ℕ} (hb : 2 ≤ b) :
   cost_unfold ilog.counted
   cost_bound
 
-theorem clogGo_fst_lt {n : ℕ} (fuel : ℕ) :
+@[val_le] theorem clogGo_fst_lt {n : ℕ} (fuel : ℕ) :
     ∀ b, b < n * n → (clogGo n b fuel).1 < n * n := by
   induction fuel with
   | zero => intro b hb; simp only [clogGo]; exact (Nat.div_le_self _ _).trans_lt hb
@@ -159,7 +156,7 @@ theorem clogGo_fst_lt {n : ℕ} (fuel : ℕ) :
       · exact this
       · exact (Nat.div_le_self _ _).trans_lt this
 
-theorem clogGo_snd_lt {n : ℕ} (fuel : ℕ) :
+@[val_le] theorem clogGo_snd_lt {n : ℕ} (fuel : ℕ) :
     ∀ (b k : ℕ), 2 ≤ b → n ≤ b ^ 2 ^ k → (clogGo n b fuel).2 < 2 ^ (k + 1) := by
   induction fuel with
   | zero => intro b k _ _; simp [clogGo]
@@ -182,7 +179,7 @@ theorem clogGo_snd_lt {n : ℕ} (fuel : ℕ) :
 /-- Each level of `clogGo` squares the base (below `n`) once and divides at most twice, by
 numbers below `n²`, with four steps on the exponent; there are at most `k + 1` levels when
 `n ≤ b^(2^k)`. -/
-theorem clogGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
+@[cost_le] theorem clogGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
     ∀ (b k : ℕ), 2 ≤ b → b < n * n → n ≤ b ^ 2 ^ k → k < 2 * n.size →
       costOf C (clogGo n b fuel) ≤ (k + 1) * (C.mul (2 * n.size) (2 * n.size) +
         2 * C.divBound (2 * n.size) + 4 * C.lin (2 * n.size + 1)) := by
@@ -195,7 +192,6 @@ theorem clogGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
     cost_unfold clogGo.counted; cost_bound
   | succ fuel ih =>
     intro b k hb2 hb hk hks
-    have hbs := hsq b hb
     by_cases hnb : n ≤ b
     · cost_unfold clogGo.counted; cost_bound
     · obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by
@@ -211,7 +207,6 @@ theorem clogGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
       cost_unfold clogGo.counted
       rcases h : clogGo n (b * b) fuel with ⟨q, e⟩
       rw [h] at hq he
-      have hqs := hsq q hq
       have hes : (2 * e + 1).size ≤ 2 * n.size := Nat.size_le.2 (by
         have := Nat.pow_le_pow_right (n := 2) (by omega) (show k + 2 ≤ 2 * n.size by omega)
         rw [pow_succ] at he; rw [pow_succ, pow_succ] at this; omega)
@@ -220,7 +215,7 @@ theorem clogGo_cost_le (C : CostModel) {n : ℕ} (fuel : ℕ) :
 
 /-- The charge for `Nat.clog 2 n`: at most `size n + 1` levels, each a squaring and at most
 two divisions of numbers below `n²`. -/
-theorem iclog_cost_le (C : CostModel) (n : ℕ) :
+@[cost_le] theorem iclog_cost_le (C : CostModel) (n : ℕ) :
     costOf C (Nat.clog 2 n) ≤ (n.size + 2) * (C.mul (2 * n.size) (2 * n.size) +
       2 * C.divBound (2 * n.size) + 4 * C.lin (2 * n.size + 1)) := by
   show CostM.cost C (iclog.counted 2 n) ≤ _
@@ -232,11 +227,9 @@ theorem iclog_cost_le (C : CostModel) (n : ℕ) :
     have he := clogGo_snd_lt (n := n) n 2 n.size le_rfl (by
       calc n ≤ 2 ^ n.size := (Nat.lt_size_self n).le
         _ ≤ 2 ^ 2 ^ n.size := Nat.pow_le_pow_right (by omega) (Nat.lt_two_pow_self).le)
-    have := Nat.size_le.2 he
     cost_unfold iclog.counted
     cost_bound
   · have : n ≤ 1 := by omega
-    have := Nat.size_le_size this
     cost_unfold iclog.counted
     cost_bound
 

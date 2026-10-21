@@ -260,8 +260,6 @@ theorem pack_cost_le (C : CostModel) {b w K X : ℕ} (hbw : b ≤ w) (h2K : 2 �
   · rw [halvingBound_le_one _ _ h1]
     cost_unfold pack.counted
     rw [hn]
-    have : n.size ≤ 1 := Nat.size_le.2 (by omega)
-    have : n * C.unit ≤ 1 * C.unit := Nat.mul_le_mul_right _ h1
     cost_bound
   · have hmono : ∀ m, m ≤ n → C.mul b.size (m / 2).size ≤ X :=
       fun m hm ↦ (C.mul_mono le_rfl (Nat.size_le_size (by omega))).trans (hn ▸ hX)
@@ -288,7 +286,6 @@ theorem pack_cost_le (C : CostModel) {b w K X : ℕ} (hbw : b ≤ w) (h2K : 2 �
     have sB : (b * (n / 2)).size ≤ w * n :=
       (Nat.size_le.2 Nat.lt_two_pow_self).trans (Nat.mul_le_mul hbw (by omega))
     have hlin := C.add_mul_le (w := w) (show 1 ≤ n by omega)
-    have hu : 2 * (n / 2) * C.unit ≤ n * C.unit := Nat.mul_le_mul_right _ (by omega)
     have hstep := halvingBound_step (2 * C.unit + 2 * C.add w w) (4 * C.unit + 2 * C.add K K + X)
       (show 2 ≤ n by omega)
     cost_unfold pack.counted
@@ -352,13 +349,9 @@ theorem unpack_cost_le (C : CostModel) {b K X : ℕ} (hb : 1 ≤ b) (h2K : 2 ≤
         _ = 2 * b * count := by ring
     have hbh : b * h + 1 ≤ b * (count + 1) := by
       have := Nat.mul_le_mul_left b (show h ≤ count by omega); nlinarith
-    have sN : N.size ≤ 2 * b * count := hN.trans hbc
-    have sP : (2 ^ (b * h)).size ≤ 2 * b * count := by
-      rw [Nat.size_pow]; exact hbh.trans hbc
     have sB : (b * h).size ≤ 2 * b * count :=
       (Nat.size_le.2 Nat.lt_two_pow_self).trans (by nlinarith)
     have hlin := C.add_mul_le (w := 2 * b) (show 1 ≤ count by omega)
-    have hu : count / 2 * C.unit ≤ count * C.unit := Nat.mul_le_mul_right _ (by omega)
     have hstep := halvingBound_step (C.unit + 3 * C.add (2 * b) (2 * b))
       (2 * C.unit + 4 * C.add K K + X) (show 2 ≤ count by omega)
     cost_unfold unpack.counted
@@ -366,7 +359,7 @@ theorem unpack_cost_le (C : CostModel) {b K X : ℕ} (hb : 1 ≤ b) (h2K : 2 ≤
     cost_bound
 
 /-- A schoolbook product with an empty factor takes a step per coefficient. -/
-theorem mul_nil_cost (C : CostModel) (f : List ℕ) :
+@[cost_le] theorem mul_nil_cost (C : CostModel) (f : List ℕ) :
     costOf C (Chapter2.Poly.mul f []) ≤ (5 * f.length + 1) * C.unit := by
   induction f with
   | nil => cost_unfold Chapter2.Poly.mul.counted
@@ -396,27 +389,20 @@ def mulNatBound (C : CostModel) (b d K : ℕ) : ℕ :=
 
 /-- **Cost of Algorithm 9.6.1** with `b`-bit digits, for coefficients of at most `w ≥ b`
 bits whose product has coefficients below `2^b` (the condition of `mulNat_eq`). -/
-theorem mulNat_cost_le (C : CostModel) {b w d K : ℕ} (hb : 1 ≤ b) (hbw : b ≤ w) (h2K : 2 ≤ K)
+@[cost_le] theorem mulNat_cost_le (C : CostModel) {b w d K : ℕ} (hb : 1 ≤ b) (hbw : b ≤ w) (h2K : 2 ≤ K)
     (hdK : (2 * d).size ≤ K) (F G : List ℕ) (hF : ∀ x ∈ F, x < 2 ^ w) (hG : ∀ x ∈ G, x < 2 ^ w)
     (hlF : F.length ≤ d) (hlG : G.length ≤ d) (hprod : ∀ c ∈ mul F G, c < 2 ^ b) :
     costOf C (mulNat b F G) ≤ mulNatBound C w d K := by
   unfold mulNatBound
-  have hlin : C.unit ≤ C.lin K := CostModel.unit_le_lin _ _
-  have hlinK : C.add K K ≤ C.lin K := C.add_le_lin le_rfl le_rfl
-  have h0 : 0 ≤ 3 * halvingBound (2 * C.unit + 6 * C.add (2 * w) (2 * w))
-      (4 * C.unit + 4 * C.add K K + C.mul w.size K) (2 * d) := Nat.zero_le _
   by_cases hnil : F = [] ∨ G = []
   · have hz : costOf C (Chapter2.Poly.mul F G) ≤ (5 * d + 1) * C.unit := by
       rcases hnil with rfl | rfl
       · rw [nil_mul_cost]; nlinarith
       · exact (mul_nil_cost C F).trans (Nat.mul_le_mul_right _ (by omega))
-    have hz' := Nat.mul_le_mul_left (5 * d + 1) hlin
     cost_unfold mulNat.counted
     split_ifs <;> cost_bound
   · push_neg at hnil
     obtain ⟨hF0, hG0⟩ := hnil
-    have hlF1 : 1 ≤ F.length := List.length_pos_iff.2 hF0
-    have hlG1 : 1 ≤ G.length := List.length_pos_iff.2 hG0
     have hK' : ∀ m, m ≤ 2 * d → m.size ≤ K := fun m hm ↦ (Nat.size_le_size hm).trans hdK
     have hX : ∀ m, m ≤ 2 * d → C.mul b.size (m / 2).size ≤ C.mul w.size K :=
       fun m hm ↦ C.mul_mono (Nat.size_le_size hbw) (hK' _ (by omega))
@@ -427,8 +413,6 @@ theorem mulNat_cost_le (C : CostModel) {b w d K : ℕ} (hb : 1 ≤ b) (hbw : b �
         (halvingBound_le ?_ ?_ (by omega))
       · have := C.add_mono (show w ≤ 2 * w by omega) (show w ≤ 2 * w by omega); omega
       · omega
-    have pF := hpack F hF hlF
-    have pG := hpack G hG hlG
     have sF : (pack b F).size ≤ w * d :=
       (size_pack_le_of_le hbw hF).trans (Nat.mul_le_mul_left _ hlF)
     have sG : (pack b G).size ≤ w * d :=
@@ -449,13 +433,8 @@ theorem mulNat_cost_le (C : CostModel) {b w d K : ℕ} (hb : 1 ≤ b) (hbw : b �
         (d' := 4 * C.unit + 4 * C.add K K + C.mul w.size K)
         (by have := C.add_mono (show 2 * b ≤ 2 * w by omega) (show 2 * b ≤ 2 * w by omega); omega)
         (by omega) (show F.length + G.length - 1 ≤ 2 * d by omega))
-    have kF : F.length.size ≤ K := hK' _ (by omega)
-    have kG : G.length.size ≤ K := hK' _ (by omega)
-    have kS : (F.length + G.length).size ≤ K := hK' _ (by omega)
     cost_unfold mulNat.counted
     simp only [hF0, hG0, or_self, if_false, List.length_cons] at *
-    have hu : (F.length + 1 + (G.length + 1)) * C.unit ≤ (2 * d + 2) * C.unit :=
-      Nat.mul_le_mul_right _ (by omega)
     cost_bound
 
 theorem mulNatBound_mono (C : CostModel) {b b' d K : ℕ} (h : b ≤ b') :
@@ -472,7 +451,7 @@ theorem mulNatBound_mono (C : CostModel) {b b' d K : ℕ} (h : b ≤ b') :
 
 /-- **Binary segmentation with the width chosen automatically**: the width
 `b = size (len · ΣF · ΣG) + 1` costs two sums, two small products and a few steps. -/
-theorem mulNatAuto_cost_le (C : CostModel) {n d : ℕ} (F G : List ℕ) (hF : ∀ x ∈ F, x < n)
+@[cost_le] theorem mulNatAuto_cost_le (C : CostModel) {n d : ℕ} (F G : List ℕ) (hF : ∀ x ∈ F, x < n)
     (hG : ∀ x ∈ G, x < n) (hlF : F.length ≤ d) (hlG : G.length ≤ d) :
     costOf C (mulNatAuto F G) ≤ mulNatBound C (segWidth n d) d (2 * segWidth n d) +
       2 * C.mul (2 * segWidth n d) (2 * segWidth n d) + (3 * d + 6) * C.lin (2 * segWidth n d) := by
@@ -495,8 +474,6 @@ theorem mulNatAuto_cost_le (C : CostModel) {n d : ℕ} (F G : List ℕ) (hF : �
     have := size_mul_le F.length (F.sum * G.sum)
     have := size_mul_le F.sum G.sum
     omega
-  have hW : (F.length * (F.sum * G.sum)).size ≤ 2 * β := by omega
-  have hd : d.size ≤ β := by omega
   -- the product by binary segmentation: coefficients of at most `β` bits, digits of the
   -- chosen width, which the product's coefficients fit (as in `mulNatAuto_eq`)
   have hwid : ∀ x ∈ F ++ G, x < 2 ^ β := fun x hx ↦ by
@@ -521,13 +498,10 @@ theorem mulNatAuto_cost_le (C : CostModel) {n d : ℕ} (F G : List ℕ) (hF : �
     (Nat.mul_le_mul (show F.length + 1 ≤ d + 1 by omega) (le_refl (C.lin (2 * β))))
   have hSG := (CostM.sum_cost_le_nat C (k := 2 * β) G (by omega)).trans
     (Nat.mul_le_mul (show G.length + 1 ≤ d + 1 by omega) (le_refl (C.lin (2 * β))))
-  have hu : (F.length + 1) * C.unit ≤ (d + 1) * C.unit := Nat.mul_le_mul_right _ (by omega)
-  have hWs : (F.length * (F.sum * G.sum)).size.size ≤ 2 * β :=
-    (Nat.size_le.2 Nat.lt_two_pow_self).trans hW
   cost_unfold mulNatAuto.counted
   cost_bound
 
-theorem length_mul_le_nat (F G : List ℕ) : (mul F G).length ≤ F.length + G.length := by
+@[val_le] theorem length_mul_le_nat (F G : List ℕ) : (mul F G).length ≤ F.length + G.length := by
   by_cases hF : F = []
   · subst hF; simp [mul]
   by_cases hG : G = []
@@ -553,7 +527,7 @@ polynomials with at most `d` coefficients: one multiplication of integers of at 
 `segWidth n d · d` bits, the packings and the unpacking (`O(d log d)` steps on numbers of
 `O(log n + log d)` bits), and `2d` reductions modulo `n`.  With a quasi-linear integer
 multiplication this is quasi-linear in `d log n`. -/
-theorem mulMod_cost_le (C : CostModel) {n d : ℕ} [NeZero n] (f g : Chapter2.Poly (ZMod n))
+@[cost_le] theorem mulMod_cost_le (C : CostModel) {n d : ℕ} [NeZero n] (f g : Chapter2.Poly (ZMod n))
     (hf : f.length ≤ d) (hg : g.length ≤ d) :
     costOf C (mulMod n f g) ≤ mulModBound C n d := by
   set β := segWidth n d with hβ

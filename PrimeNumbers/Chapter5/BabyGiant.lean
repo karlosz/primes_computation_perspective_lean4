@@ -211,13 +211,6 @@ theorem babyCost_le (C : CostModel) {p g K : ℕ} (hg : g < p) (i : ℕ) {cur : 
   induction count generalizing i cur m with
   | zero => cost_unfold babyTable.counted
   | succ count ih =>
-    have := mul_add_divMod_le C hcur hg
-    have ih := ih (i + 1) (cur := cur * g % p) (Nat.mod_lt _ (by omega)) (m.insert cur i)
-      ((Nat.size_le_size (by omega)).trans hK)
-    have := size_le_of_lt hcur
-    have : (i + 1).size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have : i.size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have : 1 ≤ K := le_trans (Nat.size_pos.mpr (show 0 < p by omega)) hp
     cost_unfold babyTable.counted
     cost_bound
 
@@ -232,22 +225,14 @@ theorem giantCost_le (C : CostModel) {p b h B K : ℕ} (m : Std.HashMap ℕ ℕ)
   induction count generalizing j y with
   | zero => cost_unfold giantLoop.counted
   | succ count ih =>
-    have := mul_add_divMod_le C hy hh
-    have ih := ih (j + 1) (y := y * h % p) (Nat.mod_lt _ (by omega)) (by omega)
-    have hjb : C.mul j.size b.size ≤ C.mul b.size b.size :=
-      C.mul_mono (Nat.size_le_size (by omega)) le_rfl
-    have := size_le_of_lt hy
     have hjK : (j + 1).size ≤ K := (Nat.size_le_size (show j + 1 ≤ B + b * b by
       have : b ≤ b * b := Nat.le_mul_self b; omega)).trans hK
-    have hjK' : j.size ≤ K := (Nat.size_le_size (by omega)).trans hjK
-    have : 1 ≤ K := le_trans (Nat.size_pos.mpr (show 0 < p by omega)) hp
     cost_unfold giantLoop.counted
     split
     · rename_i i hi
       have hiB := hm y i hi
       have : (j * b).size ≤ K := (Nat.size_le_size (show j * b ≤ B + b * b from
         (Nat.mul_le_mul_right b (by omega : j ≤ b)).trans (Nat.le_add_left _ _))).trans hK
-      have : i.size ≤ K := (Nat.size_le_size (show i ≤ B + b * b by omega)).trans hK
       cost_simp
       cost_bound
     · cost_simp
@@ -280,17 +265,11 @@ theorem bsgsCost_le (C : CostModel) {p g t : ℕ} (hg : g < p) (ht : t < p) (n :
     rw [pow_succ, two_mul, pow_add]; nlinarith
   have hpK : p.size ≤ K := by simp only [K, bsgsWidth]; omega
   have hbK : b.size + 2 ≤ K := by simp only [K, bsgsWidth, ← hb]; omega
-  have h₁ := powModCost_le C (modInv_lt g hp) (k := b.size) b le_rfl
   have h₂ := babyCost_le C hg 0 (Nat.mod_lt 1 hp) b ∅ hpK (hKb _ (by omega))
   have hlt := babyTable_lt p g 0 (1 % p) b ∅ (by simp)
   have h₃ := giantCost_le C (b := b) (B := b) (babyTable p g 0 (1 % p) b ∅)
     (powMod_lt (modInv g p) b hp) (fun y i hi ↦ by have := hlt y i hi; omega) hpK
     (hKb _ (by omega)) 0 (Nat.mod_lt t hp) b (by omega)
-  have h₄ : C.divMod t.size p.size ≤ C.divMod p.size p.size :=
-    C.divMod_mono _ (size_le_of_lt ht)
-  have h₄' : C.divMod (1 : ℕ).size p.size ≤ C.divMod p.size p.size :=
-    C.divMod_mono _ (Nat.size_le_size (by omega))
-  have hl := C.lin_mono hbK
   have hnb : (Nat.sqrt n).size ≤ K := hKb _ (by omega)
   cost_bound
 

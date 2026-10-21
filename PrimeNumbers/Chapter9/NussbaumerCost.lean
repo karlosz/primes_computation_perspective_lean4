@@ -110,7 +110,7 @@ theorem sum_zipWith_le {α β : Type} (f : α → β → ℕ) {s : ℕ} :
     have := h a (by simp) b (by simp)
     rw [add_mul, one_mul]; omega
 
-theorem vadd_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
+@[cost_le] theorem vadd_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
     (hl : u.length = v.length) : costOf school (vadd u v) ≤ u.length * (β + 2) + 2 := by
   cost_unfold vadd.counted
   have := sum_zipWith_le (fun a b : ℤ ↦ max a.natAbs.size b.natAbs.size + 1) (s := β + 1) u v
@@ -119,7 +119,7 @@ theorem vadd_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
   rw [hl, min_self] at *
   nlinarith
 
-theorem vsub_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
+@[cost_le] theorem vsub_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
     (hl : u.length = v.length) : costOf school (vsub u v) ≤ u.length * (β + 2) + 2 := by
   cost_unfold vsub.counted
   have := sum_zipWith_le (fun a b : ℤ ↦ max a.natAbs.size b.natAbs.size + 1) (s := β + 1) u v
@@ -131,14 +131,14 @@ theorem vsub_cost_le {β : ℕ} {u v : List ℤ} (hu : Bdd β u) (hv : Bdd β v)
 theorem size_two_mul {m : ℕ} (hm : 1 ≤ m) : (2 * m).size = m.size + 1 := by
   rw [show 2 * m = m <<< 1 by rw [Nat.shiftLeft_eq]; ring, Nat.size_shiftLeft (by omega)]
 
-theorem rotLow_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j ≤ m) :
+@[cost_le] theorem rotLow_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j ≤ m) :
     costOf school (rotLow m j u) ≤ 4 * m + 7 := by
   have := size_le_self m; have := Nat.size_le_size hj
   cost_unfold rotLow.counted
   simp only [List.length_drop, List.length_map, hu]
   omega
 
-theorem rot_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j < 2 * m) :
+@[cost_le] theorem rot_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j < 2 * m) :
     costOf school (rot m j u) ≤ 7 * m + 12 := by
   have := size_le_self m
   have hjs : j.size ≤ m.size + 1 := by
@@ -150,14 +150,14 @@ theorem rot_cost_le {m j : ℕ} {u : List ℤ} (hu : u.length = m) (hj : j < 2 *
     rw [length_rotLow hu (by omega)]
     omega
 
-theorem evens_cost_le {α : Type} : ∀ l : List α, costOf school (evens l) ≤ l.length + 1
+@[cost_le] theorem evens_cost_le {α : Type} : ∀ l : List α, costOf school (evens l) ≤ l.length + 1
   | a :: b :: l => by
     have := evens_cost_le l
     cost_unfold evens.counted
   | [a] => by cost_unfold evens.counted <;> simp
   | [] => by cost_unfold evens.counted <;> simp
 
-theorem odds_cost_le {α : Type} : ∀ l : List α, costOf school (odds l) ≤ l.length + 1
+@[cost_le] theorem odds_cost_le {α : Type} : ∀ l : List α, costOf school (odds l) ≤ l.length + 1
   | a :: b :: l => by
     have := odds_cost_le l
     cost_unfold odds.counted
@@ -179,7 +179,7 @@ theorem size_add_two_sq_le {m : ℕ} (hm : 1 ≤ m) : (m.size + 2) ^ 2 ≤ 16 * 
   omega
 
 /-- The twiddles: a rotation and the exponent `e i mod 2m` per vector. -/
-theorem twiddle_cost_le {m e : ℕ} (hm : 1 ≤ m) (he : e ≤ 4 * m * m) :
+@[cost_le] theorem twiddle_cost_le {m e : ℕ} (hm : 1 ≤ m) (he : e ≤ 4 * m * m) :
     ∀ (i : ℕ) (os : List (List ℤ)), (∀ o ∈ os, o.length = m) → i + os.length ≤ 2 * m →
       costOf school (twiddle m e i os) ≤ os.length * (99 * m) + 1
   | _, [], _, _ => by cost_unfold twiddle.counted
@@ -412,7 +412,7 @@ theorem bdd_padded {β : ℕ} (r m₁ : ℕ) {a : List ℤ} (ha : Bdd β a) :
 
 /-- Splitting into `r` blocks of length `m₁` (`r m₁ = 2^K`): a product and a sum of indices
 per entry. -/
-theorem blocks_cost_le {r m₁ K : ℕ} {a : List ℤ} (hr : r * m₁ = 2 ^ K) (ha : a.length = 2 ^ K) :
+@[cost_le] theorem blocks_cost_le {r m₁ K : ℕ} {a : List ℤ} (hr : r * m₁ = 2 ^ K) (ha : a.length = 2 ^ K) :
     costOf school (blocks r m₁ a) ≤ 2 ^ K * ((K + 1) ^ 2 + K + 9) + 4 := by
   have hsz : ∀ x, x < 2 ^ K → x.size ≤ K := fun x hx ↦ Nat.size_le.2 hx
   have hrK : r.size ≤ K + 1 := Nat.size_le.2 (by
@@ -457,7 +457,7 @@ theorem blocks_cost_le {r m₁ K : ℕ} {a : List ℤ} (hr : r * m₁ = 2 ^ K) (
 
 /-- Reassembling `r` blocks of length `m₁` into `2^K = r m₁` coefficients: a division and a
 remainder of indices per entry. -/
-theorem unblock_cost_le {r m₁ K : ℕ} {D : List (List ℤ)} (hr : r * m₁ = 2 ^ K)
+@[cost_le] theorem unblock_cost_le {r m₁ K : ℕ} {D : List (List ℤ)} (hr : r * m₁ = 2 ^ K)
     (hD : D.length = r) (hDl : ∀ v ∈ D, v.length = m₁) :
     costOf school (unblock r (2 ^ K) D) ≤ 2 ^ K * (2 * (K + 1) ^ 2 + 8) + 5 := by
   have hrN : r ≤ 2 ^ K := by
@@ -513,7 +513,7 @@ set_option maxHeartbeats 4000000 in
 -- the unfolded cost of one level of the recursion is a long sum of charges
 /-- **Running time of Nussbaumer's algorithm**: for vectors of length `2^k` with entries below
 `2^β`, and any `γ ≥ β + 2k`, at most `2^k (2k² + 1) · 8 (γ + 72)²` bit operations. -/
-theorem nussbaumer_cost (k : ℕ) : ∀ (β γ : ℕ) (a b : List ℤ), a.length = 2 ^ k →
+@[cost_le] theorem nussbaumer_cost (k : ℕ) : ∀ (β γ : ℕ) (a b : List ℤ), a.length = 2 ^ k →
     b.length = 2 ^ k → Bdd β a → Bdd β b → β + 2 * k ≤ γ →
     costOf school (nussbaumer k a b) ≤ 2 ^ k * (2 * k ^ 2 + 1) * (8 * (γ + 72) ^ 2) := by
   induction k using Nat.strong_induction_on with
@@ -868,7 +868,7 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     nlinarith
 
 /-- Reading off `2^k` binary digits by halving: `2^k (20k + 16)` bit operations. -/
-theorem ofBitsNat_cost_le : ∀ (k : ℕ) (l : List ℤ), l.length = 2 ^ k → (∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) →
+@[cost_le] theorem ofBitsNat_cost_le : ∀ (k : ℕ) (l : List ℤ), l.length = 2 ^ k → (∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) →
     costOf school (ofBitsNat l) ≤ 2 ^ k * (20 * k + 16)
   | 0, l, hl, hd => by
     obtain ⟨d, rfl⟩ : ∃ d, l = [d] := by
@@ -919,7 +919,7 @@ theorem ofBitsNat_cost_le : ∀ (k : ℕ) (l : List ℤ), l.length = 2 ^ k → (
         2 * 2 ^ k := by omega
     nlinarith
 
-theorem mulLog_cost_le (x y : ℕ) : costOf school (mulLog x y) ≤ 6 * max x.size y.size + 9 := by
+@[cost_le] theorem mulLog_cost_le (x y : ℕ) : costOf school (mulLog x y) ≤ 6 * max x.size y.size + 9 := by
   have := size_le_self (max x.size y.size)
   have := (size_le_self (2 * max x.size y.size))
   have : min x.size.size y.size.size ≤ max x.size y.size := by
@@ -932,7 +932,7 @@ set_option maxHeartbeats 1000000 in
 -- the unfolded cost of `nussMul` is a long sum of charges
 /-- **Running time of Nussbaumer multiplication**, in terms of the transform exponent
 `k = mulLog x y`. -/
-theorem nussMul_cost_le_mulLog (x y : ℕ) :
+@[cost_le] theorem nussMul_cost_le_mulLog (x y : ℕ) :
     costOf school (nussMul x y) ≤ 2 ^ mulLog x y * (90000 * (mulLog x y + 1) ^ 4) := by
   by_cases h0 : x = 0 ∨ y = 0
   · cost_unfold nussMul.counted
@@ -1025,7 +1025,7 @@ theorem nussMul_cost_le_mulLog (x y : ℕ) :
 /-- **Nussbaumer multiplication realizes `nussModel`**: multiplying an `a`-bit by a `b`-bit
 number takes at most `nussModel.mul a b` bit operations (for `a` or `b` positive: a product
 of two zero-bit numbers still takes the few steps of the call). -/
-theorem nussMul_cost_le {x y a b : ℕ} (hx : x.size ≤ a) (hy : y.size ≤ b) (hab : 1 ≤ max a b) :
+@[cost_le] theorem nussMul_cost_le {x y a b : ℕ} (hx : x.size ≤ a) (hy : y.size ≤ b) (hab : 1 ≤ max a b) :
     costOf school (nussMul x y) ≤ nussModel.mul a b := by
   by_cases h0 : x = 0 ∨ y = 0
   · cost_unfold nussMul.counted

@@ -213,35 +213,9 @@ open PrimeNumbers.Chapter9
 
 /-- **Bit complexity of the Pepin test, grammar-school arithmetic**: cubic in the bit
 length of `F_k`: one modular power, and the linear work of forming `F_k` and comparing. -/
-theorem pepinCost_school_le {k : ℕ} (hk : 1 ≤ k) :
-    costOf school (pepin k) ≤
-      (4 * Nat.log 2 (2 ^ 2 ^ k + 1) + 1) * ((2 ^ 2 ^ k + 1).size + 1) ^ 2 +
-        6 * (Nat.log 2 (2 ^ 2 ^ k + 1) + 3) * ((2 ^ 2 ^ k + 1).size + 4) := by
-  cost_unfold pepin.counted
-  have h4 : 2 ^ 2 ≤ 2 ^ 2 ^ k :=
-    Nat.pow_le_pow_right (by norm_num) (Nat.one_lt_two_pow (by omega))
-  have hp := powModCost_school_le (show 3 < 2 ^ 2 ^ k + 1 by omega) ((2 ^ 2 ^ k + 1 - 1) / 2)
-  have := Nat.log_mono_right (b := 2) (show (2 ^ 2 ^ k + 1 - 1) / 2 ≤ 2 ^ 2 ^ k + 1 by omega)
-  have hs : ((2 ^ 2 ^ k + 1 - 1) / 2).size ≤ (2 ^ 2 ^ k + 1).size := Nat.size_le_size (by omega)
-  set F := 2 ^ 2 ^ k + 1 with hF
-  have hs₁ : (2 ^ k).size ≤ F.size :=
-    Nat.size_le_size ((Nat.lt_two_pow_self (n := 2 ^ k)).le.trans (by omega))
-  have hs₂ : (2 ^ 2 ^ k).size ≤ F.size := Nat.size_le_size (by omega)
-  have hs₃ : (F - 1).size ≤ F.size := Nat.size_le_size (by omega)
-  have hs₄ : 3 ≤ F.size := by
-    have := Nat.size_le_size (show 4 ≤ F by omega); rwa [show Nat.size 4 = 3 by decide] at this
-  have hs₅ := Nat.size_le_size (powMod_lt 3 ((F - 1) / 2) (show 0 < F by omega)).le
-  rw [show Nat.size 2 = 2 by decide]
-  have m₁ : max (2 ^ 2 ^ k).size 1 ≤ F.size := by omega
-  have m₂ : max F.size 1 ≤ F.size := by omega
-  have m₃ : max (F - 1).size 2 ≤ F.size := by omega
-  have m₄ : min (powMod 3 ((F - 1) / 2) F).size (F - 1).size ≤ F.size := by omega
-  have e₁ := Nat.mul_le_mul_right ((F.size + 1) ^ 2)
-    (show 4 * Nat.log 2 ((F - 1) / 2) + 1 ≤ 4 * Nat.log 2 F + 1 by omega)
-  have e₂ := Nat.mul_le_mul (show 6 * (Nat.log 2 ((F - 1) / 2) + 1) ≤ 6 * (Nat.log 2 F + 1) by
-    omega) (show ((F - 1) / 2).size + 4 ≤ F.size + 4 by omega)
-  have e₃ : 0 ≤ Nat.log 2 F * F.size := Nat.zero_le _
-  nlinarith
+theorem pepinCost_school : ∀ᴼ (k : ℕ), 1 ≤ k →
+    costOf school (pepin k) ≤ O((2 ^ 2 ^ k + 1).size ^ 3) := by
+  cost_O
 
 end RunningTime
 

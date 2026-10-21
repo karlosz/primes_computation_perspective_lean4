@@ -28,7 +28,7 @@ def CostModel.SuperadditiveMul (C : CostModel) : Prop :=
 theorem school_superadditiveMul : school.SuperadditiveMul := fun a b ↦ by
   simp only [school_mul]; nlinarith
 
-theorem length_mul_le {R : Type} [CommSemiring R] (f g : Chapter2.Poly R) :
+@[val_le] theorem length_mul_le {R : Type} [CommSemiring R] (f g : Chapter2.Poly R) :
     (Chapter2.Poly.mul f g).length ≤ f.length + g.length := by
   induction f with
   | nil => simp [Chapter2.Poly.mul]
@@ -36,7 +36,7 @@ theorem length_mul_le {R : Type} [CommSemiring R] (f g : Chapter2.Poly R) :
     simp only [Chapter2.Poly.mul, Chapter2.Poly.length_add, Chapter2.Poly.length_smul, List.length_cons]
     omega
 
-theorem length_mulMod_le (n : ℕ) (f g : Chapter2.Poly (ZMod n)) :
+@[val_le] theorem length_mulMod_le (n : ℕ) (f g : Chapter2.Poly (ZMod n)) :
     (mulMod n f g).length ≤ f.length + g.length := by
   rw [mulMod, List.length_map, mulNatAuto_eq]
   simpa using length_mul_le (f.map ZMod.val) (g.map ZMod.val)
@@ -109,7 +109,7 @@ theorem polyMulBound_superadditive (hC : C.SuperadditiveMul) {a b : ℕ} (ha : 1
   unfold polyMulBound
   nlinarith
 
-theorem mulMod_cost_le' [NeZero n] {m : ℕ} (hm : 1 ≤ m) (f g : Chapter2.Poly (ZMod n))
+@[cost_le] theorem mulMod_cost_le' [NeZero n] {m : ℕ} (hm : 1 ≤ m) (f g : Chapter2.Poly (ZMod n))
     (hf : f.length ≤ m) (hg : g.length ≤ m) : costOf C (mulMod n f g) ≤ polyMulBound C n m := by
   refine (mulMod_cost_le C f g hf hg).trans ?_
   unfold mulModBound mulNatBound polyMulBound

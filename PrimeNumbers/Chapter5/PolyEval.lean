@@ -177,7 +177,7 @@ section RunningTime
 
 open PrimeNumbers.Chapter9
 
-theorem blockProd_lt {n : ℕ} (hn : 0 < n) (m i : ℕ) : blockProd n m i < n := by
+@[val_le] theorem blockProd_lt {n : ℕ} (hn : 0 < n) (m i : ℕ) : blockProd n m i < n := by
   cases i <;> exact Nat.mod_lt _ hn
 
 /-- One block costs at most `B` multiplications of an `n`-residue by a number `≤ M`, and
@@ -190,17 +190,6 @@ theorem blockProdCost_le (C : CostModel) {n M : ℕ} (hn : 0 < n) {m : ℕ} (hm 
   induction i with
   | zero => cost_unfold blockProd.counted
   | succ i ih =>
-    have ih := ih (by omega)
-    have hb := blockProd_lt hn m i
-    have h₁ : C.mul (blockProd n m i).size (m - i).size ≤ C.mul n.size M.size :=
-      C.mul_mono (size_le_of_lt hb) (Nat.size_le_size (by omega))
-    have h₂ : C.divMod (blockProd n m i * (m - i)).size n.size ≤
-        C.divMod (n.size + M.size) n.size := C.divMod_mono _ (by
-      have := size_mul_le (blockProd n m i) (m - i)
-      have := size_le_of_lt hb
-      have := Nat.size_le_size (show m - i ≤ M by omega)
-      omega)
-    have := Nat.size_le_size hm; have := Nat.size_le_size (show i ≤ M by omega)
     cost_unfold blockProd.counted
     cost_bound
 
@@ -218,24 +207,12 @@ theorem findBlockCost_le (C : CostModel) {n B : ℕ} (hn : 0 < n)
           2 * C.lin (n.size + (B * B).size)) +
         gcdCost C n.size + C.mul (B + 1).size B.size + C.divMod (1 : ℕ).size n.size +
         4 * C.lin (n.size + (B * B).size)) + C.unit := by
-  have hn1 : 1 ≤ n.size := Nat.size_pos.mpr hn
   have hBB : B ≤ B * B := Nat.le_mul_self B
   induction fuel generalizing j with
   | zero => cost_unfold findBlock.counted
   | succ fuel ih =>
     have h₁ := blockProdCost_le C hn (M := B * B) (m := j * B)
       (Nat.mul_le_mul_right B (by omega)) B hBB
-    have h₂ := gcd_cost_le C le_rfl (Nat.size_le_size (blockProd_lt hn (j * B) B).le)
-    have ih := ih (j + 1) (by omega)
-    have h₃ : C.mul j.size B.size ≤ C.mul (B + 1).size B.size :=
-      C.mul_mono (Nat.size_le_size (by omega)) le_rfl
-    have hj1 : (j + 1).size ≤ n.size + (B * B).size := by
-      rcases Nat.lt_or_ge B 2 with hB | hB
-      · have := (Chapter9.size_le_self (j + 1)).trans (show j + 1 ≤ B + 1 by omega)
-        interval_cases B <;> simp at this ⊢ <;> omega
-      · have := Nat.size_le_size (show j + 1 ≤ B * B by nlinarith); omega
-    have := size_le_of_lt (blockProd_lt hn (j * B) B)
-    have := Nat.size_le_size (Nat.gcd_le_left (blockProd n (j * B) B) hn)
     cost_unfold findBlock.counted
     rw [euclid_eq_gcd] at *
     split_ifs <;> cost_bound
@@ -338,7 +315,7 @@ theorem findFirst_lt {n j : ℕ} {vs : List ℕ} {i : ℕ} (h : findFirst n j vs
     · have := ih h; simp only [List.length_cons]; omega
 
 /-- The gcd scan: one gcd with `n` per value, and three linear operations. -/
-theorem findFirst_cost_le (C : CostModel) {n K : ℕ} (hn : n.size ≤ K) (hn0 : 0 < n) (j : ℕ)
+@[cost_le] theorem findFirst_cost_le (C : CostModel) {n K : ℕ} (hn : n.size ≤ K) (hn0 : 0 < n) (j : ℕ)
     (vs : List ℕ) (hv : ∀ v ∈ vs, v.size ≤ K) (hj : (j + vs.length).size ≤ K) :
     costOf C (findFirst n j vs) ≤ vs.length * (gcdCost C K + 3 * C.lin K) + C.unit := by
   induction vs generalizing j with
@@ -347,9 +324,6 @@ theorem findFirst_cost_le (C : CostModel) {n K : ℕ} (hn : n.size ≤ K) (hn0 :
     have ih := ih (j + 1) (fun w hw ↦ hv w (by simp [hw]))
       ((Nat.size_le_size (by simp; omega)).trans hj)
     have := gcd_cost_le C hn (hv v (by simp))
-    have := (Nat.size_le_size (Nat.gcd_le_left v hn0)).trans hn
-    have := (Nat.size_le_size (show j ≤ j + (v :: vs).length by omega)).trans hj
-    have h1K : 1 ≤ K := le_trans (Nat.size_pos.mpr hn0) hn
     cost_unfold findFirst.counted
     rw [euclid_eq_gcd] at *
     split_ifs <;> cost_bound
@@ -370,7 +344,7 @@ def psValuesBound (C : CostModel) (n B : ℕ) : ℕ :=
 
 /-- **The values `f(jB) mod n` by fast polynomial arithmetic**: the product tree for
 `f(t) = t (t - 1) ⋯ (t - B + 1)`, the `B` points `jB`, and fast multipoint evaluation. -/
-theorem psValues_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ} [NeZero n]
+@[cost_le] theorem psValues_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ} [NeZero n]
     {B : ℕ} (hB : 1 ≤ B) : costOf C (psValues n B) ≤ psValuesBound C n B := by
   set K := (B + 4 + 2).size
   have h2K : 2 ≤ K := by
@@ -405,7 +379,6 @@ theorem psValues_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n : ℕ} [Ne
   have hl : (multipointEvalFast n 4 (prodTree (mulMod n) (List.map Nat.cast (List.range B)))
       (List.map (fun j => ((((1 + j) * B : ℕ)) : ZMod n)) (List.range B))).length = B := by
     simp [multipointEvalFast, length_multipointEvalWith]
-  have hl2 := C.lin_mono (show K ≤ 2 * K by omega)
   unfold psValuesBound
   cost_unfold psValues.counted
   rw [hl, List.length_range]
@@ -429,16 +402,8 @@ theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n
         B * C.divBound (n + B * B + B + 2).size + (9 * B + 12) * C.lin ((n + B * B + B + 2).size + 1) := by
   have : NeZero n := ⟨by omega⟩
   set W := (n + B * B + B + 2).size with hWdef
-  have hBn : B ≤ n := by
-    have h4 := iroot_pow_le (by norm_num : (4 : ℕ) ≠ 0) n
-    rcases Nat.lt_or_ge (iroot 4 n) 2 with h0 | h0
-    · omega
-    · have h3 := Nat.pow_le_pow_left h0 3
-      have : iroot 4 n ^ 4 = iroot 4 n * iroot 4 n ^ 3 := by ring
-      nlinarith
   have hW : ∀ x, x ≤ n + B * B + B + 2 → x.size ≤ W := fun x hx ↦ Nat.size_le_size hx
   have h₀ := iroot4_cost_le C n
-  have h₁ := psValues_cost_le C hC (n := n) (B := B) (by omega)
   have hv : ∀ v ∈ psValues n B, v.size ≤ W := by
     intro v hv
     rw [psValues_eq hn] at hv
@@ -448,8 +413,6 @@ theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n
     (hW _ (by rw [psValues_length]; omega))
   rw [psValues_length] at h₂
   rw [hB] at h₀
-  have l₁ := C.lin_mono (show n.size + 1 ≤ W + 1 from by have := hW n (by omega); omega)
-  have l₂ := C.lin_mono (show W ≤ W + 1 by omega)
   have := hW (iroot 4 n) (by omega); have := hW B (by omega); have := hW (iroot 4 n + 1) (by omega)
   cost_unfold pollardStrassenFast.counted
   rw [hB]
@@ -458,8 +421,6 @@ theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n
     cost_bound
   · have hj := findFirst_lt hf
     rw [psValues_length] at hj
-    have hm : C.mul (j - 1).size B.size ≤ C.mul B.size B.size :=
-      C.mul_mono (Nat.size_le_size (by omega)) le_rfl
     have hd := smallDivisor_cost_le C (n := n) (N := n + B * B + B + 2) (by omega) B
       (max 2 ((j - 1) * B + 1)) (by
         have : (j - 1) * B ≤ B * B := Nat.mul_le_mul_right B (by omega)
@@ -467,7 +428,6 @@ theorem pollardStrassenFast_cost_le (C : CostModel) (hC : C.SuperadditiveMul) {n
     have := hW j (by omega); have := hW (j - 1) (by omega)
     have := hW ((j - 1) * B) (by have : (j - 1) * B ≤ B * B := Nat.mul_le_mul_right B (by omega); omega)
     have := hW ((j - 1) * B + 1) (by have : (j - 1) * B ≤ B * B := Nat.mul_le_mul_right B (by omega); omega)
-    have h2W : 2 ≤ W := by have := hW 2 (by omega); rwa [Nat.size_two] at this
     simp only [cost_simps]
     cost_bound
 
@@ -637,7 +597,7 @@ set_option maxHeartbeats 4000000 in
 -- the closed form adds up a few dozen bounds on the pieces
 /-- **The Pollard–Strassen method with Nussbaumer multiplication** (Theorem 5.5.3): at most
 `2^45 (⌊n^{1/4}⌋ + 1) (log₂ n + 8)⁷` bit operations, i.e. `O(n^{1/4} log⁷ n)`. -/
-theorem pollardStrassenFast_cost_nuss {n : ℕ} (hn : 1 < n) :
+@[cost_le] theorem pollardStrassenFast_cost_nuss {n : ℕ} (hn : 1 < n) :
     costOf nussModel (pollardStrassenFast n) ≤ 2 ^ 45 * (iroot 4 n + 1) * (n.size + 8) ^ 7 := by
   have h := pollardStrassenFast_cost_le nussModel nussModel_superadditiveMul hn rfl
   set B := iroot 4 n + 1 with hBdef

@@ -90,7 +90,7 @@ counted_def jacobiHalve (a m : ℕ) (t : ℤ) : ℕ × ℤ :=
 termination_by a
 decreasing_by omega
 
-theorem jacobiHalve_fst_le (a m : ℕ) (t : ℤ) : (jacobiHalve a m t).1 ≤ a := by
+@[val_le] theorem jacobiHalve_fst_le (a m : ℕ) (t : ℤ) : (jacobiHalve a m t).1 ≤ a := by
   fun_induction jacobiHalve a m t with
   | case1 a t h ih => simp only [dite_eq_ite] at ih; omega
   | case2 => exact le_rfl
@@ -180,7 +180,7 @@ open PrimeNumbers.Chapter9
 
 /-! ### Number of loop passes -/
 
-theorem jacobiHalve_snd_natAbs (a m : ℕ) {t : ℤ} (ht : t.natAbs ≤ 1) :
+@[val_le] theorem jacobiHalve_snd_natAbs (a m : ℕ) {t : ℤ} (ht : t.natAbs ≤ 1) :
     (jacobiHalve a m t).2.natAbs ≤ 1 := by
   fun_induction jacobiHalve a m t with
   | case1 a t h ih => exact ih (by split_ifs <;> simp [Int.natAbs_neg, ht])
@@ -201,8 +201,6 @@ theorem jacobiHalve_cost_le (C : Chapter9.CostModel) {K : ℕ} (a m : ℕ) (t : 
   | case1 a t h ih =>
     have hs := size_div_two_add_one h.1
     have ih := ih (by split_ifs <;> simp [Int.natAbs_neg, ht]) (by omega)
-    have hm8 : (m % 8).size ≤ K := (Nat.size_le_size (Nat.mod_le m 8)).trans hm
-    have htK : t.natAbs.size ≤ K := (Nat.size_le_size ht).trans (by simp; omega)
     rw [hs] at ih
     cost_unfold jacobiHalve.counted
     simp only [dite_eq_ite] at ih
@@ -233,7 +231,7 @@ theorem jacobiLoop_divCount {a : ℕ} (ha : a ≠ 0) (m : ℕ) (t : ℤ) :
 /-- Algorithm 2.3.5 makes at most `log₂ (a m) + 1` passes of its outer loop when `a < m`
 (as is the case after the initial `a = a mod m`): the product `a m` at least halves in
 each pass. -/
-theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
+@[cost_le] theorem jacobiSteps_le (a m : ℕ) (t : ℤ) (ham : a < m) :
     costOf Chapter9.divCount (jacobiLoop a m t) ≤ if a = 0 then 0 else Nat.log 2 (a * m) + 1 := by
   fun_induction jacobiLoop a m t with
   | case1 t => cost_unfold jacobiLoop.counted
@@ -295,13 +293,10 @@ theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y 
     have h₂ : r.1.size ≤ a.size := Nat.size_le_size hr_le
     have h₃ : r.1.size ≤ m.size := Nat.size_le_size (hr_le.trans ham.le)
     have haK : a.size ≤ K := (Nat.size_le_size ham.le).trans hK
-    have hrK : r.1.size ≤ K := h₃.trans hK
     have ih := ih hlt (jacobiLoop_snd_natAbs ht r rfl _) (h₃.trans hK)
     have hsteps := jacobiLoop_divCount ha m t
     have hh := jacobiHalve_cost_le C a m t ht hK haK h4
     have hd := hC m.size r.1.size
-    have hr2 : r.2.natAbs.size ≤ K :=
-      (Nat.size_le_size (jacobiHalve_snd_natAbs a m ht)).trans (by simp; omega)
     simp only [dite_eq_ite] at ih
     rw [hsteps]
     generalize costOf Chapter9.divCount (jacobiLoop (m % r.1) r.1
@@ -316,8 +311,6 @@ theorem jacobiBitCost_le (C : CostModel) (hC : ∀ x y, C.divMod x y ≤ (x - y 
             show m.size - r.1.size + 1 + r.1.size = m.size + 1 by omega]; ring
         _ ≤ _ := Nat.mul_le_mul_right _ h₂
     -- and so do the halvings
-    have hP : ((m % r.1).size + 2 * s + 1) * (10 * C.lin K) ≤
-        (r.1.size + 2 * s + 1) * (10 * C.lin K) := by gcongr
     cost_unfold jacobiLoop.counted
     split_ifs at ih ⊢ <;> cost_bound
 

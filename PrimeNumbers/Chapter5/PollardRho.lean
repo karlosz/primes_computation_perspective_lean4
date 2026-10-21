@@ -235,58 +235,30 @@ open PrimeNumbers.Chapter9
 
 /-! ### Bit operations -/
 
+@[val_le] theorem rhoF_lt {n : ℕ} (a x : ℕ) (hn : 0 < n) : rhoF n a x < n := Nat.mod_lt _ hn
+
 /-- One evaluation of `F` on a residue costs a modular multiplication and an addition of
 `2 size n`-bit numbers. -/
-theorem rhoFCost_le (C : CostModel) {n a x : ℕ} (ha : a < n) (hx : x < n) :
+@[cost_le] theorem rhoFCost_le (C : CostModel) {n a x : ℕ} (ha : a < n) (hx : x < n) :
     costOf C (rhoF n a x) ≤ C.mulMod n.size + C.lin (2 * n.size) := by
-  have hlt : x * x + a < n * n := by
-    obtain ⟨c, rfl⟩ : ∃ c, n = c + 1 := ⟨n - 1, by omega⟩
-    have h₁ : x * x ≤ c * c := Nat.mul_le_mul (by omega) (by omega)
-    have h₂ : (c + 1) * (c + 1) = c * c + 2 * c + 1 := by ring
-    omega
-  have hsize : (x * x + a).size ≤ 2 * n.size := by
-    have := size_le_of_lt hlt
-    have := size_mul_le n n
-    omega
-  have hxx : (x * x).size ≤ 2 * n.size := (Nat.size_le_size (Nat.le_add_right _ a)).trans hsize
-  have hax : a.size ≤ 2 * n.size := by have := size_le_of_lt ha; omega
-  have h₁ := C.mul_mono (size_le_of_lt hx) (size_le_of_lt hx)
-  have h₂ := C.divMod_mono n.size hsize
-  cost_unfold rhoF.counted
-  cost_bound
+  cost_unfold rhoF.counted; cost_bound
 
-theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := by
+@[val_le] theorem absDiff_lt {n u v : ℕ} (hu : u < n) (hv : v < n) : absDiff u v < n := by
   unfold absDiff ; split_ifs <;> omega
 
-theorem absDiffCost_le (C : CostModel) {n u v : ℕ} (hu : u < n) (hv : v < n) :
+@[cost_le] theorem absDiffCost_le (C : CostModel) {n u v : ℕ} (hu : u < n) (hv : v < n) :
     costOf C (absDiff u v) ≤ 2 * C.lin n.size := by
-  have := size_le_of_lt hu; have := size_le_of_lt hv
-  cost_unfold absDiff.counted
-  split_ifs <;> cost_bound
+  cost_unfold absDiff.counted; cost_bound
 
 /-- **Bit complexity of Pollard rho**, for any cost model: each pass costs at most three
 modular multiplications, one gcd with `n` and six linear operations. -/
-theorem pollardRhoCost_le (C : CostModel) {n a : ℕ} (ha : a < n)
+@[cost_le] theorem pollardRhoCost_le (C : CostModel) {n a : ℕ} (ha : a < n)
     {U V : ℕ} (hU : U < n) (hV : V < n) (fuel : ℕ) :
     costOf C (pollardRhoLoop n a U V fuel) ≤
       fuel * (3 * C.mulMod n.size + gcdCost C n.size + 6 * C.lin (2 * n.size)) + C.unit := by
-  have hn : 0 < n := by omega
   induction fuel generalizing U V with
   | zero => cost_unfold pollardRhoLoop.counted
-  | succ fuel ih =>
-    have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
-    have h₁ := rhoFCost_le C ha hU
-    have h₂ := rhoFCost_le C ha hV
-    have h₃ := rhoFCost_le C ha (hF V)
-    have h₄ := absDiffCost_le C (hF U) (hF (rhoF n a V))
-    have h₅ := gcd_cost_le C le_rfl
-      (Nat.size_le_size (absDiff_lt (hF U) (hF (rhoF n a V))).le)
-    have h₆ : (euclid n (absDiff (rhoF n a U) (rhoF n a (rhoF n a V)))).size ≤ 2 * n.size := by
-      rw [euclid_eq_gcd]; exact (Nat.size_le_size (Nat.gcd_le_left _ hn)).trans (by omega)
-    have h₇ := C.lin_mono (show n.size ≤ 2 * n.size by omega)
-    have ih := ih (hF U) (hF (rhoF n a V))
-    cost_unfold pollardRhoLoop.counted
-    split_ifs <;> cost_bound
+  | succ fuel ih => cost_unfold pollardRhoLoop.counted; cost_bound
 
 /-- **Bit complexity of Pollard rho, grammar-school arithmetic**: at most `9k² + 21k + 18`
 bit operations per pass of [Factor search]. -/
@@ -294,11 +266,7 @@ theorem pollardRhoCost_school_le {n a U V : ℕ} (ha : a < n) (hU : U < n) (hV :
     (fuel : ℕ) :
     costOf school (pollardRhoLoop n a U V fuel) ≤
       fuel * (9 * n.size ^ 2 + 21 * n.size + 18) + 1 := by
-  refine (pollardRhoCost_le school ha hU hV fuel).trans
-    (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
-  have := gcdCost_school_le n.size
-  rw [school_mulMod, school_lin]
-  nlinarith
+  cost_bound
 
 end RunningTime
 
@@ -365,25 +333,13 @@ open PrimeNumbers.Chapter9
 /-- **Cost of a batch**: "one generic loop consists of 3 modular squarings and one modular
 multiplication" — at most `4 · C.mulMod k` bit operations and six linear operations per
 pass, and the gcd is paid only once per batch. -/
-theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ} (hU : U < n)
-    (hV : V < n) (hQ : Q < n) (count : ℕ) :
+@[cost_le] theorem rhoBatchCost_le (C : CostModel) {n a : ℕ} (ha : a < n) {U V Q : ℕ}
+    (hU : U < n) (hV : V < n) (hQ : Q < n) (count : ℕ) :
     costOf C (rhoBatch n a U V Q count) ≤
       count * (4 * C.mulMod n.size + 6 * C.lin (2 * n.size)) + C.unit := by
-  have hn : 0 < n := by omega
   induction count generalizing U V Q with
   | zero => cost_unfold rhoBatch.counted
-  | succ count ih =>
-    have hF : ∀ x, rhoF n a x < n := fun x ↦ Nat.mod_lt _ hn
-    have h₁ := rhoFCost_le C ha hU
-    have h₂ := rhoFCost_le C ha hV
-    have h₃ := rhoFCost_le C ha (hF V)
-    have h₄ := mul_add_divMod_le C hQ (absDiff_lt (hF U) (hF (rhoF n a V)))
-    have h₅ := absDiffCost_le C (hF U) (hF (rhoF n a V))
-    have h₇ := C.lin_mono (show n.size ≤ 2 * n.size by omega)
-    have ih := ih (hF U) (hF (rhoF n a V))
-      (Q := Q * absDiff (rhoF n a U) (rhoF n a (rhoF n a V)) % n) (Nat.mod_lt _ hn)
-    cost_unfold rhoBatch.counted
-    cost_bound
+  | succ count ih => cost_unfold rhoBatch.counted; cost_bound
 
 end RunningTimeAcc
 
@@ -558,34 +514,15 @@ open PrimeNumbers.Chapter9
 one gcd — against three and one for Algorithm 5.2.1 — and a few linear operations, on
 the residues and on the counters `i < limit ≤ M` (with `2 (fuel + i) ≤ M`, an invariant: a
 doubling of `limit` takes `limit` steps). -/
-theorem pollardBrentCost_le (C : CostModel) {n a M : ℕ} (ha : a < n)
+@[cost_le] theorem pollardBrentCost_le (C : CostModel) {n a M : ℕ} (ha : a < n)
     {saved cur : ℕ} (hs : saved < n) (hc : cur < n) (i limit fuel : ℕ) (hil : i < limit)
     (hl : limit ≤ M) (hfM : 2 * (fuel + i) ≤ M) :
     costOf C (pollardBrentLoop n a saved cur i limit fuel) ≤
       fuel * (C.mulMod n.size + gcdCost C n.size + 4 * C.lin (2 * n.size) +
         3 * C.lin (2 * M).size) + C.unit := by
-  have hn : 0 < n := by omega
   induction fuel generalizing saved cur i limit with
   | zero => cost_unfold pollardBrentLoop.counted
-  | succ fuel ih =>
-    have hF : rhoF n a cur < n := Nat.mod_lt _ hn
-    have h₁ := rhoFCost_le C ha hc
-    have h₂ := gcd_cost_le C le_rfl (Nat.size_le_size (absDiff_lt hF hs).le)
-    have h₃ := absDiffCost_le C hF hs
-    have h₆ : (euclid n (absDiff (rhoF n a cur) saved)).size ≤ 2 * n.size := by
-      rw [euclid_eq_gcd]; exact (Nat.size_le_size (Nat.gcd_le_left _ hn)).trans (by omega)
-    have h₇ := C.lin_mono (show n.size ≤ 2 * n.size by omega)
-    have hi : (i + 1).size ≤ (2 * M).size := Nat.size_le_size (by omega)
-    have hl' : (2 * limit).size ≤ (2 * M).size := Nat.size_le_size (by omega)
-    have h2M : 2 ≤ (2 * M).size := by
-      have := Nat.size_le_size (show 2 ≤ 2 * M by omega); rwa [Nat.size_two] at this
-    cost_unfold pollardBrentLoop.counted
-    split_ifs with hg hlim
-    · have ih := ih hF hF 0 (2 * limit) (by omega) (by omega) (by omega)
-      cost_bound
-    · have ih := ih hs hF (i + 1) limit (by omega) hl (by omega)
-      cost_bound
-    · cost_bound
+  | succ fuel ih => cost_unfold pollardBrentLoop.counted; cost_bound
 
 end RunningTimeBrent
 
