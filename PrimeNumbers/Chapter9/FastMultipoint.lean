@@ -302,8 +302,7 @@ points: the hypothesis `hmodLen` of `multipointCost_le`. -/
     costOf C (monicOfDegree n L) ≤ (2 * n + 3) * C.unit := by
   cost_unfold monicOfDegree.counted
   simp only [List.length_take]
-  have : (min n L.length + 1 + 1) * C.unit ≤ (n + 2) * C.unit := Nat.mul_le_mul_right _ (by omega)
-  nlinarith
+  cost_bound
 
 /-- **Cost of the product tree**: if a product of inputs of length `≤ m` costs at most
 `Mf m`, with `Mf` monotone and superadditive, the tree over `d ≥ 1` points costs at most
@@ -323,7 +322,6 @@ theorem prodTree_cost_le [ArithCost R] (C : CostModel)
   intro us h1 hK
   by_cases hn : us.length ≤ 1
   · have := prodLinear_cost_le C hs us hn
-    have hu : (us.length + 1) * C.unit ≤ 2 * C.unit := Nat.mul_le_mul_right _ (by omega)
     have h1' : us.length = 1 := by omega
     cost_unfold prodTree.counted
     rw [h1'] at *

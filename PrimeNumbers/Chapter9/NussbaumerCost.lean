@@ -200,11 +200,6 @@ theorem size_add_two_sq_le {m : ℕ} (hm : 1 ≤ m) : (m.size + 2) ^ 2 ≤ 16 * 
     have heis : (e * i).size ≤ 3 * m.size + 3 := (size_mul_le e i).trans (by omega)
     cost_unfold twiddle.counted
     rw [h2m, show Nat.size 2 = 2 by decide, school_mul, school_divMod]
-    have m₁ : max 2 m.size ≤ m.size + 2 := by omega
-    have m₂ : max i.size 1 ≤ m.size + 1 := by omega
-    have t₁ : e.size * i.size ≤ (2 * m.size + 2) * (m.size + 1) := Nat.mul_le_mul hes his
-    have t₂ : ((e * i).size - (m.size + 1) + 1) * (m.size + 1) ≤
-        (2 * m.size + 3) * (m.size + 1) := Nat.mul_le_mul_right _ (by omega)
     cost_bound
 
 /-- **Running time of the FFT**: `2^l (l m (β + l + 70) + 5)` bit operations for `2^l`
@@ -284,19 +279,8 @@ theorem fft_cost {m : ℕ} (hm : 1 ≤ m) : ∀ (l e β : ℕ) (vs : List (List 
       have m₁ : min (2 ^ (l + 1)).size 1 ≤ 1 := min_le_right _ _
       have m₂ : max 2 e.size ≤ 4 * m + 2 := by omega
       rw [hlen] at hEv hOd
-      have key : 2 ^ (l + 1) * ((l + 1) * m * (β + (l + 1) + 70) + 5) =
-          2 * (2 ^ l * (l * m * (β + l + 70) + 5)) + 2 * (2 ^ l * m) * (β + 2 * l + 71) := by
-        rw [h2l]; ring
-      rw [key]
-      have t₁ : 2 ^ l * (m * (β + l + 2) + 2) = 2 ^ l * m * (β + l + 2) + 2 * 2 ^ l := by ring
-      have t₂ : 2 ^ l * (99 * m) = 99 * (2 ^ l * m) := by ring
-      have t₃ : 2 * (2 ^ l * m) * (β + 2 * l + 71) = 2 * (2 ^ l * m) * (β + l + 2) +
-          2 * (2 ^ l * m) * (l + 69) := by ring
-      have t₄ : 2 * (2 ^ l * m) * 69 ≤ 2 * (2 ^ l * m) * (l + 69) := Nat.mul_le_mul_left _ (by omega)
-      have t₅ : m ≤ 2 ^ l * m := Nat.le_mul_of_pos_left _ (Nat.two_pow_pos _)
-      have t₆ : 2 ^ l ≤ 2 ^ l * m := Nat.le_mul_of_pos_right _ hm0
-      rw [h2l] at hEv hOd
-      linarith
+      rw [h2l] at *
+      cost_bound
 
 theorem natAbs_term_add_one_le {β : ℕ} {x y : ℤ} (hx : x.natAbs < 2 ^ β) (hy : y.natAbs < 2 ^ β) :
     (x * y).natAbs + 1 ≤ 2 ^ (2 * β) := by
@@ -347,25 +331,12 @@ theorem ncTerm_bound {β m s : ℕ} {b : List ℤ} (hb : Bdd β b) : ∀ (i : �
     have hK : ∀ x, x < 2 * m → x.size ≤ K + 1 := fun x hx ↦ Nat.size_le.2 (by rw [pow_succ]; omega)
     have := hK i (by omega); have := hK s (by omega); have := hK (m + s) (by omega)
     have := hK m (by omega)
-    have x₁ : min i.size s.size ≤ K + 1 := by omega
-    have x₂ : max s.size i.size ≤ K + 1 := by omega
-    have x₃ : max i.size 1 ≤ K + 1 := by omega
-    have x₄ : max m.size s.size ≤ K + 1 := by omega
-    have x₅ : max (m + s).size i.size ≤ K + 1 := by omega
     cost_unfold ncTerm.counted
     simp only [school_mul, List.length_cons]
     split_ifs
-    · have := hmul (s - i); have := hts (s - i)
-      have : (a * b.getD (s - i) 0).natAbs.size ≤ 2 * β + K := by omega
-      have : min (s - i) b.length ≤ b.length := min_le_right _ _
-      have hmx : max (a * b.getD (s - i) 0).natAbs.size (ncTerm m s b (i + 1) as).natAbs.size ≤
-        2 * β + K := by omega
-      nlinarith
-    · have := hmul (m + s - i); have := hts (m + s - i)
-      have : min (m + s - i) b.length ≤ b.length := min_le_right _ _
-      have hmx : max (-(a * b.getD (m + s - i) 0)).natAbs.size
-        (ncTerm m s b (i + 1) as).natAbs.size ≤ 2 * β + K := by rw [Int.natAbs_neg]; omega
-      nlinarith
+    · cost_bound
+    · rw [Int.natAbs_neg]
+      cost_bound
 
 /-- The schoolbook negacyclic product of vectors of length `2^k` with entries below `2^β`
 (the base case of Nussbaumer's recursion). -/
@@ -379,7 +350,7 @@ theorem ncTerm_bound {β m s : ℕ} {b : List ℤ} (hb : Bdd β b) : ∀ (i : �
         hab (by omega)
       rwa [ha, hb] at this
   simp only [List.length_range] at *
-  nlinarith
+  cost_bound
 
 theorem bdd_ncSchool {β k : ℕ} {a b : List ℤ} (ha : a.length = 2 ^ k) (hab : Bdd β a)
     (hbb : Bdd β b) : Bdd (2 * β + k) (ncSchool (2 ^ k) a b) := fun x hx ↦ by
@@ -791,10 +762,8 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
       have := Nat.lt_two_pow_self (n := k + 1); omega
     cost_unfold bitsOfPow2.counted
     rw [Nat.size_pow, Nat.size_pow, hlen]
-    have : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
-    have : max x.size (2 ^ k + 1) ≤ 2 * 2 ^ k + 1 := by omega
-    have : max x.size (k + 1) ≤ 2 * 2 ^ k + 1 := by omega
-    nlinarith
+    rw [show 2 ^ (k + 1) = 2 * 2 ^ k by ring] at *
+    cost_bound
 
 /-- Reading off `2^k` binary digits by halving: `2^k (20k + 16)` bit operations. -/
 @[cost_le] theorem ofBitsNat_cost_le : ∀ (k : ℕ) (l : List ℤ), l.length = 2 ^ k → (∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) →
@@ -839,13 +808,8 @@ theorem bitsOfPow2_cost_le : ∀ (k x : ℕ), x < 2 ^ 2 ^ k →
     rw [hh, Nat.size_pow]
     rw [hl] at hls ⊢
     have e₁ : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
-    have w₁ : min (2 ^ (k + 1)).size 1 ≤ 1 := min_le_right _ _
-    have w₂ : max (2 ^ (k + 1)).size 2 ≤ k + 2 := by omega
-    have w₃ : min (2 ^ k) (2 ^ (k + 1)) ≤ 2 ^ k := min_le_left _ _
-    have w₄ : max (ofBitsNat (l.drop (2 ^ k))).size (k + 1) ≤ 2 * 2 ^ k := by omega
-    have w₅ : max (ofBitsNat (l.drop (2 ^ k)) <<< 2 ^ k).size (ofBitsNat (l.take (2 ^ k))).size ≤
-        2 * 2 ^ k := by omega
-    nlinarith
+    rw [e₁] at *
+    cost_bound
 
 @[cost_le] theorem mulLog_cost_le (x y : ℕ) : costOf school (mulLog x y) ≤ 6 * max x.size y.size + 9 := by
   have := (size_le_self (2 * max x.size y.size))
@@ -925,27 +889,7 @@ set_option maxHeartbeats 1000000 in
     have : 2 ^ 2 ^ k ≤ 2 ^ (k + 3 + 2 ^ k) := Nat.pow_le_pow_right (by norm_num) (by omega)
     rw [show 2 ^ k + k + 4 = (k + 3 + 2 ^ k) + 1 by ring, pow_succ]
     omega
-  rw [Nat.size_pow, Nat.size_pow]
-  have m₁ : max r.2.natAbs.size ((2 : ℤ) ^ 2 ^ k).natAbs.size ≤ 2 ^ k + 1 := by omega
-  have m₂ : max ((ofBitsNat r.1 : ℕ) : ℤ).natAbs.size (r.2 * 2 ^ 2 ^ k).natAbs.size ≤
-      2 ^ k + k + 3 := by omega
-  have hpoly : (2 * k ^ 2 + 1) * (8 * (1 + 2 * k + 72) ^ 2) ≤ 85264 * (k + 1) ^ 4 := by
-    have p₁ : 2 * k ^ 2 + 1 ≤ 2 * (k + 1) ^ 2 := by nlinarith
-    have p₂ : (1 + 2 * k + 72) ^ 2 ≤ (73 * (k + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-    calc (2 * k ^ 2 + 1) * (8 * (1 + 2 * k + 72) ^ 2)
-        ≤ (2 * (k + 1) ^ 2) * (8 * (73 * (k + 1)) ^ 2) := Nat.mul_le_mul p₁ (by omega)
-      _ = 85264 * (k + 1) ^ 4 := by ring
-  have cN' : costOf school (nussbaumer k (bitsOf (2 ^ k) x) (bitsOf (2 ^ k) y)) ≤
-      2 ^ k * (85264 * (k + 1) ^ 4) := by
-    refine cN.trans ?_
-    rw [mul_assoc]; exact Nat.mul_le_mul_left _ hpoly
-  have q : 2 ^ k * (59 * k + 90) ≤ 2 ^ k * (4736 * (k + 1) ^ 4) := by
-    refine Nat.mul_le_mul_left _ ?_
-    have : k + 1 ≤ (k + 1) ^ 4 := Nat.le_self_pow (by norm_num) _
-    omega
-  have hM2 : 6 * max x.size y.size + 9 ≤ 3 * 2 ^ k + 9 := by omega
-  have h2k : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-  nlinarith
+  cost_bound
 
 /-- **Nussbaumer multiplication realizes `nussModel`**: multiplying an `a`-bit by a `b`-bit
 number takes at most `nussModel.mul a b` bit operations (for `a` or `b` positive: a product
@@ -976,11 +920,8 @@ of two zero-bit numbers still takes the few steps of the call). -/
           rw [← pow_succ']; congr 1; omega
       _ ≤ 4 * N := by omega
   have hNM : N ≤ max a b := max_le_max hx hy
-  calc 2 ^ mulLog x y * (90000 * (mulLog x y + 1) ^ 4)
-      ≤ 4 * N * (90000 * (N.size + 3) ^ 4) :=
-        Nat.mul_le_mul h2k (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _))
-    _ = 360000 * N * (N.size + 3) ^ 4 := by ring
-    _ ≤ nussModel.mul a b := Nat.mul_le_mul (Nat.mul_le_mul_left _ hNM)
-        (Nat.pow_le_pow_left (by have := Nat.size_le_size hNM; omega) _)
+  have := Nat.size_le_size hNM
+  rw [nussModel_mul]
+  cost_bound
 
 end PrimeNumbers.Chapter9

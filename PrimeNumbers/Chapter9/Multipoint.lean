@@ -50,7 +50,7 @@ counted_def eval [ArithCost R] : Chapter2.Poly R → R → R
     have h₁ := (hs x (eval f x)).1
     have h₂ := (hs c (x * eval f x)).2.1
     cost_unfold eval.counted
-    nlinarith
+    cost_bound
 
 theorem eval_eq (f : Chapter2.Poly R) (x : R) : eval f x = (toPolynomial f).eval x := by
   induction f with

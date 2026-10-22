@@ -341,7 +341,7 @@ variable {F : Type} [CommRing F] [ArithCost F] (C : CostModel) {s : ℕ}
     costOf C (smul c f) ≤ (f.length + 2) * (C.unit + s) := by
   cost_unfold smul.counted
   have := sum_map_le_length_mul f (fun x ↦ MulCost.mulCost C c x) fun x _ ↦ (hs c x).1
-  nlinarith
+  cost_bound
 
 /-- Adding: a step and a sum per coefficient of the longer polynomial. -/
 @[cost_le] theorem add_cost_le (hs : ArithCost.Bounded F C s) :
@@ -359,7 +359,7 @@ variable {F : Type} [CommRing F] [ArithCost F] (C : CostModel) {s : ℕ}
     have := (hs a b).2.1
     cost_unfold add.counted
     simp only [List.length_cons, Nat.add_max_add_right] at *
-    nlinarith
+    cost_bound
 
 @[cost_le] theorem sub_cost_le (hs : ArithCost.Bounded F C s) (f g : Poly F) :
     costOf C (sub f g) ≤ (max f.length g.length + 1) * (C.unit + s) +
@@ -368,7 +368,7 @@ variable {F : Type} [CommRing F] [ArithCost F] (C : CostModel) {s : ℕ}
   have h₂ := add_cost_le C hs f (smul (-1) g)
   simp only [length_smul] at h₂
   cost_unfold sub.counted
-  nlinarith
+  cost_bound
 
 @[val_le] theorem length_mul_le_add : ∀ f g : Poly F, (mul f g).length ≤ f.length + g.length
   | [], g => by simp [mul]
@@ -389,15 +389,8 @@ addition, `O(len f + len g)` coefficient operations. -/
     have h₂ := add_cost_le C hs (smul a g) (0 :: mul f g)
     have hl := length_mul_le_add f g
     simp only [length_smul, List.length_cons] at h₂
-    have h₃ : (max g.length ((mul f g).length + 1) + 1) * (C.unit + s) ≤
-        (f.length + g.length + 2) * (C.unit + s) := Nat.mul_le_mul_right _ (by omega)
-    have h₄ : (g.length + 2) * (C.unit + s) ≤ (f.length + g.length + 2) * (C.unit + s) :=
-      Nat.mul_le_mul_right _ (by omega)
-    have h₅ : (f.length + 1) * ((2 * (f.length + g.length) + 5) * (C.unit + s)) ≤
-        (f.length + 1) * ((2 * (f.length + 1 + g.length) + 5) * (C.unit + s)) :=
-      Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
     cost_unfold mul.counted
-    nlinarith
+    cost_bound
 
 end RunningTime
 

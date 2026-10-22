@@ -374,7 +374,7 @@ power of two on numbers of at most `2b · count` bits; per node, a small product
       cost_unfold Chapter2.Poly.add.counted
     cost_unfold Chapter2.Poly.mul.counted
     simp only [Chapter2.Poly.smul, List.map_nil, h₁, h₂]
-    nlinarith
+    cost_bound
 
 theorem nil_mul_cost (C : CostModel) (g : List ℕ) : costOf C (Chapter2.Poly.mul [] g) = C.unit := by
   cost_unfold Chapter2.Poly.mul.counted
@@ -561,13 +561,9 @@ multiplication this is quasi-linear in `d log n`. -/
       2 * d * C.divMod β n.size :=
     (sum_map_le_length_mul _ _ fun c hc ↦ C.divMod_mono _ (hcoef c hc)).trans
       (Nat.mul_le_mul_right _ hlen)
-  have hu : ((mulNatAuto F G).length + 1) * C.unit ≤ (2 * d + 1) * C.unit :=
-    Nat.mul_le_mul_right _ (by omega)
-  have hu' : (f.length + 1 + (g.length + 1)) * C.unit ≤ (2 * d + 2) * C.unit :=
-    Nat.mul_le_mul_right _ (by omega)
   unfold mulModBound
   cost_unfold mulMod.counted
   rw [← hFdef, ← hGdef]
-  nlinarith
+  cost_bound
 
 end PrimeNumbers.Chapter9

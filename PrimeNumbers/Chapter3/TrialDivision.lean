@@ -312,7 +312,7 @@ operations, i.e. `O(√n ln² n)`. -/
   refine (trialDivisionCost_le school hn).trans (Nat.mul_le_mul_left _ ?_)
   have := school_divBound_le n.size
   simp only [opBound, CostModel.lin, CostModel.add, school, school_mul, max_self] at *
-  nlinarith
+  cost_bound
 
 end RunningTime
 

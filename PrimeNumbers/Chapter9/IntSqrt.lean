@@ -226,7 +226,7 @@ theorem sqrt_counted_cost_school_le (N : ℕ) :
   unfold schoolSqrt
   set h := (N.size + 1) / 2
   have : 5 * (N.size + 4) ≤ (h + 2) * (3 * N.size + 3) + (N.size + 4) ^ 2 := by nlinarith
-  nlinarith
+  cost_bound
 
 /-- **The worst cost of an integer square root** of a number of at most `k` bits. -/
 def sqrtCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits k fun t ↦ costOf C (Nat.sqrt t)

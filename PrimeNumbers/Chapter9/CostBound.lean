@@ -159,6 +159,15 @@ register_option cost_bound.profile : Bool := {
   descr := "report the time of each step of `cost_bound`"
 }
 
+/-- Run a step of `cost_bound`, timing it under `cost_bound.profile`. -/
+def step {m : Type → Type} [Monad m] [MonadLiftT BaseIO m] [MonadOptions m] [MonadLog m]
+    [AddMessageContext m] {α} (name : String) (x : m α) : m α := do
+  unless cost_bound.profile.get (← getOptions) do return ← x
+  let t₀ ← IO.monoMsNow
+  let r ← x
+  logInfo m!"cost_bound: {name} {(← IO.monoMsNow) - t₀}ms"
+  return r
+
 namespace CostFacts
 
 /-- A bound `t < ub` (`strict`) or `t ≤ ub`, with its proof. -/
@@ -204,6 +213,8 @@ structure State where
   omegaCalls : Nat := 0
   /-- the inequalities `a ≤ b` that `proveLe` cannot prove from the facts so far -/
   failedLe : Std.HashSet (Expr × Expr) := {}
+  /-- the upper bounds of atoms found (`atomBounds`) -/
+  atomBounds : Std.HashMap Expr (Array (Expr × Expr)) := {}
 
 abbrev FactM := StateRefT State TacticM
 
@@ -316,7 +327,8 @@ def runOmega (p : Expr) (hyps : Array Expr) : FactM (Option Expr) := do
 /-- Prove an arithmetic fact by `omega`, from the hypotheses that are not about costs, the
 facts derived and `extra` (those relevant to it): first from the facts that `omega` need
 not case split on, then from all. -/
-def proveArith (p : Expr) (extra : Array Expr := #[]) : FactM (Option Expr) := do
+def proveArith (p : Expr) (extra : Array Expr := #[]) (quick := false) :
+    FactM (Option Expr) := do
   let p ← instantiateMVars p
   if let some pf := (← get).proved.get? p then return some pf
   if extra.isEmpty && (← get).failed.contains p then return none
@@ -325,7 +337,9 @@ def proveArith (p : Expr) (extra : Array Expr := #[]) : FactM (Option Expr) := d
   let simple := rel.filter (!·.splits)
   let r ← match ← runOmega p (simple.map (·.pf)) with
     | some pf => pure (some pf)
-    | none => if simple.size < rel.size then runOmega p (rel.map (·.pf)) else pure none
+    | none =>
+      if quick then return none
+      if simple.size < rel.size then runOmega p (rel.map (·.pf)) else pure none
   match r with
   | some pf => modify fun s => { s with proved := s.proved.insert p pf }
   | none => if extra.isEmpty then modify fun s => { s with failed := s.failed.insert p }
@@ -1161,16 +1175,128 @@ def scaleGroups (p q : PolyNF) (P Q : Expr) : FactM (Option Expr) := do
       return some (← instantiateMVars m)
     catch _ => return none
 
+/-- The atoms of a polynomial. -/
+def PolyNF.atoms (p : PolyNF) : Array Expr :=
+  p.foldl (fun acc (_, m) => m.foldl (fun acc (x, _) => if acc.contains x then acc else acc.push x)
+    acc) #[]
+
+/-- The upper bounds `a ≤ U` (`U` free of `a`) of an atom that the proof states, with their
+proofs: the hypotheses `a ≤ U`, `a < U`, the local `∀`-hypotheses instantiated at `a` (their
+hypotheses discharged as those of the lemmas) and the `@[val_le]` lemmas — not the facts
+derived for `omega` (`t.size ≤ t`), true but too weak to replace an atom by. -/
+partial def atomBounds (a : Expr) : FactM (Array (Expr × Expr)) := do
+  if let some bs := (← get).atomBounds.get? a then return bs
+  modify fun s => { s with atomBounds := s.atomBounds.insert a #[] }
+  let mut out := #[]
+  for b in (← hypBounds a) ++ (← lemmaBounds a) do
+    unless (b.ub.find? (· == a)).isSome do out := out.push (b.ub, ← withMain b.le)
+  -- `max x y ≤ U ⊔ V` (the larger of the bounds if one is, else their sum), `min x y ≤ U`,
+  -- `x - y ≤ U` from the bounds `x ≤ U`, `y ≤ V` (or the operands themselves), by `omega`
+  let args : Option (Expr × Expr) := match_expr a with
+    | Max.max _ _ x y => some (x, y) | Min.min _ _ x y => some (x, y)
+    | HSub.hSub _ _ _ _ x y => some (x, y) | _ => none
+  if let some (x, y) := args then
+    let first (t : Expr) : FactM (Expr × Option Expr) := do
+      return match (← atomBounds t)[0]? with | some (U, h) => (U, some h) | none => (t, none)
+    let (U, hU) ← first x
+    let (V, hV) ← first y
+    let le (u v : Expr) : FactM Bool := do
+      return (← withMain do proveArith (← mkAppM ``LE.le #[u, v])).isSome
+    let ubs ← match_expr a with
+      | Max.max _ _ _ _ => do
+        if U == V || (← le V U) then pure #[U] else if ← le U V then pure #[V]
+        else pure #[← withMain (mkAppM ``HAdd.hAdd #[U, V])]
+      | Min.min _ _ _ _ => pure #[U, V]
+      | _ => pure #[U]
+    for ub in ubs do
+      if ub == a then continue
+      if let some pf ← withMain do
+          proveArith (← mkAppM ``LE.le #[a, ub]) (#[hU, hV].filterMap id)
+      then out := out.push (ub, pf)
+  let hyps ← withMain do
+    let mut hs := #[]
+    for d in ← getLCtx do
+      if !d.isImplementationDetail && (← instantiateMVars d.type).cleanupAnnotations.isForall then
+        hs := hs.push d.toExpr
+    return hs
+  for h in hyps do
+    let r ← withMain do
+      let s ← Meta.saveState
+      let (xs, bis, concl) ← forallMetaTelescopeReducing (← inferType h)
+      let (l, r, strict) ← match_expr concl with
+        | LT.lt _ _ l r => pure (l, r, true)
+        | LE.le _ _ l r => pure (l, r, false)
+        | _ => s.restore; return none
+      unless ← withReducible (isDefEq l a) do s.restore; return none
+      unless ← discharge xs bis do s.restore; return none
+      let pf ← instantiateMVars (mkAppN h xs)
+      let r ← instantiateMVars r
+      if pf.hasExprMVar || r.hasExprMVar || (r.find? (· == a)).isSome then
+        s.restore; return none
+      return some (r, ← if strict then mkAppM ``Nat.le_of_lt #[pf] else pure pf)
+    if let some b := r then out := out.push b
+  modify fun s => { s with atomBounds := s.atomBounds.insert a out }
+  return out
+
+/-- Replace in `p` the atoms that `q` lacks by upper bounds — a polynomial over the naturals
+grows with its atoms — preferring bounds in the atoms of `q`.  Returns the new polynomial and
+the facts `c m aᵉ ≤ c m Uᵉ` of the replacements. -/
+def substBounded (p q : PolyNF) : FactM (PolyNF × Array Expr) := do
+  let qs := q.atoms
+  let mut p := p
+  let mut facts := #[]
+  for _ in [0:4] do
+    let mut changed := false
+    for a in p.atoms do
+      if qs.contains a then continue
+      let bs ← atomBounds a
+      if bs.isEmpty then continue
+      let score (U : Expr) : Nat := ((poly U).atoms.filter (!qs.contains ·)).size
+      let (U, h) := bs.foldl (fun b c => if score c.1 < score b.1 then c else b) bs[0]!
+      if cost_bound.profile.get (← getOptions) then logInfo m!"cost_bound: {a} ≤ {U}"
+      let pu := poly U
+      let mut p' : PolyNF := #[]
+      for (c, m) in p do
+        match m.find? (·.1 == a) with
+        | some (_, e) =>
+          let rest := m.filter (·.1 != a)
+          let hpow ← withMain do
+            if e == 1 then pure h else mkAppOptM ``Nat.pow_le_pow_left #[none, none, h, mkNatLit e]
+          facts := facts.push (← withMain do
+            mkAppM ``Nat.mul_le_mul_left #[← polyExpr #[(c, rest)], hpow])
+          p' := polyAdd p' (polyMul #[(c, rest)] ((List.range e).foldl (fun acc _ => polyMul acc pu)
+            #[(1, #[])]))
+        | none => p' := polyAdd p' #[(c, m)]
+      p := p'
+      changed := true
+    unless changed do break
+  return (p, facts)
+
 /-- Prove `P ≤ Q` between coefficients: by `omega` from the facts, or else monomial by
 monomial — each monomial of `P` dominated by monomials of `Q` with room in their
 coefficients — and linear arithmetic. -/
-def provePolyLe (P Q : Expr) : FactM (Option Expr) := do
+partial def provePolyLe (P Q : Expr) (subst : Bool := true) : FactM (Option Expr) := do
   if P.nat? == some 0 then return some (← withMain do mkAppM ``Nat.zero_le #[Q])
+  let p := poly P
+  let q := poly Q
+  if let some h ← withMain do proveArith (← mkAppM ``LE.le #[P, Q]) (quick := true) then
+    return some h
+  -- the atoms that `Q` lacks by their bounds (a polynomial grows with its atoms): what
+  -- remains is often plain
+  if subst then
+    let (p', fs) ← substBounded p q
+    if !fs.isEmpty then
+      if let some h ← provePolyLe (← withMain (polyExpr p')) Q false then
+        if let some pf ← withMain do
+            let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
+            try
+              Mathlib.Tactic.Linarith.linarith true (h :: fs.toList) {} m.mvarId!
+              pure (some (← instantiateMVars m))
+            catch _ => pure none
+        then return some pf
   if let some h ← withMain (proveLe P Q) then return some h
   -- the products distributed (`fuel * (k + 1)` into `fuel * k + fuel`), the atoms left as
   -- they are, so that `omega` sees the same monomials on both sides
-  let p := poly P
-  let q := poly Q
   if let some h ← withMain do
       let P' ← polyExpr p
       let Q' ← polyExpr q
@@ -1398,15 +1524,6 @@ partial def branches (e : Expr) : Bool :=
   else if e.isAppOfArity ``HAdd.hAdd 6 || e.isAppOfArity ``HMul.hMul 6 then
     branches e.appFn!.appArg! || branches e.appArg!
   else false
-
-/-- Run a step of `cost_bound`, timing it under `cost_bound.profile`. -/
-def step {m : Type → Type} [Monad m] [MonadLiftT BaseIO m] [MonadOptions m] [MonadLog m]
-    [AddMessageContext m] {α} (name : String) (x : m α) : m α := do
-  unless cost_bound.profile.get (← getOptions) do return ← x
-  let t₀ ← IO.monoMsNow
-  let r ← x
-  logInfo m!"cost_bound: {name} {(← IO.monoMsNow) - t₀}ms"
-  return r
 
 /-- If the left side of the goal is a single call `costOf C (f …)` that no lemma and no
 hypothesis bounds, unfold it (`cost_unfold f.counted`). -/

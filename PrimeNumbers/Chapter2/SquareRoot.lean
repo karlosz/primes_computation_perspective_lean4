@@ -74,16 +74,8 @@ decreasing_by omega
   fun_induction oddPart n with
   | case1 n h r ih =>
     have hs := size_div_two_add_one h.1
-    have hl := C.lin_mono (show (n / 2).size + 2 ≤ n.size + 2 by omega)
-    have ih' : costOf C (oddPart (n / 2)) ≤ (n / 2).size * (6 * C.lin (n.size + 2)) +
-        6 * C.lin (n.size + 2) := by
-      have := Nat.mul_le_mul_left ((n / 2).size + 1) (Nat.mul_le_mul_left 6 hl); nlinarith
     have hr : ((oddPart (n / 2)).1).size ≤ n.size + 2 :=
       (Chapter9.size_le_self _).trans ((oddPart_fst_le _).trans (by omega))
-    have hm : (n.size + 1) * (6 * C.lin (n.size + 2)) =
-        (n / 2).size * (6 * C.lin (n.size + 2)) + 12 * C.lin (n.size + 2) := by rw [← hs]; ring
-    rw [hm]
-    clear ih hl
     cost_unfold oddPart.counted
     cost_bound
   | case2 n h =>
@@ -550,7 +542,7 @@ is `O(ln⁴ p)` and the typical case (`s` small) is `O(ln³ p)`. -/
     have h₆ : (s - 1) * (4 * s + 1) + 2 * s ≤ 4 * s ^ 2 := by
       obtain ⟨c, rfl⟩ : ∃ c, s = c + 1 := ⟨s - 1, by omega⟩
       simp only [Nat.add_sub_cancel]
-      nlinarith
+      cost_bound
     omega
 
 /-! ### Bit operations of the modular square root

@@ -226,10 +226,9 @@ most `2 log₂ N + 1` times. -/
     have h₁ : (x % y).size ≤ y.size := size_le_of_lt (Nat.mod_lt _ hy)
     obtain ⟨d, hd⟩ : ∃ d, x.size = y.size + d := ⟨x.size - y.size, by
       have := Nat.size_le_size hyx; omega⟩
-    have h₃ := Nat.mul_le_mul_right (y.size + costOf divCount (euclid y (x % y))) h₁
     cost_unfold euclid.counted
     rw [hsteps, school_divMod, hd, show y.size + d - y.size = d by omega]
-    nlinarith
+    cost_bound
   | case2 x y hy => cost_unfold euclid.counted
 
 /-- **Bit complexity of the Euclid algorithm (Exercise 2.6).**  For `y < x ≤ N`, with `N`
@@ -242,7 +241,7 @@ grammar-school model: the `O(ln² N)` stated after Theorem 2.1.3. -/
   have h₂ : x.size ≤ N.size := Nat.size_le_size hN
   have h₃ := euclidSteps_le hxy hN
   have h₄ := log_two_le_size N
-  nlinarith [Nat.mul_le_mul h₁ (show x.size + costOf divCount (euclid x y) ≤ 3 * N.size + 1 by omega)]
+  cost_bound
 
 /-- The cost charged for a call of `Nat.gcd` in a counted algorithm. -/
 @[cost_simps] theorem gcd_counted_cost (C : CostModel) (x y : ℕ) :
@@ -444,11 +443,7 @@ operations — `O(ln² N)`, like the plain Euclid algorithm. -/
     ⟨by simp, by simp⟩ ⟨by simp, by simp⟩
   have hsteps := euclidSteps_le' hx hy
   refine h.trans ?_
-  have : max x.size y.size ≤ N.size := max_le (Nat.size_le_size hx) (Nat.size_le_size hy)
-  have h₁ := Nat.mul_le_mul_left (4 * N.size) (show max x.size y.size +
-    costOf divCount (euclid x y) ≤ 3 * N.size + 2 by omega)
-  have h₂ := Nat.mul_le_mul_left (3 * N.size + 5) hsteps
-  nlinarith
+  cost_bound
 
 /-- The cofactor `a` returned by Algorithm 2.1.4 does not exceed `y` in absolute value. -/
 @[val_le] theorem extEuclidLoop_fst_natAbs_le {Y : ℕ} (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ)

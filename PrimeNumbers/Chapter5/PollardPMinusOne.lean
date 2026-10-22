@@ -292,12 +292,9 @@ theorem powMod_cost_le_powBound {c p : ℕ} (hp : p ≤ B) (hc : c < n) :
     costOf C (powMod c p n) + C.unit ≤ powBound C n B := by
   have h := powModCost_le C hc (k := B.size) p (Nat.size_le_size hp)
   have := Nat.log_mono_right (b := 2) hp
-  have h₁ := Nat.mul_le_mul_right (2 * C.mulMod n.size) this
-  have h₂ := Nat.mul_le_mul_right (6 * C.lin (B.size + 2)) (show Nat.log 2 p + 1 ≤ Nat.log 2 B + 1
-    by omega)
   have h₃ := C.unit_le_lin (B.size + 2)
   unfold powBound
-  nlinarith
+  cost_bound
 
 @[cost_le] theorem ladderCost_le {p c : ℕ} (hp : p ≤ B) (hc : c < n) (j : ℕ) :
     costOf C (ladder n p c j) ≤ j * powBound C n B + C.unit := by
@@ -336,7 +333,7 @@ primes `p ≤ B`; for each, the exponent `a_p = ⌊log_p B⌋` (`logBound`) and 
           pm1Steps B * powBound C n B := by
       simp [pm1Steps, List.sum_map_add, List.sum_map_mul_right]; ring
     rw [e]
-    nlinarith
+    cost_bound
 
 /-- **Bit complexity of Pollard `p - 1`**, for any cost model: step 2 (`laddersCost_le`), the
 reduction of `c - 1` modulo `n` and one gcd with `n`. -/
