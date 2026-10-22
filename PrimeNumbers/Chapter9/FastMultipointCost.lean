@@ -79,29 +79,23 @@ private theorem width_parts_mono {w w' : ℕ} (h : w ≤ w') :
   have h₅ := C.divMod_mono n.size h
   omega
 
-theorem polyMulBound_superadditive (hC : C.SuperadditiveMul) {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) :
-    polyMulBound C n a + polyMulBound C n b ≤ polyMulBound C n (a + b) := by
-  have wa := segWidth_mono n (Nat.le_add_right a b)
-  have wb := segWidth_mono n (Nat.le_add_left b a)
-  set w := segWidth n (a + b)
-  obtain ⟨a₁, a₂, a₃⟩ := width_parts_mono C n wa
-  obtain ⟨b₁, b₂, b₃⟩ := width_parts_mono C n wb
-  have h₁ : C.mul (segWidth n a * a) (segWidth n a * a) ≤ C.mul (w * a) (w * a) :=
-    C.mul_mono (Nat.mul_le_mul_right a wa) (Nat.mul_le_mul_right a wa)
-  have h₂ : C.mul (segWidth n b * b) (segWidth n b * b) ≤ C.mul (w * b) (w * b) :=
-    C.mul_mono (Nat.mul_le_mul_right b wb) (Nat.mul_le_mul_right b wb)
-  have h₃ := hC (w * a) (w * b)
-  rw [← mul_add] at h₃
-  have hA := halvingBound_le a₁ a₂ (le_refl (2 * a))
-  have hB := halvingBound_le b₁ b₂ (le_refl (2 * b))
-  have hS := halvingBound_superadditive (2 * C.unit + 6 * C.add (2 * w) (2 * w))
-    (4 * C.unit + 4 * C.add (2 * w) (2 * w) + C.mul w.size (2 * w))
-    (show 1 ≤ 2 * a by omega) (show 1 ≤ 2 * b by omega)
-  rw [show 2 * a + 2 * b = 2 * (a + b) by ring] at hS
-  have l₁ := Nat.mul_le_mul_left a a₃
-  have l₂ := Nat.mul_le_mul_left b b₃
-  unfold polyMulBound
-  nlinarith
+/-- A product, packings and unpacking at each width are superadditive in the length, and grow
+with the width. -/
+theorem polyMulBound_superadditive (hC : C.SuperadditiveMul) : Superadditive (polyMulBound C n) := by
+  have hmul (p : ℕ) : Superadditive fun m ↦ C.mul (p * m) (p * m) := fun a b _ _ ↦ by
+    have := hC (p * a) (p * b); rwa [← Nat.mul_add] at this
+  refine Superadditive.of_param (g := fun w m ↦ C.mul (w * m) (w * m) +
+      3 * halvingBound (2 * C.unit + 6 * C.add (2 * w) (2 * w))
+        (4 * C.unit + 4 * C.add (2 * w) (2 * w) + C.mul w.size (2 * w)) (2 * m) +
+      m * (2 * C.mul (2 * w) (2 * w) + 22 * C.lin (2 * w) + 2 * C.divMod w n.size + 9 * C.unit))
+    (fun p ↦ ((hmul p).add (((halvingBound_superadditive _ _).comp_mul (by norm_num)).mul_mono
+      monotone_const)).add monotone_const.superadditive_mul)
+    (fun m p p' h ↦ ?_) (segWidth_mono n)
+  obtain ⟨h₁, h₂, h₃⟩ := width_parts_mono C n h
+  have := C.mul_mono (Nat.mul_le_mul_right m h) (Nat.mul_le_mul_right m h)
+  have := Nat.mul_le_mul_left 3 (halvingBound_le h₁ h₂ (le_refl (2 * m)))
+  have := Nat.mul_le_mul_left m h₃
+  dsimp only; omega
 
 @[cost_le] theorem mulMod_cost_le' [NeZero n] {m : ℕ} (hm : 1 ≤ m) (f g : Chapter2.Poly (ZMod n))
     (hf : f.length ≤ m) (hg : g.length ≤ m) : costOf C (mulMod n f g) ≤ polyMulBound C n m := by
@@ -147,47 +141,23 @@ theorem clog_succ_le (d : ℕ) : Nat.clog 2 (d + 1) ≤ Nat.clog 2 d + 1 :=
     have := Nat.one_le_two_pow (n := Nat.clog 2 d)
     rw [pow_succ]; omega)
 
-theorem nodeInner_superadditive (hC : C.SuperadditiveMul) (K : ℕ) {a b : ℕ} (ha : 1 ≤ a)
-    (hb : 1 ≤ b) : nodeInner C n K a + nodeInner C n K b ≤ nodeInner C n K (a + b) := by
-  unfold nodeInner
-  have p₁ := polyMulBound_superadditive C n hC ha hb
-  have p₂ := polyMulBound_superadditive C n hC (show 1 ≤ 4 * a by omega) (show 1 ≤ 4 * b by omega)
-  rw [← mul_add] at p₂
-  have la := C.lin_mono (show (4 * a).size + 2 ≤ (4 * (a + b)).size + 2 by have := Nat.size_le_size (show 4 * a ≤ 4 * (a + b) by omega); omega)
-  have lb := C.lin_mono (show (4 * b).size + 2 ≤ (4 * (a + b)).size + 2 by have := Nat.size_le_size (show 4 * b ≤ 4 * (a + b) by omega); omega)
-  have l₁ := Nat.mul_le_mul_left a (show 16 * C.lin K + 106 * (C.unit + zcost C n) +
-    8 * C.lin ((4 * a).size + 2) ≤ 16 * C.lin K + 106 * (C.unit + zcost C n) +
-      8 * C.lin ((4 * (a + b)).size + 2) by omega)
-  have l₂ := Nat.mul_le_mul_left b (show 16 * C.lin K + 106 * (C.unit + zcost C n) +
-    8 * C.lin ((4 * b).size + 2) ≤ 16 * C.lin K + 106 * (C.unit + zcost C n) +
-      8 * C.lin ((4 * (a + b)).size + 2) by omega)
-  nlinarith
+theorem nodeInner_superadditive (hC : C.SuperadditiveMul) (K : ℕ) :
+    Superadditive (nodeInner C n K) :=
+  ((polyMulBound_superadditive C n hC).add (((polyMulBound_superadditive C n hC).comp_mul
+    (by norm_num)).mul_mono monotone_const)).add (Monotone.superadditive_mul fun a b h ↦ by
+      have := C.lin_mono (show (4 * a).size + 2 ≤ (4 * b).size + 2 by
+        have := Nat.size_le_size (Nat.mul_le_mul_left 4 h); omega)
+      omega)
 
-theorem nodeBound_superadditive (hC : C.SuperadditiveMul) (δ K : ℕ) {a b : ℕ} (ha : 1 ≤ a)
-    (hb : 1 ≤ b) : nodeBound C n δ K a + nodeBound C n δ K b ≤ nodeBound C n δ K (a + b) := by
-  unfold nodeBound
-  have ca := Nat.clog_mono_right 2 (Nat.le_add_right a b)
-  have cb := Nat.clog_mono_right 2 (Nat.le_add_left b a)
-  have hG := nodeInner_superadditive C n hC K ha hb
-  have e₁ : (Nat.clog 2 a + 2) * nodeInner C n K a + (Nat.clog 2 b + 2) * nodeInner C n K b ≤
-      (Nat.clog 2 (a + b) + 2) * nodeInner C n K (a + b) := by
-    calc _ ≤ (Nat.clog 2 (a + b) + 2) * nodeInner C n K a +
-          (Nat.clog 2 (a + b) + 2) * nodeInner C n K b := by gcongr
-      _ = (Nat.clog 2 (a + b) + 2) * (nodeInner C n K a + nodeInner C n K b) := by ring
-      _ ≤ _ := Nat.mul_le_mul_left _ hG
-  have c₁ := clogBound_mono C (Nat.size_le_size (Nat.mul_le_mul_left 2 (Nat.le_add_right a b)))
-  have c₂ := clogBound_mono C (Nat.size_le_size (Nat.mul_le_mul_left 2 (Nat.le_add_left b a)))
-  have la := C.lin_mono (show (4 * a).size + 2 ≤ (4 * (a + b)).size + 2 by have := Nat.size_le_size (show 4 * a ≤ 4 * (a + b) by omega); omega)
-  have lb := C.lin_mono (show (4 * b).size + 2 ≤ (4 * (a + b)).size + 2 by have := Nat.size_le_size (show 4 * b ≤ 4 * (a + b) by omega); omega)
-  set Z := 248 * (C.unit + zcost C n) + 6 * C.lin K + (δ + 3) * (C.unit + 2 * zcost C n)
-  have l₁ := Nat.mul_le_mul_left a (show 6 * clogBound C (2 * a).size + Z + 16 * C.lin ((4 * a).size + 2) ≤
-    6 * clogBound C (2 * (a + b)).size + Z + 16 * C.lin ((4 * (a + b)).size + 2) by omega)
-  have l₂ := Nat.mul_le_mul_left b (show 6 * clogBound C (2 * b).size + Z + 16 * C.lin ((4 * b).size + 2) ≤
-    6 * clogBound C (2 * (a + b)).size + Z + 16 * C.lin ((4 * (a + b)).size + 2) by omega)
-  have : ∀ x y, 6 * x + 248 * (C.unit + zcost C n) + 16 * y + 6 * C.lin K +
-      (δ + 3) * (C.unit + 2 * zcost C n) = 6 * x + Z + 16 * y := fun x y ↦ by simp only [Z]; ring
-  rw [this, this, this]
-  nlinarith
+theorem nodeBound_superadditive (hC : C.SuperadditiveMul) (δ K : ℕ) :
+    Superadditive (nodeBound C n δ K) :=
+  ((nodeInner_superadditive C n hC K).mul_mono fun a b h ↦ by
+    have := Nat.clog_mono_right 2 h; omega).add
+  (Monotone.superadditive_mul fun a b h ↦ by
+    have := clogBound_mono C (Nat.size_le_size (Nat.mul_le_mul_left 2 h))
+    have := C.lin_mono (show (4 * a).size + 2 ≤ (4 * b).size + 2 by
+      have := Nat.size_le_size (Nat.mul_le_mul_left 4 h); omega)
+    omega)
 
 end Bounds
 
@@ -220,7 +190,7 @@ bookkeeping on lengths, of `K = size (D + δ + 2)` bits. -/
   have hMul := mulMod_charge_le C n
   cost_unfold multipointEvalFast.counted
   refine (Nat.add_le_add_left (multipointEval_cost_le C _ _ δ
-    (fun a b ↦ nodeBound_superadditive C n hC δ K) h2K hδK
+    (nodeBound_superadditive C n hC δ K) h2K hδK
     (fun x us ↦ length_fastModMonic_prodTree_le (mulMod n) x us) ?node ?leaf x T hx hTK)
       C.unit).trans (by unfold CostModel.lin; omega)
   case node =>
@@ -233,7 +203,7 @@ bookkeeping on lengths, of `K = size (D + δ + 2)` bits. -/
     have hv : v.length = d - d / 2 := by simp [v, d]
     have pt := fun (us : List (ZMod n)) ↦
       prodTree_cost_le C (mulF := mulMod n) _
-        (fun a b ↦ polyMulBound_superadditive C n hC) hMul hs h2K us
+        (polyMulBound_superadditive C n hC) hMul hs h2K us
     have pu := pt u (by omega) ((Nat.size_le_size (by omega)).trans hTK)
     have pv := pt v (by omega) ((Nat.size_le_size (by omega)).trans hTK)
     have hlenM := length_mulMod_le n
@@ -250,20 +220,13 @@ bookkeeping on lengths, of `K = size (D + δ + 2)` bits. -/
     set W := C.unit + zcost C n
     set L4 := C.lin ((4 * d).size + 2)
     set LK := C.lin K
-    -- the product trees, on the two halves
-    have hcu := Nat.clog_mono_right 2 (show u.length ≤ d by omega)
-    have hcv := Nat.clog_mono_right 2 (show v.length ≤ d by omega)
-    have hsplit := polyMulBound_superadditive C n hC (a := u.length) (b := v.length)
-      (by omega) (by omega)
-    rw [show u.length + v.length = d by omega] at hsplit
-    have A : (Nat.clog 2 u.length + 1) * (P u.length + 8 * u.length * LK) +
-        u.length * (40 * W) + ((Nat.clog 2 v.length + 1) * (P v.length + 8 * v.length * LK) +
-        v.length * (40 * W)) ≤ (cl + 1) * (P d + 8 * d * LK) + d * (40 * W) := by
-      calc _ ≤ (cl + 1) * (P u.length + 8 * u.length * LK) + u.length * (40 * W) +
-            ((cl + 1) * (P v.length + 8 * v.length * LK) + v.length * (40 * W)) := by gcongr
-        _ = (cl + 1) * (P u.length + P v.length + 8 * (u.length + v.length) * LK) +
-            (u.length + v.length) * (40 * W) := by ring
-        _ ≤ _ := by rw [show u.length + v.length = d by omega]; gcongr
+    -- the product trees of the halves: their bound is superadditive
+    have hT : Superadditive fun m ↦ (Nat.clog 2 m + 1) * (P m + 8 * m * LK) + m * (40 * W) :=
+      (((polyMulBound_superadditive C n hC).add fun a b _ _ ↦ le_of_eq (by ring)).mul_mono
+        fun a b h ↦ by have := Nat.clog_mono_right 2 h; omega).add
+      monotone_const.superadditive_mul
+    have A := hT (a := u.length) (b := v.length) (by omega) (by omega)
+    rw [show u.length + v.length = d by omega] at A
     -- the remainders
     have hcx : Nat.clog 2 x.length + 1 ≤ cl + 2 := by
       have := Nat.clog_mono_right 2 hx; have := clog_succ_le d; omega

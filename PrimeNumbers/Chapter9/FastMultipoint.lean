@@ -176,7 +176,7 @@ With `S d = O(M(d) log d)` for the fast routines this is the book's `O(M(D) log�
 theorem multipointEval_cost_le [ArithCost R] (C : CostModel) {prodF : List R → Chapter2.Poly R}
     {modF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (pc : List R → CostM C Unit) (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit)
-    (δ : ℕ) {S : ℕ → ℕ} {K : ℕ} (hsup : ∀ a b, 1 ≤ a → 1 ≤ b → S a + S b ≤ S (a + b))
+    (δ : ℕ) {S : ℕ → ℕ} {K : ℕ} (hsup : Superadditive S)
     (h2K : 2 ≤ K) (hδK : δ.size ≤ K)
     (hmodLen : ∀ x us, (modF x (prodF us)).length ≤ us.length + 1)
     (hnode : ∀ x (T : List R), x.length ≤ T.length + 1 → 2 ≤ T.length → T.length.size ≤ K →
@@ -278,7 +278,7 @@ coefficient operations for each leaf. -/
 theorem prodTree_cost_le [ArithCost R] (C : CostModel)
     {mulF : Chapter2.Poly R → Chapter2.Poly R → Chapter2.Poly R}
     (mc : Chapter2.Poly R → Chapter2.Poly R → CostM C Unit) {Mf : ℕ → ℕ} {s K : ℕ}
-    (hsup : ∀ a b, 1 ≤ a → 1 ≤ b → Mf a + Mf b ≤ Mf (a + b))
+    (hsup : Superadditive Mf)
     (hM : ∀ (m : ℕ), 1 ≤ m → ∀ (f g : Chapter2.Poly R), f.length ≤ m → g.length ≤ m →
       CostM.cost C (mc f g) ≤ Mf m)
     (hs : ArithCost.Bounded R C s) (h2K : 2 ≤ K) :
@@ -291,7 +291,7 @@ theorem prodTree_cost_le [ArithCost R] (C : CostModel)
   refine (halving_master List.length (fun us ↦ 1 ≤ us.length ∧ us.length ≤ us₀.length)
     (fun us ↦ CostM.cost C (prodTree.counted mulF us mc)) (F := fun m ↦ Mf m + 8 * m * C.lin K)
     (G := fun m ↦ 8 * m * C.lin K) (L := 1) (d := 0) (e := 40 * (C.unit + s)) le_rfl
-    (fun a b ha hb ↦ by have := hsup a b ha hb; nlinarith) (fun a b _ _ ↦ by nlinarith)
+    (hsup.add fun _ _ _ _ ↦ le_of_eq (by ring)) (fun _ _ _ _ ↦ le_of_eq (by ring))
     ?_ ?_ us₀ ⟨h1, le_rfl⟩ h1).trans (by simp only [mul_zero, add_zero]; nlinarith)
   · rintro us ⟨h1, -⟩ hn
     have := prodLinear_cost_le C hs us hn

@@ -263,6 +263,42 @@ theorem mul_add_divMod_le (C : CostModel) {a b m : ℕ} (ha : a < m) (hb : b < m
 
 /-! ## Halving recursions -/
 
+/-- `f a + f b ≤ f (a + b)` for `a, b ≥ 1`: on each level of a halving recursion the work of
+the halves adds up to at most that of the whole. -/
+def Superadditive (f : ℕ → ℕ) : Prop := ∀ ⦃a b⦄, 1 ≤ a → 1 ≤ b → f a + f b ≤ f (a + b)
+
+theorem Superadditive.add {f g : ℕ → ℕ} (hf : Superadditive f) (hg : Superadditive g) :
+    Superadditive fun m ↦ f m + g m := fun a b ha hb ↦ by
+  have := hf ha hb; have := hg ha hb; dsimp only; omega
+
+/-- With a monotone weight: `w a f a + w b f b ≤ w (a + b) (f a + f b) ≤ w (a + b) f (a + b)`. -/
+theorem Superadditive.mul_mono {f w : ℕ → ℕ} (hf : Superadditive f) (hw : Monotone w) :
+    Superadditive fun m ↦ w m * f m := fun a b ha hb ↦ by
+  have := Nat.mul_le_mul_right (f a) (hw (Nat.le_add_right a b))
+  have := Nat.mul_le_mul_right (f b) (hw (Nat.le_add_left b a))
+  have := Nat.mul_le_mul_left (w (a + b)) (hf ha hb)
+  dsimp only; nlinarith
+
+/-- `m ↦ m · w m` for a monotone weight `w` (a constant one: `m ↦ m c`). -/
+theorem _root_.Monotone.superadditive_mul {w : ℕ → ℕ} (hw : Monotone w) :
+    Superadditive fun m ↦ m * w m := fun a b _ _ ↦ by
+  have := Nat.mul_le_mul_left a (hw (Nat.le_add_right a b))
+  have := Nat.mul_le_mul_left b (hw (Nat.le_add_left b a))
+  dsimp only; rw [Nat.add_mul]; omega
+
+theorem Superadditive.comp_mul {f : ℕ → ℕ} (hf : Superadditive f) {k : ℕ} (hk : 1 ≤ k) :
+    Superadditive fun m ↦ f (k * m) := fun a b ha hb ↦ by
+  dsimp only; rw [Nat.mul_add]; exact hf (by nlinarith) (by nlinarith)
+
+/-- A superadditive function of a monotone parameter `w m`, monotone in the parameter. -/
+theorem Superadditive.of_param {g : ℕ → ℕ → ℕ} {w : ℕ → ℕ} (hg : ∀ p, Superadditive (g p))
+    (hmono : ∀ m, Monotone (g · m)) (hw : Monotone w) : Superadditive fun m ↦ g (w m) m :=
+  fun a b ha hb ↦ by
+    have := hmono a (hw (Nat.le_add_right a b))
+    have := hmono b (hw (Nat.le_add_left b a))
+    have := hg (w (a + b)) ha hb
+    dsimp only at *; omega
+
 /-- **The master theorem for halving recursions.**  A problem of size `n` above a threshold
 `L ≥ 1` splits into two of sizes `⌊n/2⌋` and `⌈n/2⌉` (passing them the invariant `I`) at a
 cost of `F n + d` beyond theirs, and one of size at most `L` costs at most `G n + e`.  With `F`
@@ -271,8 +307,7 @@ and `G` superadditive, a problem of size `n` costs at most `⌈log₂ n⌉ F n +
 per node. -/
 theorem halving_master {α : Type*} (size : α → ℕ) (I : α → Prop) (T : α → ℕ)
     {F G : ℕ → ℕ} {L d e : ℕ} (hL : 1 ≤ L)
-    (hF : ∀ a b, 1 ≤ a → 1 ≤ b → F a + F b ≤ F (a + b))
-    (hG : ∀ a b, 1 ≤ a → 1 ≤ b → G a + G b ≤ G (a + b))
+    (hF : Superadditive F) (hG : Superadditive G)
     (leaf : ∀ x, I x → size x ≤ L → T x ≤ G (size x) + e)
     (node : ∀ x, I x → L < size x → ∃ y z, I y ∧ I z ∧ size y = size x / 2 ∧
       size z = size x - size x / 2 ∧ T x ≤ T y + T z + F (size x) + d) :
@@ -296,8 +331,8 @@ theorem halving_master {α : Type*} (size : α → ℕ) (I : α → Prop) (T : �
     (Nat.clog_mono_right 2 (show n / 2 ≤ (n + 1) / 2 by omega))
   rw [show n - n / 2 = (n + 1) / 2 by omega] at ihz
   have f := Nat.mul_le_mul_left (Nat.clog 2 ((n + 1) / 2))
-    (hF (n / 2) ((n + 1) / 2) (by omega) (by omega))
-  have g := hG (n / 2) ((n + 1) / 2) (by omega) (by omega)
+    (hF (a := n / 2) (b := (n + 1) / 2) (by omega) (by omega))
+  have g := hG (a := n / 2) (b := (n + 1) / 2) (by omega) (by omega)
   rw [show n / 2 + (n + 1) / 2 = n by omega] at f g
   have hd : (n / 2 - 1) * d + ((n + 1) / 2 - 1) * d + d = (n - 1) * d := by
     rw [← Nat.add_mul, ← Nat.succ_mul]; congr 1; omega
@@ -342,8 +377,8 @@ theorem halvingBound_le {c c' d d' n n' : ℕ} (hc : c ≤ c') (hd : d ≤ d') (
   exact Nat.add_le_add (Nat.mul_le_mul (Nat.mul_le_mul_right _ hc) le_rfl)
     (Nat.mul_le_mul_right _ hd)
 
-theorem halvingBound_superadditive (c d : ℕ) {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) :
-    halvingBound c d a + halvingBound c d b ≤ halvingBound c d (a + b) := by
+theorem halvingBound_superadditive (c d : ℕ) : Superadditive (halvingBound c d) :=
+  fun a b ha hb ↦ by
   unfold halvingBound
   rw [show max a 1 = a by omega, show max b 1 = b by omega, show max (a + b) 1 = a + b by omega]
   have h₁ := Nat.mul_le_mul_left (c * a) (Nat.clog_mono_right 2 (Nat.le_add_right a b))
