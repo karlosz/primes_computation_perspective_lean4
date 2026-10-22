@@ -385,22 +385,24 @@ def proveLe (a b : Expr) : FactM (Option Expr) := do
   if r.isNone then modify fun s => { s with failedLe := s.failedLe.insert (a, b) }
   return r
 
-/-- The bounds `t < B`, `t ≤ B` (`B > t`, `B ≥ t`) among the hypotheses. -/
+/-- The bound on `t` that the relation `ty` (proved by `pf`) states, if any: `t < B`,
+`t ≤ B`, `B > t`, `B ≥ t` over the naturals. -/
+def boundOf? (t ty pf : Expr) : Option Bound :=
+  let nat (α : Expr) := α.isConstOf ``Nat
+  match_expr ty with
+  | LT.lt α _ l r => if l == t && nat α then some ⟨r, true, pf⟩ else none
+  | LE.le α _ l r => if l == t && nat α then some ⟨r, false, pf⟩ else none
+  | GT.gt α _ r l => if l == t && nat α then some ⟨r, true, pf⟩ else none
+  | GE.ge α _ r l => if l == t && nat α then some ⟨r, false, pf⟩ else none
+  | _ => none
+
+/-- The bounds on `t` among the hypotheses. -/
 def hypBounds (t : Expr) : FactM (Array Bound) := withMain do
   let mut bs := #[]
   for d in ← getLCtx do
     if d.isImplementationDetail then continue
-    let ty := (← instantiateMVars d.type).cleanupAnnotations
-    match_expr ty with
-    | LT.lt α _ l r =>
-      if l == t && α.isConstOf ``Nat then bs := bs.push { ub := r, strict := true, pf := d.toExpr }
-    | LE.le α _ l r =>
-      if l == t && α.isConstOf ``Nat then bs := bs.push { ub := r, strict := false, pf := d.toExpr }
-    | GT.gt α _ r l =>
-      if l == t && α.isConstOf ``Nat then bs := bs.push { ub := r, strict := true, pf := d.toExpr }
-    | GE.ge α _ r l =>
-      if l == t && α.isConstOf ``Nat then bs := bs.push { ub := r, strict := false, pf := d.toExpr }
-    | _ => pure ()
+    if let some b := boundOf? t (← instantiateMVars d.type).cleanupAnnotations d.toExpr then
+      bs := bs.push b
   return bs
 
 /-- Unify `ty` with a hypothesis or a derived fact. -/
@@ -465,26 +467,73 @@ def discharge (xs : Array Expr) (bis : Array BinderInfo) : FactM Bool := do
       unless ← isDefEq x h do return false
   return true
 
+def isArith (e : Expr) : Bool :=
+  e.isAppOf ``HAdd.hAdd || e.isAppOf ``HMul.hMul || e.isAppOf ``HSub.hSub ||
+    e.isAppOf ``HDiv.hDiv || e.isAppOf ``HMod.hMod || e.isAppOf ``HPow.hPow
+
+/-- The applications of constants in `e` (outside binders), but for the arithmetic. -/
+partial def headApps (e : Expr) (acc : Array Expr) : Array Expr :=
+  if e.hasLooseBVars then acc else
+  let acc := if e.getAppFn.isConst && !isArith e && e.getAppNumArgs > 0 && !acc.contains e
+    then acc.push e else acc
+  match e with
+  | .app f a => headApps a (headApps f acc)
+  | .mdata _ b => headApps b acc
+  | _ => acc
+
+/-- Assign the metavariables of the patterns by unification with the targets of the same
+head (or leave them), so that `k` succeeds. -/
+partial def assignTargets (pats : List Expr) (targets : Array Expr) (k : FactM Bool) :
+    FactM Bool := do
+  match pats with
+  | [] => k
+  | p :: ps =>
+    let p ← instantiateMVars p
+    if !p.hasExprMVar then return ← assignTargets ps targets k
+    for c in targets do
+      unless c.getAppFn == p.getAppFn && c.getAppNumArgs == p.getAppNumArgs do continue
+      let s ← Meta.saveState
+      if (← withReducible (isDefEq p c)) then
+        if ← assignTargets ps targets k then return true
+      s.restore
+    assignTargets ps targets k
+
+/-- The bound `t < r` (or `≤`) that `f : ∀ …, l < r` gives at `t`: `l` unified with `t`, the
+hypotheses discharged — with the free parameters of `r` taken from `targets` where they
+unify, else the tightest. -/
+def instBound (f t : Expr) (targets : Array Expr := #[]) : FactM (Option Bound) := withMain do
+  let s ← Meta.saveState
+  let (xs, bis, concl) ← forallMetaTelescopeReducing (← inferType f)
+  let (l, r, strict) ← match_expr concl with
+    | LT.lt _ _ l r => pure (l, r, true)
+    | LE.le _ _ l r => pure (l, r, false)
+    | _ => s.restore; return none
+  unless ← withReducible (isDefEq l t) do s.restore; return none
+  let ok ← assignTargets (headApps (← instantiateMVars r) #[]).toList targets (discharge xs bis)
+  let pf ← instantiateMVars (mkAppN f xs)
+  let r ← instantiateMVars r
+  if !ok || pf.hasExprMVar || r.hasExprMVar then s.restore; return none
+  return some ⟨r, strict, pf⟩
+
 /-- Bounds `t < B` from the `@[val_le]` lemmas about the head of `t`. -/
 def lemmaBounds (t : Expr) : FactM (Array Bound) := do
   let some c := t.getAppFn.constName? | return #[]
   let mut bs := #[]
   for decl in (((valLeExt.getState (← getEnv)).get? c).getD #[]) do
-    let r ← withMain do
-      let s ← Meta.saveState
-      let f ← mkConstWithFreshMVarLevels decl
-      let (xs, bis, concl) ← forallMetaTelescopeReducing (← inferType f)
-      let (l, r, strict) ← match_expr concl with
-        | LT.lt _ _ l r => pure (l, r, true)
-        | LE.le _ _ l r => pure (l, r, false)
-        | _ => s.restore; return none
-      unless ← withReducible (isDefEq l t) do s.restore; return none
-      unless ← discharge xs bis do s.restore; return none
-      let pf ← instantiateMVars (mkAppN f xs)
-      let r ← instantiateMVars r
-      if pf.hasExprMVar || r.hasExprMVar then s.restore; return none
-      return some ({ ub := r, strict := strict, pf := pf } : Bound)
-    if let some b := r then bs := bs.push b
+    if let some b ← instBound (← mkConstWithFreshMVarLevels decl) t then bs := bs.push b
+  return bs
+
+mutual
+/-- The bounds of `x ∘ y` from the first bounds of `x` and `y` (`op` monotone: `lt`, `le` its
+lemmas for strict and plain bounds). -/
+partial def pairs (op lt le : Name) (x y : Expr) : FactM (Array Bound) := do
+  let mut bs := #[]
+  for b₁ in (← valBounds x)[:2] do
+    for b₂ in (← valBounds y)[:2] do
+      let ub ← mkAppM op #[b₁.ub, b₂.ub]
+      bs := bs.push <| ← if b₁.strict && b₂.strict then
+          pure (Bound.mk ub true (← mkAppM lt #[b₁.pf, b₂.pf]))
+        else pure (Bound.mk ub false (← mkAppM le #[← b₁.le, ← b₂.le]))
   return bs
 
 /-- The value bounds of `t`, derived (and recorded as facts) on first use. -/
@@ -510,17 +559,8 @@ partial def valBounds (t : Expr) : FactM (Array Bound) := do
     discard <| valBounds x
     bs := bs.push (Bound.mk x false (← mkAppM ``Nat.sub_le #[x, y]))
   | HMul.hMul _ _ _ _ x y =>
-    let bx ← valBounds x
-    let by_ ← valBounds y
-    for b₁ in bx[:2] do
-      for b₂ in by_[:2] do
-        let ub ← mkAppM ``HMul.hMul #[b₁.ub, b₂.ub]
-        if b₁.strict && b₂.strict then
-          bs := bs.push (Bound.mk ub true (← mkAppM ``Nat.mul_lt_mul'' #[b₁.pf, b₂.pf]))
-        else
-          bs := bs.push (Bound.mk ub false (← mkAppM ``Nat.mul_le_mul #[← b₁.le, ← b₂.le]))
+    bs := bs ++ (← pairs ``HMul.hMul ``Nat.mul_lt_mul'' ``Nat.mul_le_mul x y)
   | HAdd.hAdd _ _ _ _ x y =>
-    let bx ← valBounds x
     let by_ ← valBounds y
     -- a product plus a carry: `p q + c < A B`
     if let some (p, q) := (match_expr x with
@@ -535,13 +575,7 @@ partial def valBounds (t : Expr) : FactM (Array Bound) := do
             else if bc.ub == bq.ub then
               let pf ← mkAppM ``mul_add_lt_mul_of_lt_right #[bp.pf, bq.pf, bc.pf]
               bs := bs.push (Bound.mk ub true pf)
-    for b₁ in bx[:2] do
-      for b₂ in by_[:2] do
-        let ub ← mkAppM ``HAdd.hAdd #[b₁.ub, b₂.ub]
-        if b₁.strict && b₂.strict then
-          bs := bs.push (Bound.mk ub true (← mkAppM ``Nat.add_lt_add #[b₁.pf, b₂.pf]))
-        else
-          bs := bs.push (Bound.mk ub false (← mkAppM ``Nat.add_le_add #[← b₁.le, ← b₂.le]))
+    bs := bs ++ (← pairs ``HAdd.hAdd ``Nat.add_lt_add ``Nat.add_le_add x y)
   | _ =>
     for a in t.getAppArgs do
       if ← isNat a then discard <| valBounds a
@@ -550,10 +584,7 @@ partial def valBounds (t : Expr) : FactM (Array Bound) := do
   let all := hyps ++ bs
   modify fun s => { s with bounds := s.bounds.insert t all }
   return all
-
-def isArith (e : Expr) : Bool :=
-  e.isAppOf ``HAdd.hAdd || e.isAppOf ``HMul.hMul || e.isAppOf ``HSub.hSub ||
-    e.isAppOf ``HDiv.hDiv || e.isAppOf ``HMod.hMod || e.isAppOf ``HPow.hPow
+end
 
 /-- The facts about the bit length of `t`. -/
 partial def sizeFacts (t : Expr) (depth : Nat := 0) : FactM Unit := do
@@ -688,45 +719,9 @@ partial def costsIn (env : Environment) (e : Expr) (acc : Array Expr) : Array Ex
     | .mdata _ b => costsIn env b acc
     | _ => acc
 
-/-- The applications of constants in `e` (outside binders), but for the arithmetic. -/
-partial def headApps (e : Expr) (acc : Array Expr) : Array Expr :=
-  if e.hasLooseBVars then acc else
-  let acc := if e.getAppFn.isConst && !isArith e && e.getAppNumArgs > 0 && !acc.contains e
-    then acc.push e else acc
-  match e with
-  | .app f a => headApps a (headApps f acc)
-  | .mdata _ b => headApps b acc
-  | _ => acc
-
-/-- Assign the metavariables of the patterns by unification with the targets of the same
-head (or leave them), so that `k` succeeds. -/
-partial def assignTargets (pats : List Expr) (targets : Array Expr) (k : FactM Bool) :
-    FactM Bool := do
-  match pats with
-  | [] => k
-  | p :: ps =>
-    let p ← instantiateMVars p
-    if !p.hasExprMVar then return ← assignTargets ps targets k
-    for c in targets do
-      unless c.getAppFn == p.getAppFn && c.getAppNumArgs == p.getAppNumArgs do continue
-      let s ← Meta.saveState
-      if (← withReducible (isDefEq p c)) then
-        if ← assignTargets ps targets k then return true
-      s.restore
-    assignTargets ps targets k
-
 /-- Instantiate the bound `f : ∀ …, costOf C (g …) ≤ B` at the cost `a`. -/
 def instCostBound (f : Expr) (a : Expr) (targets : Array Expr) : FactM (Option Expr) := do
-  withMain do
-    let s ← Meta.saveState
-    let (xs, bis, concl) ← forallMetaTelescopeReducing (← inferType f)
-    let_expr LE.le _ _ l r := concl | s.restore; return none
-    unless ← withReducible (isDefEq l a) do s.restore; return none
-    let pats := headApps (← instantiateMVars r) #[]
-    let ok ← assignTargets pats.toList targets (discharge xs bis)
-    let pf ← instantiateMVars (mkAppN f xs)
-    if !ok || pf.hasExprMVar then s.restore; return none
-    return some pf
+  return (← instBound f a targets).map (·.pf)
 
 /-- Bound the costs of the calls on the left of the goal by the `@[cost_le]` lemmas and the
 local hypotheses (an induction hypothesis), adding the instances to the context; then the
@@ -810,48 +805,36 @@ open CostFacts
 
 /-! ### Charges -/
 
-/-- A proof that the charge `a` is at most the quantity `b`, if the sizes allow. -/
+/-- A proof that the charge `a` is at most the quantity `b`, if the sizes allow: by the
+monotonicity lemma for the pair of heads, with its comparisons of arguments `aᵢ ≤ bⱼ`. -/
 private def boundAtom (a b : Expr) : FactM (Option Expr) := do
   let some fa := a.getAppFn.constName? | return none
   let some fb := b.getAppFn.constName? | return none
   let xa := a.getAppArgs
   let xb := b.getAppArgs
-  let C := xa[0]!
-  unless xb[0]! == C do return none
-  let le := proveLe
-  match fa, fb with
-  | ``CostModel.unit, ``CostModel.lin => some <$> mkAppM ``CostModel.unit_le_lin #[C, xb[1]!]
-  | ``CostModel.add, ``CostModel.add =>
-    let some h₁ ← le xa[1]! xb[1]! | return none
-    let some h₂ ← le xa[2]! xb[2]! | return none
-    some <$> mkAppM ``CostModel.add_mono #[C, h₁, h₂]
-  | ``CostModel.add, ``CostModel.lin =>
-    let some h₁ ← le xa[1]! xb[1]! | return none
-    let some h₂ ← le xa[2]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.add_le_lin #[C, h₁, h₂]
-  | ``CostModel.lin, ``CostModel.lin =>
-    let some h ← le xa[1]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.lin_mono #[C, h]
-  | ``CostModel.mul, ``CostModel.mul =>
-    let some h₁ ← le xa[1]! xb[1]! | return none
-    let some h₂ ← le xa[2]! xb[2]! | return none
-    some <$> mkAppM ``CostModel.mul_mono #[C, h₁, h₂]
-  | ``CostModel.mul, ``CostModel.mulMod =>
-    let some h₁ ← le xa[1]! xb[1]! | return none
-    let some h₂ ← le xa[2]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.mul_le_mulMod #[C, h₁, h₂]
-  | ``CostModel.divMod, ``CostModel.divBound =>
-    let some h₁ ← le xa[1]! xb[1]! | return none
-    let some h₂ ← le xa[2]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.divMod_le_divBound #[C, h₁, h₂]
-  | ``CostModel.divMod, ``CostModel.divMod =>
-    unless xa[2]! == xb[2]! do return none
-    let some h ← le xa[1]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.divMod_mono #[C, xa[2]!, h]
-  | ``CostModel.divBound, ``CostModel.divBound =>
-    let some h ← le xa[1]! xb[1]! | return none
-    some <$> mkAppM ``CostModel.divBound_mono #[C, h]
-  | _, _ => return none
+  unless xb[0]! == xa[0]! do return none
+  -- the lemma, its explicit arguments after the model, and the comparisons `aᵢ ≤ bⱼ`
+  let rule : Option (Name × Array Expr × List (Nat × Nat)) := match fa, fb with
+    | ``CostModel.unit, ``CostModel.lin => some (``CostModel.unit_le_lin, #[xb[1]!], [])
+    | ``CostModel.add, ``CostModel.add => some (``CostModel.add_mono, #[], [(1, 1), (2, 2)])
+    | ``CostModel.add, ``CostModel.lin => some (``CostModel.add_le_lin, #[], [(1, 1), (2, 1)])
+    | ``CostModel.lin, ``CostModel.lin => some (``CostModel.lin_mono, #[], [(1, 1)])
+    | ``CostModel.mul, ``CostModel.mul => some (``CostModel.mul_mono, #[], [(1, 1), (2, 2)])
+    | ``CostModel.mul, ``CostModel.mulMod =>
+      some (``CostModel.mul_le_mulMod, #[], [(1, 1), (2, 1)])
+    | ``CostModel.divMod, ``CostModel.divBound =>
+      some (``CostModel.divMod_le_divBound, #[], [(1, 1), (2, 1)])
+    | ``CostModel.divMod, ``CostModel.divMod =>
+      if xa[2]! == xb[2]! then some (``CostModel.divMod_mono, #[xa[2]!], [(1, 1)]) else none
+    | ``CostModel.divBound, ``CostModel.divBound =>
+      some (``CostModel.divBound_mono, #[], [(1, 1)])
+    | _, _ => none
+  let some (lem, extra, cmps) := rule | return none
+  let mut hs := #[]
+  for (i, j) in cmps do
+    let some h ← proveLe xa[i]! xb[j]! | return none
+    hs := hs.push h
+  some <$> mkAppM lem (#[xa[0]!] ++ extra ++ hs)
 
 /-- Give the shadowed hypotheses (`this✝`, …) fresh accessible names, so that the steps
 working `at *` reach them too. -/
@@ -1134,6 +1117,15 @@ def maxFlow (a b : Array Nat) (ok : Array (Array Bool)) : Option (Array (Array N
       else f := f.modify i' fun r => r.modify j₀ (· - amount)
   return none
 
+/-- A proof of `P ≤ Q` by linear arithmetic from `facts` (and, unless `only`, the hypotheses). -/
+def linarithLe (P Q : Expr) (facts : Array Expr) (only := true) : FactM (Option Expr) :=
+  withMain do
+    let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
+    try
+      Mathlib.Tactic.Linarith.linarith only facts.toList {} m.mvarId!
+      return some (← instantiateMVars m)
+    catch _ => return none
+
 /-- Compare `P ≤ Q` (polynomials `p`, `q`) group by group of their monomials' scale variables
 (the atoms no fact mentions): `P = Σ m Pₘ`, `Q = Σ m Qₘ` and `Pₘ ≤ Qₘ`. -/
 def scaleGroups (p q : PolyNF) (P Q : Expr) : FactM (Option Expr) := do
@@ -1168,12 +1160,7 @@ def scaleGroups (p q : PolyNF) (P Q : Expr) : FactM (Option Expr) := do
         some <$> mkAppM ``Nat.mul_le_mul_left #[mv, h]
       | return none
     facts := facts.push h
-  withMain do
-    let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
-    try
-      Mathlib.Tactic.Linarith.linarith true facts.toList {} m.mvarId!
-      return some (← instantiateMVars m)
-    catch _ => return none
+  linarithLe P Q facts
 
 /-- The atoms of a polynomial. -/
 def PolyNF.atoms (p : PolyNF) : Array Expr :=
@@ -1220,21 +1207,8 @@ partial def atomBounds (a : Expr) : FactM (Array (Expr × Expr)) := do
         hs := hs.push d.toExpr
     return hs
   for h in hyps do
-    let r ← withMain do
-      let s ← Meta.saveState
-      let (xs, bis, concl) ← forallMetaTelescopeReducing (← inferType h)
-      let (l, r, strict) ← match_expr concl with
-        | LT.lt _ _ l r => pure (l, r, true)
-        | LE.le _ _ l r => pure (l, r, false)
-        | _ => s.restore; return none
-      unless ← withReducible (isDefEq l a) do s.restore; return none
-      unless ← discharge xs bis do s.restore; return none
-      let pf ← instantiateMVars (mkAppN h xs)
-      let r ← instantiateMVars r
-      if pf.hasExprMVar || r.hasExprMVar || (r.find? (· == a)).isSome then
-        s.restore; return none
-      return some (r, ← if strict then mkAppM ``Nat.le_of_lt #[pf] else pure pf)
-    if let some b := r then out := out.push b
+    if let some b ← instBound h a then
+      unless (b.ub.find? (· == a)).isSome do out := out.push (b.ub, ← withMain b.le)
   modify fun s => { s with atomBounds := s.atomBounds.insert a out }
   return out
 
@@ -1287,13 +1261,7 @@ partial def provePolyLe (P Q : Expr) (subst : Bool := true) : FactM (Option Expr
     let (p', fs) ← substBounded p q
     if !fs.isEmpty then
       if let some h ← provePolyLe (← withMain (polyExpr p')) Q false then
-        if let some pf ← withMain do
-            let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
-            try
-              Mathlib.Tactic.Linarith.linarith true (h :: fs.toList) {} m.mvarId!
-              pure (some (← instantiateMVars m))
-            catch _ => pure none
-        then return some pf
+        if let some pf ← linarithLe P Q (fs.push h) then return some pf
   if let some h ← withMain (proveLe P Q) then return some h
   -- the products distributed (`fuel * (k + 1)` into `fuel * k + fuel`), the atoms left as
   -- they are, so that `omega` sees the same monomials on both sides
@@ -1311,14 +1279,8 @@ partial def provePolyLe (P Q : Expr) (subst : Bool := true) : FactM (Option Expr
   if let some h ← scaleGroups p q P Q then return some h
   -- linear arithmetic, from the hypotheses that are not about costs (e.g. superadditivity of
   -- an abstract cost function)
-  if let some h ← withMain do
-      let hyps := (← ctxHyps).map (·.pf) ++ (← get).facts.map (·.pf)
-      let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
-      try
-        Mathlib.Tactic.Linarith.linarith false hyps.toList {} m.mvarId!
-        pure (some (← instantiateMVars m))
-      catch _ => pure none
-  then return some h
+  if let some h ← linarithLe P Q ((← ctxHyps).map (·.pf) ++ (← get).facts.map (·.pf))
+      (only := false) then return some h
   -- which monomials of `Q` dominate which of `P`, with the proofs
   let mut edges : Array (Array (Option Expr)) := #[]
   for (_, m) in p do
@@ -1339,12 +1301,7 @@ partial def provePolyLe (P Q : Expr) (subst : Bool := true) : FactM (Option Expr
   -- (the monomials of `Q` are nonnegative)
   for (_, M) in q do
     facts := facts.push (← withMain do mkAppM ``Nat.zero_le #[← atomsProd M])
-  withMain do
-    let m ← mkFreshExprMVar (← mkAppM ``LE.le #[P, Q])
-    try
-      Mathlib.Tactic.Linarith.linarith true facts.toList {} m.mvarId!
-      return some (← instantiateMVars m)
-    catch _ => return none
+  linarithLe P Q facts
 
 /-- A proof that the opaque cost `a` is at most `b` by monotonicity in the sizes: the charges
 and quantities of a cost model, or a quantity `h … k` with a lemma `h_mono : Monotone (h …)`. -/
