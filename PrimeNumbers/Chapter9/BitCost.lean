@@ -141,7 +141,7 @@ theorem CostModel.add_mul_le (C : CostModel) {w n : ℕ} (hn : 1 ≤ n) :
 `b`-bit number takes `a b` bit operations; long division of an `a`-bit number by a `b`-bit
 number produces at most `a - b + 1` quotient bits, each costing a `b`-bit subtraction; an
 addition (ripple carry) or comparison takes `max a b + 1`; a step takes one. -/
-def school : CostModel where
+@[simps] def school : CostModel where
   mul a b := a * b
   divMod a b := (a - b + 1) * b
   addRate := 1
@@ -205,67 +205,30 @@ An *operation count* is the cost under a model that charges `1` for the operatio
 and `0` for the rest: so the number of multiplications, divisions or writes an algorithm
 performs is derived from its code exactly like its bit complexity. -/
 
+/-- The model charging `m` per multiplication, `d` per division and `u` per step, and
+nothing for linear-time operations. -/
+@[simps] def counting (m d u : ℕ) : CostModel where
+  mul _ _ := m
+  divMod _ _ := d
+  addRate := 0
+  unit := u
+  mul_mono _ _ := le_rfl
+  divMod_mono _ _ := le_rfl
+
 /-- Counts multiplications (a product of residues — multiply and reduce — counts once). -/
-def mulCount : CostModel where
-  mul _ _ := 1
-  divMod _ _ := 0
-  addRate := 0
-  unit := 0
-  mul_mono _ _ := le_rfl
-  divMod_mono _ _ := le_rfl
-
+abbrev mulCount : CostModel := counting 1 0 0
 /-- Counts divisions with remainder. -/
-def divCount : CostModel where
-  mul _ _ := 0
-  divMod _ _ := 1
-  addRate := 0
-  unit := 0
-  mul_mono _ _ := le_rfl
-  divMod_mono _ _ := le_rfl
-
+abbrev divCount : CostModel := counting 0 1 0
 /-- Counts multiplications and divisions. -/
-def opCount : CostModel where
-  mul _ _ := 1
-  divMod _ _ := 1
-  addRate := 0
-  unit := 0
-  mul_mono _ _ := le_rfl
-  divMod_mono _ _ := le_rfl
-
+abbrev opCount : CostModel := counting 1 1 0
 /-- Counts elementary steps (memory writes). -/
-def writeCount : CostModel where
-  mul _ _ := 0
-  divMod _ _ := 0
-  addRate := 0
-  unit := 1
-  mul_mono _ _ := le_rfl
-  divMod_mono _ _ := le_rfl
+abbrev writeCount : CostModel := counting 0 0 1
 
-@[simp] theorem school_mul (a b : ℕ) : school.mul a b = a * b := rfl
-@[simp] theorem school_divMod (a b : ℕ) : school.divMod a b = (a - b + 1) * b := rfl
 theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
-
-@[simp] theorem mulCount_mul (a b : ℕ) : mulCount.mul a b = 1 := rfl
-@[simp] theorem mulCount_divMod (a b : ℕ) : mulCount.divMod a b = 0 := rfl
-@[simp] theorem divCount_mul (a b : ℕ) : divCount.mul a b = 0 := rfl
-@[simp] theorem divCount_divMod (a b : ℕ) : divCount.divMod a b = 1 := rfl
-@[simp] theorem opCount_mul (a b : ℕ) : opCount.mul a b = 1 := rfl
-@[simp] theorem opCount_divMod (a b : ℕ) : opCount.divMod a b = 1 := rfl
-@[simp] theorem writeCount_mul (a b : ℕ) : writeCount.mul a b = 0 := rfl
-@[simp] theorem writeCount_divMod (a b : ℕ) : writeCount.divMod a b = 0 := rfl
-@[simp] theorem mulCount_unit : mulCount.unit = 0 := rfl
-@[simp] theorem divCount_unit : divCount.unit = 0 := rfl
-@[simp] theorem opCount_unit : opCount.unit = 0 := rfl
-@[simp] theorem writeCount_unit : writeCount.unit = 1 := rfl
-@[simp] theorem school_unit : school.unit = 1 := rfl
-@[simp] theorem school_addRate : school.addRate = 1 := rfl
 @[simp] theorem school_add (a b : ℕ) : school.add a b = max a b + 1 := by
   simp [CostModel.add, school]
-@[simp] theorem mulCount_add (a b : ℕ) : mulCount.add a b = 0 := by simp [CostModel.add, mulCount]
-@[simp] theorem divCount_add (a b : ℕ) : divCount.add a b = 0 := by simp [CostModel.add, divCount]
-@[simp] theorem opCount_add (a b : ℕ) : opCount.add a b = 0 := by simp [CostModel.add, opCount]
-@[simp] theorem writeCount_add (a b : ℕ) : writeCount.add a b = 0 := by
-  simp [CostModel.add, writeCount]
+@[simp] theorem counting_add (m d u a b : ℕ) : (counting m d u).add a b = 0 := by
+  simp [CostModel.add]
 
 /-- One "multiply two residues and reduce" modulo a `k`-bit modulus: the unit of work of
 all modular algorithms. -/
@@ -279,9 +242,9 @@ def CostModel.lin (C : CostModel) (k : ℕ) : ℕ := C.unit + C.add k k
 @[simp] theorem school_lin (k : ℕ) : school.lin k = k + 2 := by
   simp only [CostModel.lin, school_add, max_self]; rw [show school.unit = 1 from rfl]; omega
 
+@[simp] theorem counting_mulMod (m d u k : ℕ) : (counting m d u).mulMod k = m + d := rfl
+
 /-- In the grammar-school model a modular multiplication costs `2k² + k ≤ 2 (k + 1)²`. -/
-@[simp] theorem mulCount_mulMod (k : ℕ) : mulCount.mulMod k = 1 := rfl
-@[simp] theorem divCount_mulMod (k : ℕ) : divCount.mulMod k = 1 := rfl
 
 theorem school_mulMod (k : ℕ) : school.mulMod k = 2 * k ^ 2 + k := by
   simp only [CostModel.mulMod, school]

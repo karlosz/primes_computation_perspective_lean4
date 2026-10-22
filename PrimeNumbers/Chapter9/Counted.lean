@@ -148,55 +148,53 @@ class HashCost (α : Type) where
 
 instance : HashCost ℕ := ⟨fun C a => C.add a.size a.size⟩
 
-/-- The primitives of the machine: charges for each arithmetic operation, by its operands,
-and for `k` steps. -/
+/-- The primitive of the machine: a charge of `f C` bit operations, `C` the cost model of the
+run.  The charges of the operations (`chargeMul a b`, …) are of this form. -/
 class NatArith (m : Type → Type) where
-  /-- record the cost of multiplying `a` and `b` -/
-  chargeMul {α : Type} [MulCost α] : α → α → m Unit
-  /-- record the cost of dividing `a` by `b` with remainder -/
-  chargeMod {α : Type} [DivCost α] : α → α → m Unit
-  /-- record the cost of the power `a ^ e` -/
-  chargePow {α : Type} [PowCost α] : α → ℕ → m Unit
-  /-- record `k` bit operations (e.g. `k` memory writes) -/
-  charge : ℕ → m Unit
-  /-- record the cost of adding or subtracting `a` and `b` -/
-  chargeAdd {α : Type} [AddCost α] : α → α → m Unit
-  /-- record the cost of comparing `a` and `b` -/
-  chargeCmp {α : Type} [CmpCost α] : α → α → m Unit
-  /-- record the cost of hashing the key `a` -/
-  chargeHash {α : Type} [HashCost α] : α → m Unit
-  /-- record the cost of inverting `a` -/
-  chargeInv {α : Type} [InvCost α] : α → m Unit
-  /-- record the cost of converting the natural number `x` into `α` -/
-  chargeCast (α : Type) [CastCost α] : ℕ → m Unit
+  /-- record `f C` bit operations -/
+  chargeBy : (CostModel → ℕ) → m Unit
 
 /-- Plain execution. -/
-instance : NatArith Id where
-  chargeMul _ _ := pure ()
-  chargeMod _ _ := pure ()
-  chargePow _ _ := pure ()
-  charge _ := pure ()
-  chargeAdd _ _ := pure ()
-  chargeCmp _ _ := pure ()
-  chargeHash _ := pure ()
-  chargeInv _ := pure ()
-  chargeCast _ _ _ := pure ()
+instance : NatArith Id := ⟨fun _ ↦ pure ()⟩
 
 /-- Counted execution under the cost model `C`. -/
 def CostM (_C : CostModel) (α : Type) : Type := Counted α
 
 instance (C : CostModel) : Monad (CostM C) := inferInstanceAs (Monad Counted)
 
-instance (C : CostModel) : NatArith (CostM C) where
-  chargeMul a b := (⟨(), MulCost.mulCost C a b⟩ : Counted Unit)
-  chargeMod a b := (⟨(), DivCost.divCost C a b⟩ : Counted Unit)
-  chargePow a e := (⟨(), PowCost.powCost C a e⟩ : Counted Unit)
-  charge k := (⟨(), k * C.unit⟩ : Counted Unit)
-  chargeAdd a b := (⟨(), AddCost.addCost C a b⟩ : Counted Unit)
-  chargeCmp a b := (⟨(), CmpCost.cmpCost C a b⟩ : Counted Unit)
-  chargeHash a := (⟨(), HashCost.hashCost C a⟩ : Counted Unit)
-  chargeInv a := (⟨(), InvCost.invCost C a⟩ : Counted Unit)
-  chargeCast α _ x := (⟨(), CastCost.castCost (α := α) C x⟩ : Counted Unit)
+instance (C : CostModel) : NatArith (CostM C) := ⟨fun f ↦ (⟨(), f C⟩ : Counted Unit)⟩
+
+namespace NatArith
+variable {m : Type → Type} [NatArith m] {α : Type}
+
+/-- record `k` steps (e.g. `k` memory writes) -/
+@[simp, cost_simps] abbrev charge (k : ℕ) : m Unit := chargeBy (k * ·.unit)
+/-- record the cost of multiplying `a` and `b` -/
+@[simp, cost_simps] abbrev chargeMul [MulCost α] (a b : α) : m Unit :=
+  chargeBy (MulCost.mulCost · a b)
+/-- record the cost of dividing `a` by `b` with remainder -/
+@[simp, cost_simps] abbrev chargeMod [DivCost α] (a b : α) : m Unit :=
+  chargeBy (DivCost.divCost · a b)
+/-- record the cost of the power `a ^ e` -/
+@[simp, cost_simps] abbrev chargePow [PowCost α] (a : α) (e : ℕ) : m Unit :=
+  chargeBy (PowCost.powCost · a e)
+/-- record the cost of adding or subtracting `a` and `b` -/
+@[simp, cost_simps] abbrev chargeAdd [AddCost α] (a b : α) : m Unit :=
+  chargeBy (AddCost.addCost · a b)
+/-- record the cost of comparing `a` and `b` -/
+@[simp, cost_simps] abbrev chargeCmp [CmpCost α] (a b : α) : m Unit :=
+  chargeBy (CmpCost.cmpCost · a b)
+/-- record the cost of hashing the key `a` -/
+@[simp, cost_simps] abbrev chargeHash [HashCost α] (a : α) : m Unit :=
+  chargeBy (HashCost.hashCost · a)
+/-- record the cost of inverting `a` -/
+@[simp, cost_simps] abbrev chargeInv [InvCost α] (a : α) : m Unit :=
+  chargeBy (InvCost.invCost · a)
+/-- record the cost of converting the natural number `x` into `α` -/
+@[simp, cost_simps] abbrev chargeCast (α : Type) [CastCost α] (x : ℕ) : m Unit :=
+  chargeBy (CastCost.castCost (α := α) · x)
+
+end NatArith
 
 section
 variable (C : CostModel)
@@ -212,65 +210,40 @@ def CostM.cost {α} (x : CostM C α) : ℕ := Counted.cost x
     CostM.val C (x >>= f) = CostM.val C (f (CostM.val C x)) := rfl
 @[simp, cost_simps] theorem CostM.bind_cost {α β} (x : CostM C α) (f : α → CostM C β) :
     CostM.cost C (x >>= f) = CostM.cost C x + CostM.cost C (f (CostM.val C x)) := rfl
+@[simp, cost_simps] theorem CostM.chargeBy_cost (f : CostModel → ℕ) :
+    CostM.cost C (NatArith.chargeBy f) = f C := rfl
 @[cost_simps] theorem CostM.ite_cost {α} (c : Prop) [Decidable c] (x y : CostM C α) :
     CostM.cost C (if c then x else y) = if c then CostM.cost C x else CostM.cost C y := by
   split_ifs <;> rfl
 @[cost_simps] theorem CostM.ite_val {α} (c : Prop) [Decidable c] (x y : CostM C α) :
     CostM.val C (if c then x else y) = if c then CostM.val C x else CostM.val C y := by
   split_ifs <;> rfl
-@[simp, cost_simps] theorem CostM.chargeMul_cost {α} [MulCost α] (a b : α) :
-    CostM.cost C (NatArith.chargeMul a b) = MulCost.mulCost C a b := rfl
-@[simp, cost_simps] theorem CostM.chargeMod_cost {α} [DivCost α] (a b : α) :
-    CostM.cost C (NatArith.chargeMod a b) = DivCost.divCost C a b := rfl
-@[simp, cost_simps] theorem CostM.chargeAdd_cost {α} [AddCost α] (a b : α) :
-    CostM.cost C (NatArith.chargeAdd a b) = AddCost.addCost C a b := rfl
-@[simp, cost_simps] theorem CostM.chargeCmp_cost {α} [CmpCost α] (a b : α) :
-    CostM.cost C (NatArith.chargeCmp a b) = CmpCost.cmpCost C a b := rfl
-@[simp, cost_simps] theorem addCost_nat (a b : ℕ) :
-    AddCost.addCost C a b = C.add a.size b.size := rfl
-@[simp, cost_simps] theorem addCost_int (a b : ℤ) :
-    AddCost.addCost C a b = C.add a.natAbs.size b.natAbs.size := rfl
-@[simp, cost_simps] theorem addCost_zmod {n : ℕ} (a b : ZMod n) :
-    AddCost.addCost C a b = 2 * C.add n.size n.size := rfl
-@[simp, cost_simps] theorem cmpCost_nat (a b : ℕ) :
-    CmpCost.cmpCost C a b = C.add (min a.size b.size) (min a.size b.size) := rfl
-@[simp, cost_simps] theorem cmpCost_int (a b : ℤ) :
-    CmpCost.cmpCost C a b =
-      C.add (min a.natAbs.size b.natAbs.size) (min a.natAbs.size b.natAbs.size) := rfl
-@[simp, cost_simps] theorem cmpCost_zmod {n : ℕ} (a b : ZMod n) :
-    CmpCost.cmpCost C a b = C.add n.size n.size := rfl
-@[simp, cost_simps] theorem cmpCost_bool (a b : Bool) : CmpCost.cmpCost C a b = 0 := rfl
-@[simp, cost_simps] theorem CostM.chargePow_cost {α} [PowCost α] (a : α) (e : ℕ) :
-    CostM.cost C (NatArith.chargePow a e) = PowCost.powCost C a e := rfl
-@[simp, cost_simps] theorem CostM.chargeHash_cost {α} [HashCost α] (a : α) :
-    CostM.cost C (NatArith.chargeHash a) = HashCost.hashCost C a := rfl
-@[simp, cost_simps] theorem CostM.chargeInv_cost {α} [InvCost α] (a : α) :
-    CostM.cost C (NatArith.chargeInv a) = InvCost.invCost C a := rfl
-@[simp, cost_simps] theorem CostM.chargeCast_cost (α) [CastCost α] (x : ℕ) :
-    CostM.cost C (NatArith.chargeCast α x) = CastCost.castCost (α := α) C x := rfl
-@[simp, cost_simps] theorem castCost_zmod (n x : ℕ) :
-    CastCost.castCost (α := ZMod n) C x = C.divMod x.size n.size := rfl
-@[simp, cost_simps] theorem castCost_int (x : ℕ) :
-    CastCost.castCost (α := ℤ) C x = C.add x.size x.size := rfl
-@[simp, cost_simps] theorem castCost_nat (x : ℕ) : CastCost.castCost (α := ℕ) C x = 0 := rfl
-@[simp, cost_simps] theorem cmpCost_nil_right {α : Type} [CmpCost α] [DecidableEq α]
-    (l : List α) : CmpCost.cmpCost C l [] = C.unit := by
+
+
+
+
+
+
+
+
+
+
+-- the cost of an operation on a concrete type: that of its instance (powers and inverses
+-- stay folded, for their bounds)
+attribute [simp, cost_simps] MulCost.mulCost DivCost.divCost AddCost.addCost CmpCost.cmpCost
+  CastCost.castCost HashCost.hashCost
+@[simp, cost_simps] theorem listCmpCost_nil_right {α : Type} [CmpCost α] [DecidableEq α]
+    (l : List α) : listCmpCost C l [] = C.unit := by
   cases l <;> rfl
-@[simp, cost_simps] theorem cmpCost_nil_left {α : Type} [CmpCost α] [DecidableEq α]
-    (l : List α) : CmpCost.cmpCost C [] l = C.unit := by
+@[simp, cost_simps] theorem listCmpCost_nil_left {α : Type} [CmpCost α] [DecidableEq α]
+    (l : List α) : listCmpCost C [] l = C.unit := by
   cases l <;> rfl
-@[simp, cost_simps] theorem hashCost_nat (a : ℕ) : HashCost.hashCost C a = C.add a.size a.size :=
-  rfl
-@[simp, cost_simps] theorem CostM.charge_cost (k : ℕ) :
-    CostM.cost C (NatArith.charge k) = k * C.unit := rfl
-@[simp, cost_simps] theorem mulCost_nat (a b : ℕ) : MulCost.mulCost C a b = C.mul a.size b.size := rfl
-@[simp, cost_simps] theorem divCost_nat (a b : ℕ) : DivCost.divCost C a b = C.divMod a.size b.size := rfl
-@[simp, cost_simps] theorem mulCost_int (a b : ℤ) :
-    MulCost.mulCost C a b = C.mul a.natAbs.size b.natAbs.size := rfl
-@[simp, cost_simps] theorem divCost_int (a b : ℤ) :
-    DivCost.divCost C a b = C.divMod a.natAbs.size b.natAbs.size := rfl
-@[simp, cost_simps] theorem mulCost_zmod {n : ℕ} (a b : ZMod n) : MulCost.mulCost C a b = C.mulMod n.size :=
-  rfl
+
+
+
+
+
+
 
 end
 
@@ -414,7 +387,7 @@ variable (C : CostModel) {α β : Type}
 
 @[cost_simps] theorem CostM.setIfInBounds_cost (xs : Array α) (i : ℕ) (v : α) :
     CostM.cost C (Array.setIfInBounds.counted xs i v) = C.unit := by
-  simp [Array.setIfInBounds.counted, CostM.cost, NatArith.charge]
+  simp [Array.setIfInBounds.counted]
 @[cost_simps] theorem CostM.replicate_cost (n : ℕ) (v : α) :
     CostM.cost C (Array.replicate.counted n v) = (n + 1) * C.unit := rfl
 
@@ -423,7 +396,7 @@ variable (C : CostModel) {α β : Type}
     CostM.cost C (List.filter.counted p l pc) =
       (l.length + 1) * C.unit + (l.map fun a => CostM.cost C (pc a)).sum := by
   induction l with
-  | nil => simp [List.filter.counted, CostM.cost, NatArith.charge]
+  | nil => rfl
   | cons a l ih =>
     simp only [List.filter.counted, List.map_cons, List.sum_cons, List.length_cons]
     change 1 * C.unit + (CostM.cost C (pc a) + CostM.cost C (List.filter.counted p l pc)) = _
@@ -436,10 +409,10 @@ variable (C : CostModel) {α β : Type}
       (min l.length l'.length + 1) * C.unit +
         (List.zipWith (fun a b => CostM.cost C (fc a b)) l l').sum := by
   induction l generalizing l' with
-  | nil => simp [List.zipWith.counted, CostM.cost, NatArith.charge]
+  | nil => rfl
   | cons a l ih =>
     cases l' with
-    | nil => simp [List.zipWith.counted, CostM.cost, NatArith.charge]
+    | nil => rfl
     | cons b l' =>
       simp only [List.zipWith.counted, List.zipWith_cons_cons, List.sum_cons, List.length_cons]
       change 1 * C.unit + (CostM.cost C (fc a b) + CostM.cost C (List.zipWith.counted f l l' fc)) = _
@@ -450,7 +423,7 @@ variable (C : CostModel) {α β : Type}
     CostM.cost C (List.map.counted f l fc) =
       (l.length + 1) * C.unit + (l.map fun a => CostM.cost C (fc a)).sum := by
   induction l with
-  | nil => simp [List.map.counted, CostM.cost, NatArith.charge]
+  | nil => rfl
   | cons a l ih =>
     simp only [List.map.counted, List.map_cons, List.sum_cons, List.length_cons]
     change 1 * C.unit + (CostM.cost C (fc a) + CostM.cost C (List.map.counted f l fc)) = _
@@ -463,7 +436,7 @@ theorem CostM.foldl_cost_le {f : α → β → α} {fc : α → β → CostM C U
     (hK : ∀ a b, P a → b ∈ l → CostM.cost C (fc a b) ≤ K b) {init : α} (h : P init) :
     CostM.cost C (List.foldl.counted f init l fc) ≤ (l.length + 1) * C.unit + (l.map K).sum := by
   induction l generalizing init with
-  | nil => simp [List.foldl.counted, CostM.cost, NatArith.charge]
+  | nil => rfl
   | cons b l ih =>
     have h₁ := hK init b h (by simp)
     have h₂ := ih (fun a b' ha hb' ↦ hK a b' ha (by simp [hb'])) (hf init b h)
@@ -476,7 +449,7 @@ theorem CostM.foldl_cost_le {f : α → β → α} {fc : α → β → CostM C U
 theorem CostM.sum_cost_le_nat {k : ℕ} (l : List ℕ) (h : l.sum.size ≤ k) :
     CostM.cost C (List.sum.counted l) ≤ (l.length + 1) * (C.unit + C.add k k) := by
   induction l with
-  | nil => simp [List.sum.counted, CostM.cost, NatArith.charge]
+  | nil => simp [List.sum.counted]
   | cons a l ih =>
     have ha : a.size ≤ k := (Nat.size_le_size (by simp)).trans h
     have hl : l.sum.size ≤ k := (Nat.size_le_size (by simp)).trans h
@@ -505,10 +478,7 @@ attribute [cost_simps] List.length.counted List.getD.counted List.append.counted
   Min.min.counted
 attribute [cost_simps] Nat.size_zero Nat.size_one zero_min min_zero max_self List.map_nil List.sum_nil
 attribute [cost_simps] zero_add add_zero ite_self mul_one one_mul zero_mul mul_zero
-  mulCount_mul mulCount_divMod divCount_mul divCount_divMod opCount_mul opCount_divMod
-  writeCount_mul writeCount_divMod mulCount_unit divCount_unit opCount_unit writeCount_unit
-  school_unit school_add mulCount_add divCount_add opCount_add writeCount_add mulCount_mulMod
-  divCount_mulMod
+  counting_mul counting_divMod counting_unit counting_add counting_mulMod school_unit school_add
 
 /-- Unfold the bookkeeping of a counted computation: what is left is its result and the
 sum of the charges of its primitive calls (simp set `cost_simps`). -/
