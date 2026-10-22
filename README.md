@@ -319,12 +319,17 @@ AKS (§4.5).
 | §5.2.1 rho with accumulated gcd's | `pollardRhoAcc` | `pollardRhoAcc_sound`; `rhoBatchCost_le`: 4 modular multiplications per pass, one gcd per batch | `PollardRho` |
 | Alg 5.2.1 Pollard rho | `pollardRho` (seeds `a`, `s` and a pass limit `fuel` supplied by the caller) | `pollardRho_sound`: any answer is a nontrivial factor; `pollardRhoLoop_isSome`: the search stops within `p` passes for any divisor `p > 1`, via Floyd cycle-finding `floyd`; **conditional on the heuristic**, `pollardRhoLoop_isSome_of_collision`: it stops within `T` passes if the sequence mod `p` repeats within `T` steps (`RhoCollision p a s T`) | `PollardRho` |
 | Alg 5.4.1 Pollard `p − 1` | `pollardPMinusOne`, `pm1Exponent` (`M(B)`), `ladders` | `pollardPMinusOne_dvd`; `ladder_eq`: `c ≡ c₀^M(B)`; `dvd_pollardPMinusOne`, `pollardPMinusOne_ne_one`: a prime `p ∣ n` with `p − 1` `B`-powersmooth divides the result | `PollardPMinusOne` |
+| §5.6.1 forms, equivalence (Exercises 5.10, 5.12) | `QF` (`(a, b, c)`), `QF.subst` (change of variables (5.1)), `QF.Equiv` | `Equiv.refl`, `Equiv.symm`, `Equiv.trans`; `Equiv.disc_eq`; `Equiv.represents` | `QuadForms` |
+| Thm 5.6.1 (Gauss), Alg 5.6.2 reduction | `QF.Reduced` (5.2); `reduce` (type (1) and (2) moves, at most `2A + 2` passes) | `Reduced.eq_of_equiv` (no two reduced forms are equivalent, via `Reduced.c_le_eval`: a reduced form is `≥ c` off `y = 0`); `reduce_reduced`, `reduce_equiv`; `existsUnique_reduced_equiv` | `QuadForms` |
+| §5.6.2 factoring with representations | — | `sumTwoSquares_factor` (two sums of two squares give `1 < gcd(x₁y₂ − y₁x₂, n) < n`); `mckee_factor` (two square roots of `D` mod `n`, not `±` each other, split `n`) | `QuadForms` |
+| §5.6.3 composition, §5.6.4 ambiguous forms | — | `eval_mul_eval` (`(a₁, b, a₂e)·(a₂, b, a₁e)` represented by `(a₁a₂, b, e)`); `disc_ambiguous` (ambiguous forms factor `D`) | `QuadForms` |
 
 Bit complexity (in the same files), `k` the bit length of `n`:
 
 | Algorithm | Bound | Theorem |
 |---|---|---|
 | 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd + 6 linear operations (any model: `3 C.mulMod k + gcdCost C k + 6 C.lin (2k)`); `O(ln² n)` per pass grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school` |
+| 5.6.2 reduction of `(A, B, C)`, `N` the sum of the absolute values | at most `2A + 2` passes, each 3 products, 1 division and `O(1)` linear operations on numbers of `size(8N³)` bits (any model); `O((A + 1) ln² N)` grammar-school | `reduce_cost_le`, `reduceCost_school` |
 | 5.4.1 Pollard `p − 1` | the sieve for the primes `≤ B`, the exponents `⌊log_p B⌋`, `pm1Steps B` modular powers with exponents ≤ `B`, a reduction and 1 gcd (any model); `pm1Steps B ≤ π(B)·log₂ B` | `laddersCost_le`, `pm1Cost_le`, `pm1Cost_school_le`, `pm1Steps_le` |
 
 **Heuristics as explicit hypotheses.**  The `O(√p)` running time of Pollard rho rests on
@@ -393,8 +398,9 @@ multiplication (below) it is the book's bound in closed form:
 (`nussModel_superadditiveMul`). This is a log factor more than the optimal
 `O(N log N log log N)`, because each recursion level's bound is crude.
 
-Still to do: evaluation on arithmetic and geometric progressions (9.6.5, 9.6.6); §5.6
-(binary quadratic forms: Algorithms 5.6.2, 5.6.3, 5.6.7 and Theorems 5.6.1, 5.6.4).
+Still to do: evaluation on arithmetic and geometric progressions (9.6.5, 9.6.6); from §5.6,
+McKee's test (Algorithm 5.6.3, Theorem 5.6.4), the class group and composition
+(Lemmas 5.6.5, 5.6.6, Algorithm 5.6.7).
 
 ### Benchmarks — `Bench/`
 
