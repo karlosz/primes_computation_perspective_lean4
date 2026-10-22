@@ -298,4 +298,97 @@ theorem mul_add_divMod_le (C : CostModel) {a b m : ℕ} (ha : a < m) (hb : b < m
   have := size_le_of_lt hb
   omega
 
+/-! ## Halving recursions -/
+
+/-- **The master theorem for halving recursions.**  A problem of size `n` above a threshold
+`L ≥ 1` splits into two of sizes `⌊n/2⌋` and `⌈n/2⌉` (passing them the invariant `I`) at a
+cost of `F n + d` beyond theirs, and one of size at most `L` costs at most `G n + e`.  With `F`
+and `G` superadditive, a problem of size `n` costs at most `⌈log₂ n⌉ F n + G n + n e + (n - 1) d`
+(for `n ≥ 1`): the work `F` of each of the `⌈log₂ n⌉` levels, `G` and `e` over the leaves, `d`
+per node. -/
+theorem halving_master {α : Type*} (size : α → ℕ) (I : α → Prop) (T : α → ℕ)
+    {F G : ℕ → ℕ} {L d e : ℕ} (hL : 1 ≤ L)
+    (hF : ∀ a b, 1 ≤ a → 1 ≤ b → F a + F b ≤ F (a + b))
+    (hG : ∀ a b, 1 ≤ a → 1 ≤ b → G a + G b ≤ G (a + b))
+    (leaf : ∀ x, I x → size x ≤ L → T x ≤ G (size x) + e)
+    (node : ∀ x, I x → L < size x → ∃ y z, I y ∧ I z ∧ size y = size x / 2 ∧
+      size z = size x - size x / 2 ∧ T x ≤ T y + T z + F (size x) + d) :
+    ∀ x, I x → 1 ≤ size x →
+      T x ≤ Nat.clog 2 (size x) * F (size x) + G (size x) + size x * e + (size x - 1) * d := by
+  intro x hx hx1
+  induction h : size x using Nat.strong_induction_on generalizing x with
+  | _ n ih =>
+  by_cases hn : n ≤ L
+  · have := leaf x hx (h ▸ hn)
+    rw [h] at this
+    have : e ≤ n * e := Nat.le_mul_of_pos_left _ (by omega)
+    omega
+  obtain ⟨y, z, hy, hz, sy, sz, hT⟩ := node x hx (by omega)
+  rw [h] at sy sz hT
+  have ihy := ih (n / 2) (by omega) y hy (by omega) sy
+  have ihz := ih (n - n / 2) (by omega) z hz (by omega) sz
+  -- the halves have one level fewer: `⌈log₂ ⌈n/2⌉⌉ = ⌈log₂ n⌉ - 1`
+  have hc : Nat.clog 2 n = Nat.clog 2 ((n + 1) / 2) + 1 := Nat.clog_of_two_le (by norm_num) (by omega)
+  have c₁ := Nat.mul_le_mul_right (F (n / 2))
+    (Nat.clog_mono_right 2 (show n / 2 ≤ (n + 1) / 2 by omega))
+  rw [show n - n / 2 = (n + 1) / 2 by omega] at ihz
+  have f := Nat.mul_le_mul_left (Nat.clog 2 ((n + 1) / 2))
+    (hF (n / 2) ((n + 1) / 2) (by omega) (by omega))
+  have g := hG (n / 2) ((n + 1) / 2) (by omega) (by omega)
+  rw [show n / 2 + (n + 1) / 2 = n by omega] at f g
+  have hd : (n / 2 - 1) * d + ((n + 1) / 2 - 1) * d + d = (n - 1) * d := by
+    rw [← Nat.add_mul, ← Nat.succ_mul]; congr 1; omega
+  have he : n / 2 * e + (n + 1) / 2 * e = n * e := by rw [← Nat.add_mul]; congr 1; omega
+  rw [hc]
+  nlinarith
+
+/-- `c n ⌈log₂ n⌉ + d (2n - 1)` (and `d` for the empty input): the cost of a halving recursion
+with work `c` per element on each level and `d` per node and per leaf. -/
+def halvingBound (c d n : ℕ) : ℕ := c * max n 1 * Nat.clog 2 (max n 1) + d * (2 * max n 1 - 1)
+
+/-- The master theorem for work `c n + d` at a node of size `n` and `d` at a leaf. -/
+theorem halvingBound_of_rec {α : Type*} (size : α → ℕ) (I : α → Prop) (T : α → ℕ) {c d : ℕ}
+    (leaf : ∀ x, I x → size x ≤ 1 → T x ≤ d)
+    (node : ∀ x, I x → 1 < size x → ∃ y z, I y ∧ I z ∧ size y = size x / 2 ∧
+      size z = size x - size x / 2 ∧ T x ≤ T y + T z + c * size x + d) :
+    ∀ x, I x → T x ≤ halvingBound c d (size x) := by
+  intro x hx
+  unfold halvingBound
+  rcases Nat.eq_zero_or_pos (size x) with h0 | h1
+  · have := leaf x hx (by omega); simp [h0]; omega
+  have := halving_master size I T (F := (c * ·)) (G := fun _ ↦ 0) le_rfl
+    (fun a b _ _ ↦ (Nat.mul_add c a b).ge) (fun _ _ _ _ ↦ le_rfl)
+    (fun x hx h ↦ by simpa using leaf x hx h) node x hx h1
+  rw [show max (size x) 1 = size x by omega]
+  have : size x * d + (size x - 1) * d = d * (2 * size x - 1) := by
+    rw [← Nat.add_mul, Nat.mul_comm]; congr 1; omega
+  nlinarith
+
+theorem halvingBound_mono (c d : ℕ) : Monotone (halvingBound c d) := fun a b h ↦ by
+  unfold halvingBound
+  have h' : max a 1 ≤ max b 1 := max_le_max h le_rfl
+  have := Nat.clog_mono_right 2 h'
+  have := Nat.mul_le_mul (Nat.mul_le_mul_left c h') this
+  have := Nat.mul_le_mul_left d (show 2 * max a 1 - 1 ≤ 2 * max b 1 - 1 by omega)
+  omega
+
+theorem halvingBound_le {c c' d d' n n' : ℕ} (hc : c ≤ c') (hd : d ≤ d') (hn : n ≤ n') :
+    halvingBound c d n ≤ halvingBound c' d' n' := by
+  refine le_trans ?_ (halvingBound_mono c' d' hn)
+  unfold halvingBound
+  exact Nat.add_le_add (Nat.mul_le_mul (Nat.mul_le_mul_right _ hc) le_rfl)
+    (Nat.mul_le_mul_right _ hd)
+
+theorem halvingBound_superadditive (c d : ℕ) {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) :
+    halvingBound c d a + halvingBound c d b ≤ halvingBound c d (a + b) := by
+  unfold halvingBound
+  rw [show max a 1 = a by omega, show max b 1 = b by omega, show max (a + b) 1 = a + b by omega]
+  have h₁ := Nat.mul_le_mul_left (c * a) (Nat.clog_mono_right 2 (Nat.le_add_right a b))
+  have h₂ := Nat.mul_le_mul_left (c * b) (Nat.clog_mono_right 2 (Nat.le_add_left b a))
+  have h₃ : d * (2 * a - 1) + d * (2 * b - 1) ≤ d * (2 * (a + b) - 1) := by
+    rw [← Nat.mul_add]; exact Nat.mul_le_mul_left _ (by omega)
+  have h₄ : c * a * Nat.clog 2 (a + b) + c * b * Nat.clog 2 (a + b) =
+      c * (a + b) * Nat.clog 2 (a + b) := by ring
+  omega
+
 end PrimeNumbers.Chapter9

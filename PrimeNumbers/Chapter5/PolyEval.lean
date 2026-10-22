@@ -353,7 +353,7 @@ def psValuesBound (C : CostModel) (n B : ℕ) : ℕ :=
   have h2K : 2 ≤ K := by
     have := Nat.size_le_size (show 2 ≤ B + 4 + 2 by omega); rwa [Nat.size_two] at this
   have hBK : B.size ≤ K := Nat.size_le_size (by omega)
-  have h₁ := prodTree_cost_le C (mulF := mulMod n) _ (polyMulBound_mono C n)
+  have h₁ := prodTree_cost_le C (mulF := mulMod n) _
     (fun a b ↦ polyMulBound_superadditive C n hC) (mulMod_charge_le C n)
     (show ArithCost.Bounded (ZMod n) C (zcost C n) from ArithCost.bounded_zmod C n) h2K
     ((List.range B).map ((↑) : ℕ → ZMod n)) (by simp; omega) (by simpa using hBK)

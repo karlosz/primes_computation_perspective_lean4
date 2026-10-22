@@ -79,65 +79,6 @@ theorem CostModel.mul_le_mulMod (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb
   (C.mul_mono ha hb).trans (Nat.le_add_right _ _)
 
 
-/-! ### Halving recursions
-
-A recursion that splits its input of size `n ≥ 2` into halves `⌊n/2⌋` and `⌈n/2⌉`, at a cost
-of `c n + d` for the split and the join, costs at most `halvingBound c d n`
-(`halvingBound_step`): `c n ⌈log₂ n⌉` for the levels and `d` per node. -/
-
-/-- `c n ⌈log₂ n⌉ + d (2n - 1)`, for `n ≥ 1` (and `d` for the empty input). -/
-def halvingBound (c d n : ℕ) : ℕ := c * max n 1 * Nat.clog 2 (max n 1) + d * (2 * max n 1 - 1)
-
-theorem halvingBound_le_one (c d : ℕ) {n : ℕ} (hn : n ≤ 1) : halvingBound c d n = d := by
-  have : max n 1 = 1 := by omega
-  simp [halvingBound, this]
-
-theorem halvingBound_step (c d : ℕ) {n : ℕ} (hn : 2 ≤ n) :
-    halvingBound c d (n / 2) + halvingBound c d (n - n / 2) + (c * n + d) ≤ halvingBound c d n := by
-  have hL : Nat.clog 2 n = Nat.clog 2 ((n + 1) / 2) + 1 := by
-    rw [Nat.clog_of_one_lt (by norm_num) (by omega), show n + 2 - 1 = n + 1 by omega]
-  have h₁ : Nat.clog 2 (n / 2) ≤ Nat.clog 2 ((n + 1) / 2) := Nat.clog_mono_right _ (by omega)
-  have h₂ : n - n / 2 = (n + 1) / 2 := by omega
-  unfold halvingBound
-  rw [h₂, show max n 1 = n by omega, show max (n / 2) 1 = n / 2 by omega,
-    show max ((n + 1) / 2) 1 = (n + 1) / 2 by omega, hL]
-  set L := Nat.clog 2 ((n + 1) / 2)
-  have h₃ : c * (n / 2) * Nat.clog 2 (n / 2) ≤ c * (n / 2) * L := Nat.mul_le_mul_left _ h₁
-  have h₄ : n / 2 + (n + 1) / 2 = n := by omega
-  have h₅ : d * (2 * (n / 2) - 1) + d * (2 * ((n + 1) / 2) - 1) + d = d * (2 * n - 1) := by
-    rw [← Nat.mul_add, ← Nat.mul_add_one]; congr 1; omega
-  have h₆ : c * (n / 2) * L + c * ((n + 1) / 2) * L = c * n * L := by
-    rw [← Nat.add_mul, ← Nat.mul_add, h₄]
-  have h₇ : c * n * (L + 1) = c * n * L + c * n := by ring
-  linarith [h₃, h₅]
-
-theorem halvingBound_mono (c d : ℕ) : Monotone (halvingBound c d) := fun a b h ↦ by
-  unfold halvingBound
-  have h' : max a 1 ≤ max b 1 := max_le_max h le_rfl
-  have := Nat.clog_mono_right 2 h'
-  have := Nat.mul_le_mul (Nat.mul_le_mul_left c h') this
-  have := Nat.mul_le_mul_left d (show 2 * max a 1 - 1 ≤ 2 * max b 1 - 1 by omega)
-  omega
-
-theorem halvingBound_le {c c' d d' n n' : ℕ} (hc : c ≤ c') (hd : d ≤ d') (hn : n ≤ n') :
-    halvingBound c d n ≤ halvingBound c' d' n' := by
-  refine le_trans ?_ (halvingBound_mono c' d' hn)
-  unfold halvingBound
-  exact Nat.add_le_add (Nat.mul_le_mul (Nat.mul_le_mul_right _ hc) le_rfl)
-    (Nat.mul_le_mul_right _ hd)
-
-theorem halvingBound_superadditive (c d : ℕ) {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) :
-    halvingBound c d a + halvingBound c d b ≤ halvingBound c d (a + b) := by
-  unfold halvingBound
-  rw [show max a 1 = a by omega, show max b 1 = b by omega, show max (a + b) 1 = a + b by omega]
-  have h₁ := Nat.mul_le_mul_left (c * a) (Nat.clog_mono_right 2 (Nat.le_add_right a b))
-  have h₂ := Nat.mul_le_mul_left (c * b) (Nat.clog_mono_right 2 (Nat.le_add_left b a))
-  have h₃ : d * (2 * a - 1) + d * (2 * b - 1) ≤ d * (2 * (a + b) - 1) := by
-    rw [← Nat.mul_add]; exact Nat.mul_le_mul_left _ (by omega)
-  have h₄ : c * a * Nat.clog 2 (a + b) + c * b * Nat.clog 2 (a + b) =
-      c * (a + b) * Nat.clog 2 (a + b) := by ring
-  omega
-
 /-! ### Operands: value bounds and bit lengths -/
 
 /-- The cost model of a cost expression (the first one it mentions). -/

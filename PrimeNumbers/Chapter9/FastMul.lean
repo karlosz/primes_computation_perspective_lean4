@@ -256,45 +256,33 @@ per node, a small product `b · (len/2)` (at most `X`) and two steps on the leng
       C.mul b.size (L.length / 2).size ≤ X →
       costOf C (pack b L) ≤
         halvingBound (2 * C.unit + 2 * C.add w w) (4 * C.unit + 2 * C.add K K + X) L.length := by
-  intro L
-  induction hn : L.length using Nat.strong_induction_on generalizing L with
-  | _ n ih =>
-  intro hL hK hX
-  by_cases h1 : n ≤ 1
-  · rw [halvingBound_le_one _ _ h1]
-    cost_unfold pack.counted
-    rw [hn]
-    cost_bound
-  · have hmono : ∀ m, m ≤ n → C.mul b.size (m / 2).size ≤ X :=
-      fun m hm ↦ (C.mul_mono le_rfl (Nat.size_le_size (by omega))).trans (hn ▸ hX)
-    have kT : (n / 2).size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have kD : (n - n / 2).size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have hT := ih (n / 2) (by omega) (L.take (n / 2)) (by simp; omega)
-      (fun x hx ↦ hL x (List.mem_of_mem_take hx)) kT (hmono _ (by omega))
-    have hD := ih (n - n / 2) (by omega) (L.drop (n / 2)) (by simp; omega)
-      (fun x hx ↦ hL x (List.mem_of_mem_drop hx)) kD (hmono _ (by omega))
-    -- the sizes of the big operands: at most `w n` bits
-    have sT : (pack b (L.take (n / 2))).size ≤ w * n :=
-      (size_pack_le_of_le hbw (L := L.take (n / 2)) fun x hx ↦ hL x (List.mem_of_mem_take hx)).trans
-        (Nat.mul_le_mul_left _ (by rw [List.length_take]; omega))
-    have sD : (pack b (L.drop (n / 2))).size ≤ w * (n - n / 2) :=
-      (size_pack_le_of_le hbw (L := L.drop (n / 2)) fun x hx ↦ hL x (List.mem_of_mem_drop hx)).trans
-        (Nat.mul_le_mul_left _ (by rw [List.length_drop]; omega))
-    have sS : (pack b (L.drop (n / 2)) <<< (b * (n / 2))).size ≤ w * n := by
-      rw [Nat.shiftLeft_eq, Nat.size_le]
-      calc pack b (L.drop (n / 2)) * 2 ^ (b * (n / 2)) < 2 ^ (w * (n - n / 2)) * 2 ^ (w * (n / 2)) :=
-            Nat.mul_lt_mul_of_lt_of_le (Nat.size_le.1 sD)
-              (Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ hbw)) (by positivity)
-        _ = 2 ^ (w * n) := by rw [← pow_add, ← Nat.mul_add]; congr 2; omega
-    have sD' : (pack b (L.drop (n / 2))).size ≤ w * n := sD.trans (Nat.mul_le_mul_left _ (by omega))
-    have sB : (b * (n / 2)).size ≤ w * n :=
-      (Nat.size_le.2 Nat.lt_two_pow_self).trans (Nat.mul_le_mul hbw (by omega))
-    have hlin := C.add_mul_le (w := w) (show 1 ≤ n by omega)
-    have hstep := halvingBound_step (2 * C.unit + 2 * C.add w w) (4 * C.unit + 2 * C.add K K + X)
-      (show 2 ≤ n by omega)
-    cost_unfold pack.counted
-    simp only [List.length_take, List.length_drop, hn, min_eq_left (Nat.div_le_self n 2)] at *
-    cost_bound
+  intro L₀ hL₀ hK hX
+  refine halvingBound_of_rec List.length (fun L ↦ (∀ x ∈ L, x < 2 ^ w) ∧ L.length ≤ L₀.length)
+    (fun L ↦ costOf C (pack b L)) (fun L _ _ ↦ by cost_unfold pack.counted; cost_bound)
+    (fun L ⟨hL, hn⟩ h2 ↦ ⟨L.take (L.length / 2), L.drop (L.length / 2),
+      ⟨fun x hx ↦ hL x (List.mem_of_mem_take hx), by simp; omega⟩,
+      ⟨fun x hx ↦ hL x (List.mem_of_mem_drop hx), by simp; omega⟩, by simp; omega, by simp, ?_⟩)
+    L₀ ⟨hL₀, le_rfl⟩
+  set n := L.length
+  -- the sizes of the big operands: at most `w n` bits
+  have sT : (pack b (L.take (n / 2))).size ≤ w * n :=
+    (size_pack_le_of_le hbw (L := L.take (n / 2)) fun x hx ↦ hL x (List.mem_of_mem_take hx)).trans
+      (Nat.mul_le_mul_left _ (by rw [List.length_take]; omega))
+  have sD : (pack b (L.drop (n / 2))).size ≤ w * (n - n / 2) :=
+    (size_pack_le_of_le hbw (L := L.drop (n / 2)) fun x hx ↦ hL x (List.mem_of_mem_drop hx)).trans
+      (Nat.mul_le_mul_left _ (by rw [List.length_drop]))
+  have sS : (pack b (L.drop (n / 2)) <<< (b * (n / 2))).size ≤ w * n := by
+    rw [Nat.shiftLeft_eq, Nat.size_le]
+    calc pack b (L.drop (n / 2)) * 2 ^ (b * (n / 2)) < 2 ^ (w * (n - n / 2)) * 2 ^ (w * (n / 2)) :=
+          Nat.mul_lt_mul_of_lt_of_le (Nat.size_le.1 sD)
+            (Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ hbw)) (by positivity)
+      _ = 2 ^ (w * n) := by rw [← pow_add, ← Nat.mul_add]; congr 2; omega
+  have sD' : (pack b (L.drop (n / 2))).size ≤ w * n := sD.trans (Nat.mul_le_mul_left _ (by omega))
+  have sB : (b * (n / 2)).size ≤ w * n :=
+    (Nat.size_le.2 Nat.lt_two_pow_self).trans (Nat.mul_le_mul hbw (by omega))
+  have hlin := C.add_mul_le (w := w) (show 1 ≤ n by omega)
+  cost_unfold pack.counted
+  cost_bound
 
 theorem length_unpack (b : ℕ) : ∀ N count : ℕ, (unpack b N count).length = count := by
   intro N count
@@ -324,43 +312,33 @@ power of two on numbers of at most `2b · count` bits; per node, a small product
       C.mul b.size (count / 2).size ≤ X →
       costOf C (unpack b N count) ≤
         halvingBound (C.unit + 3 * C.add (2 * b) (2 * b)) (2 * C.unit + 4 * C.add K K + X) count := by
-  intro count
-  induction count using Nat.strong_induction_on with
-  | _ count ih =>
-  intro N hN hK hX
-  by_cases h1 : count ≤ 1
-  · rw [halvingBound_le_one _ _ h1]
-    rcases (by omega : count = 0 ∨ count = 1) with rfl | rfl
-    · cost_unfold unpack.counted; cost_bound
-    · cost_unfold unpack.counted; cost_bound
-  · have hmono : ∀ m, m ≤ count → C.mul b.size (m / 2).size ≤ X :=
-      fun m hm ↦ (C.mul_mono le_rfl (Nat.size_le_size (by omega))).trans hX
-    set h := count / 2 with hh
-    have kH : h.size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have kD : (count - h).size ≤ K := (Nat.size_le_size (by omega)).trans hK
-    have sM : (N % 2 ^ (b * h)).size ≤ b * (h + 1) :=
-      (Nat.size_le.2 (Nat.mod_lt _ (by positivity))).trans (by nlinarith)
-    have sS : (N >>> (b * h)).size ≤ b * (count - h + 1) :=
-      (size_shiftRight_le _ _).trans (by
-        have : b * (count + 1) - b * h = b * (count - h + 1) := by
-          rw [← Nat.mul_sub]; congr 1; omega
-        omega)
-    have hM := ih h (by omega) (N % 2 ^ (b * h)) sM kH (hmono _ (by omega))
-    have hS := ih (count - h) (by omega) (N >>> (b * h)) sS kD (hmono _ (by omega))
-    -- the big operands have at most `2 b count` bits
-    have hbc : b * (count + 1) ≤ 2 * b * count := by
-      calc b * (count + 1) ≤ b * (2 * count) := Nat.mul_le_mul_left _ (by omega)
-        _ = 2 * b * count := by ring
-    have hbh : b * h + 1 ≤ b * (count + 1) := by
-      have := Nat.mul_le_mul_left b (show h ≤ count by omega); nlinarith
-    have sB : (b * h).size ≤ 2 * b * count :=
-      (Nat.size_le.2 Nat.lt_two_pow_self).trans (by nlinarith)
-    have hlin := C.add_mul_le (w := 2 * b) (show 1 ≤ count by omega)
-    have hstep := halvingBound_step (C.unit + 3 * C.add (2 * b) (2 * b))
-      (2 * C.unit + 4 * C.add K K + X) (show 2 ≤ count by omega)
-    cost_unfold unpack.counted
-    rw [length_unpack]
-    cost_bound
+  intro count₀ N₀ hN₀ hK hX
+  refine halvingBound_of_rec Prod.fst (fun p : ℕ × ℕ ↦ p.2.size ≤ b * (p.1 + 1) ∧ p.1 ≤ count₀)
+    (fun p ↦ costOf C (unpack b p.2 p.1)) (fun ⟨count, N⟩ _ h1 ↦ by
+      rcases (by omega : count = 0 ∨ count = 1) with rfl | rfl <;>
+        (cost_unfold unpack.counted; cost_bound))
+    (fun ⟨count, N⟩ ⟨hN, hc⟩ h2 ↦ ⟨(count / 2, N % 2 ^ (b * (count / 2))),
+      (count - count / 2, N >>> (b * (count / 2))), ⟨?_, by simp; omega⟩, ⟨?_, by simp; omega⟩,
+      rfl, rfl, ?_⟩) (count₀, N₀) ⟨hN₀, le_rfl⟩
+  · exact (Nat.size_le.2 (Nat.mod_lt _ (by positivity))).trans (by simp at *; nlinarith)
+  · refine (size_shiftRight_le _ _).trans ?_
+    have : b * (count + 1) - b * (count / 2) = b * (count - count / 2 + 1) := by
+      rw [← Nat.mul_sub]; congr 1; omega
+    simp at *; omega
+  simp only at h2 hN hc ⊢
+  set h := count / 2
+  -- the big operands have at most `2 b count` bits
+  have hbc : b * (count + 1) ≤ 2 * b * count := by
+    calc b * (count + 1) ≤ b * (2 * count) := Nat.mul_le_mul_left _ (by omega)
+      _ = 2 * b * count := by ring
+  have hbh : b * h + 1 ≤ b * (count + 1) := by
+    have := Nat.mul_le_mul_left b (show h ≤ count by omega); nlinarith
+  have sB : (b * h).size ≤ 2 * b * count :=
+    (Nat.size_le.2 Nat.lt_two_pow_self).trans (by nlinarith)
+  have hlin := C.add_mul_le (w := 2 * b) (show 1 ≤ count by omega)
+  cost_unfold unpack.counted
+  rw [length_unpack]
+  cost_bound
 
 /-- A schoolbook product with an empty factor takes a step per coefficient. -/
 @[cost_le] theorem mul_nil_cost (C : CostModel) (f : List ℕ) :
