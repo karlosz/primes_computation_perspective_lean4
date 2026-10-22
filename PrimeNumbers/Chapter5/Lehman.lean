@@ -768,6 +768,8 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
           (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K + 9 * (2 * K + 4) : ℕ) +
         ((K + 1) * (3 * K + 9) + 7 : ℕ) := by
   intro K
+  set W := 3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4)
+  set V := 2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K + 9 * (2 * K + 4)
   set A := 4 * (iroot 3 n + 1) * n + n + 2 with hAdef
   have hr6 : iroot 6 n ≤ n :=
     (Nat.le_self_pow (by norm_num) _).trans (iroot_pow_le (by norm_num) n)
@@ -794,25 +796,12 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
     rw [show (1 / 3 : ℝ) = (((3 : ℕ) : ℝ)⁻¹) by norm_num]
     exact (Real.le_rpow_inv_iff_of_pos (by positivity) (by positivity) (by norm_num)).mpr
       (by exact_mod_cast h3)
-  have hcost' : (costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) : ℝ) ≤
-      (lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) : ℝ) *
-          (3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4) : ℕ) +
-        ((iroot 3 n + 1 : ℕ) : ℝ) * (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K +
-          9 * (2 * K + 4) : ℕ) +
-        ((K + 1) * (3 * K + 9) + 7 : ℕ) := by
-    have : costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) ≤
-        lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) *
-          (3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4)) +
-        (iroot 3 n + 1) * (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K + 9 * (2 * K + 4)) +
+  have : costOf school (lehmanOuter n (iroot 6 n) 1 (iroot 3 n + 1)) ≤
+      lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1) * W + (iroot 3 n + 1) * V +
         ((K + 1) * (3 * K + 9) + 7) := by
-      cost_bound
-    exact_mod_cast this
-  have hW0 : (0 : ℝ) ≤ ((3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4) : ℕ) : ℝ) :=
-    Nat.cast_nonneg _
-  have hV0 : (0 : ℝ) ≤ ((2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K +
-    9 * (2 * K + 4) : ℕ) : ℝ) := Nat.cast_nonneg _
-  refine hcost'.trans ?_
-  push_cast [Nat.cast_add] at hc ⊢
+    cost_bound
+  refine (Nat.cast_le.2 this).trans ?_
+  push_cast
   gcongr
 
 /-! ### Integer roots and the small-divisor scan -/

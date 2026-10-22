@@ -389,16 +389,7 @@ inputs (`CofactorInv`), and the quotient bits telescope as in Exercise 2.6. -/
     have hpass : school.divMod g.size w.size + school.mul q.size u.natAbs.size +
         school.mul q.size v.natAbs.size + school.mul q.size w.size ≤
         (g.size - w.size + 1) * (4 * k) := by
-      change (g.size - w.size + 1) * w.size + q.size * u.natAbs.size + q.size * v.natAbs.size +
-        q.size * w.size ≤ _
-      have h₁ := Nat.mul_le_mul_left (g.size - w.size + 1) hwk
-      have h₂ := Nat.mul_le_mul hq hu
-      have h₃ := Nat.mul_le_mul hq hv
-      have h₄ := Nat.mul_le_mul hq hwk
-      have : (g.size - w.size + 1) * (4 * k) = (g.size - w.size + 1) * k +
-          (g.size - w.size + 1) * k + (g.size - w.size + 1) * k + (g.size - w.size + 1) * k := by
-        ring
-      omega
+      simp only [school_divMod, school_mul]; cost_bound
     have hmax : max w.size (g - q * w).size = w.size :=
       max_eq_left (Nat.size_le_size hmod.le)
     cost_unfold extEuclidLoop.counted
@@ -406,14 +397,11 @@ inputs (`CofactorInv`), and the quotient bits telescope as in Exercise 2.6. -/
     simp only [q] at *
     rw [hmax] at ih
     rw [hsteps]
-    have : g.size - w.size + w.size ≤ max g.size w.size := by
-      rcases Nat.le_total g.size w.size with h | h
-      · rw [max_eq_right h]; omega
-      · rw [max_eq_left h]; omega
     have m₁ := max_le s₁ s₂
     have m₂ := max_le s₃ s₄
     have m₃ := max_le hgk s₅
-    have := Nat.mul_le_mul_left (4 * k) this
+    have := Nat.mul_le_mul_left (4 * k) (show g.size - w.size + w.size ≤ max g.size w.size by
+      omega)
     nlinarith
   | case2 a b g u v w hw =>
     cost_unfold extEuclidLoop.counted
