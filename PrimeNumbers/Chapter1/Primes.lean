@@ -1,5 +1,7 @@
-import Mathlib
 import Archive.Wiedijk100Theorems.PerfectNumbers
+import Mathlib.NumberTheory.Chebyshev
+import Mathlib.NumberTheory.LSeries.PrimesInAP
+import Mathlib.NumberTheory.Wilson
 
 /-!
 # Chapter 1 — Primes!

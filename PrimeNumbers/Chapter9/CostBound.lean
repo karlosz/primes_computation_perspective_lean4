@@ -1,4 +1,7 @@
 import PrimeNumbers.Chapter9.Counted
+import Lean.Elab.Tactic.Omega.Frontend
+import Mathlib.Data.Nat.Bits
+import Mathlib.Data.Nat.Log
 
 /-!
 # `cost_bound`: closing cost inequalities
@@ -1012,7 +1015,7 @@ partial def nf (env : Environment) (C : Option Expr) (e : Expr) : MetaM NF := do
   | _ => return #[(e, nfOne)]
 
 /-- A polynomial: monomials (atoms with exponents, sorted) with numeral coefficients. -/
-abbrev Poly := Array (Nat × Array (Expr × Nat))
+abbrev PolyNF := Array (Nat × Array (Expr × Nat))
 
 def monoMul (a b : Array (Expr × Nat)) : Array (Expr × Nat) :=
   let r := b.foldl (fun acc (x, k) =>
@@ -1021,17 +1024,17 @@ def monoMul (a b : Array (Expr × Nat)) : Array (Expr × Nat) :=
     | none => acc.push (x, k)) a
   r.qsort fun p q => p.1.lt q.1
 
-def polyAdd (a b : Poly) : Poly :=
+def polyAdd (a b : PolyNF) : PolyNF :=
   b.foldl (fun acc (k, m) =>
     match acc.findIdx? (·.2 == m) with
     | some i => acc.modify i fun (j, m) => (j + k, m)
     | none => acc.push (k, m)) a
 
-def polyMul (a b : Poly) : Poly :=
+def polyMul (a b : PolyNF) : PolyNF :=
   a.foldl (fun acc (k, m) => b.foldl (fun acc (j, n) => polyAdd acc #[(k * j, monoMul m n)]) acc) #[]
 
 /-- The polynomial of an expression (other subterms are atoms). -/
-partial def poly (e : Expr) : Poly :=
+partial def poly (e : Expr) : PolyNF :=
   if let some k := e.nat? then (if k == 0 then #[] else #[(k, #[])]) else
   match e.getAppFnArgs with
   | (``HAdd.hAdd, #[_, _, _, _, a, b]) => polyAdd (poly a) (poly b)
@@ -1043,7 +1046,7 @@ partial def poly (e : Expr) : Poly :=
   | _ => #[(1, #[(e, 1)])]
 
 /-- The expression of a polynomial: `Σ k * x₁ ^ e₁ * ⋯`. -/
-def polyExpr (p : Poly) : MetaM Expr := do
+def polyExpr (p : PolyNF) : MetaM Expr := do
   let mut r : Option Expr := none
   for (k, m) in p do
     let t ← if m.isEmpty then pure (mkNatLit k) else do
@@ -1119,13 +1122,13 @@ def maxFlow (a b : Array Nat) (ok : Array (Array Bool)) : Option (Array (Array N
 
 /-- Compare `P ≤ Q` (polynomials `p`, `q`) group by group of their monomials' scale variables
 (the atoms no fact mentions): `P = Σ m Pₘ`, `Q = Σ m Qₘ` and `Pₘ ≤ Qₘ`. -/
-def scaleGroups (p q : Poly) (P Q : Expr) : FactM (Option Expr) := do
+def scaleGroups (p q : PolyNF) (P Q : Expr) : FactM (Option Expr) := do
   let factAtoms := ((← ctxHyps) ++ (← get).facts).foldl (fun acc f => acc ++ f.atoms) #[]
   -- (an atom is free when no fact mentions any of its parts)
   let free (x : Expr) : Bool := (varsOf x).all (!factAtoms.contains ·)
   let split (m : Array (Expr × Nat)) : Array (Expr × Nat) × Array (Expr × Nat) :=
     (m.filter (free ·.1), m.filter (!free ·.1))
-  let mut groups : Array (Array (Expr × Nat) × Poly × Poly) := #[]
+  let mut groups : Array (Array (Expr × Nat) × PolyNF × PolyNF) := #[]
   for (k, m) in p do
     let (v, r) := split m
     match groups.findIdx? (·.1 == v) with
@@ -1486,9 +1489,8 @@ elab "cost_bound?" : tactic => costBound true
 A running time `O(g)` here is *uniform*: one constant for all inputs (and all cost models,
 when the model is among them) — `∀ᴼ (x : α) …, P x → f x ≤ O(g x)` is
 `∃ c, ∀ (x : α) …, P x → f x ≤ c * g x`.  The constant is derived, not stated: `cost_O`
-finds it.  `isBigO_of_uniform` turns such a bound into Mathlib's `f =O[atTop] g`, for the
-statements in the book's asymptotic form (with `size_isBigO_log`: bit lengths are
-`O(log n)`). -/
+finds it.  (`isBigO_of_uniform` in `Chapter3/ProbablePrime.lean` turns such a bound into
+Mathlib's `f =O[atTop] g`.) -/
 
 /-- `O(t)` in a uniform bound `∀ᴼ …, …`: the constant of the bound times `t`. -/
 syntax (name := bigOTerm) "O(" term ")" : term
@@ -1506,31 +1508,6 @@ macro_rules (kind := uniformO)
 
 @[term_elab bigOTerm] def elabBigOTerm : Term.TermElab := fun _ _ =>
   throwError "`O(…)` outside a uniform bound `∀ᴼ …, …`"
-
-open Asymptotics Filter in
-/-- A uniform bound `f n ≤ c g n` (for large `n`) is a big-O in Mathlib's sense. -/
-theorem isBigO_of_uniform {f g : ℕ → ℕ} (c : ℕ) (h : ∀ᶠ n in atTop, f n ≤ c * g n) :
-    (fun n ↦ (f n : ℝ)) =O[atTop] fun n ↦ (g n : ℝ) :=
-  IsBigO.of_bound c (h.mono fun n hn ↦ by
-    simp only [Real.norm_natCast]; exact_mod_cast hn)
-
-open Asymptotics Filter in
-/-- The bit length is `O(log n)`. -/
-theorem size_isBigO_log : (fun n : ℕ ↦ (n.size : ℝ)) =O[atTop] fun n ↦ Real.log n := by
-  refine IsBigO.of_bound 4 ?_
-  filter_upwards [eventually_ge_atTop 2] with n hn
-  have hpos : 0 < n.size := Nat.size_pos.mpr (by omega)
-  have h₁ : 2 ^ (n.size - 1) ≤ n := Nat.lt_size.mp (by omega)
-  have hl2 : (0 : ℝ) < Real.log 2 := Real.log_pos (by norm_num)
-  have hl2' : 1 / 2 < Real.log 2 := by have := Real.log_two_gt_d9; linarith
-  have h₂ : ((n.size - 1 : ℕ) : ℝ) * Real.log 2 ≤ Real.log n := by
-    rw [← Real.log_pow]; exact Real.log_le_log (by positivity) (by exact_mod_cast h₁)
-  have h₃ : Real.log 2 ≤ Real.log n := Real.log_le_log (by norm_num) (by exact_mod_cast hn)
-  have hln : 0 ≤ Real.log n := le_trans hl2.le h₃
-  rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg hln]
-  have : (n.size : ℝ) = ((n.size - 1 : ℕ) : ℝ) + 1 := by rw [Nat.cast_sub (by omega)]; ring
-  rw [this]
-  nlinarith
 
 namespace CostFacts
 

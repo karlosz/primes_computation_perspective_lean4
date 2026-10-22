@@ -1,4 +1,5 @@
 import PrimeNumbers.Chapter2.Poly
+import Mathlib.Algebra.Polynomial.FieldDivision
 
 /-!
 # §2.2.1 Greatest common divisor for polynomials

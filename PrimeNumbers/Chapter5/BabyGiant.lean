@@ -2,6 +2,8 @@ import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.IntSqrt
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §5.3 Baby-steps, giant-steps

@@ -1,5 +1,8 @@
 import PrimeNumbers.Chapter9.Nussbaumer
 import PrimeNumbers.Chapter9.NussModel
+import Mathlib.Algebra.Order.SuccPred
+import Mathlib.Algebra.Polynomial.Basic
+import Mathlib.Data.Nat.Size
 
 /-!
 # Running time of Nussbaumer convolution and multiplication (Algorithm 9.5.25)
@@ -475,6 +478,14 @@ remainder of indices per entry. -/
   simp only [List.length_range] at hsum₂
   cost_bound
 
+/-- A transform at one level of the recursion, in the recursion's units: `2^l` vectors of
+length `m` with `2^l m = 2N`, entries of at most `G - l - 70` bits. -/
+theorem fft_level {l m N β G c : ℕ} (hN : 2 ^ l * m = 2 * N) (hG : β + l + 70 ≤ G)
+    (h : c ≤ 2 ^ l * (l * m * (β + l + 70) + 5)) : c ≤ 2 * (N * G * l) + 5 * 2 ^ l := by
+  have := Nat.mul_le_mul_left (2 ^ l * m * l) hG
+  have e : 2 ^ l * m * (l * G) = 2 * N * (l * G) := by rw [hN]
+  linarith
+
 /-- The arithmetic of the recursion: what one level costs, beyond its `2r` half-size
 products, fits in the slack of `2k² + 1` over `2 (2k₁² + 1)`. -/
 theorem nussbaumer_cost_step {k₁ k₂ N G : ℕ} (h : k₁ = k₂ ∨ k₁ = k₂ + 1) (hk₂ : 1 ≤ k₂)
@@ -516,7 +527,6 @@ set_option maxHeartbeats 4000000 in
   intro β γ a b ha hb hab hbb hγ
   by_cases hk : k ≤ 2
   · have h := ncSchool_cost_le ha hb hab hbb
-    have hks : k.size ≤ 2 := Nat.size_le.2 (by omega)
     cost_unfold nussbaumer.counted
     simp only [hk, ↓reduceIte, Nat.size_pow, show Nat.size 2 = 2 by decide]
     interval_cases k <;> simp only [show Nat.size 2 = 2 by decide, show Nat.size 1 = 1 by decide,
@@ -550,7 +560,6 @@ set_option maxHeartbeats 4000000 in
   have hr1 : 1 ≤ r := Nat.one_le_two_pow
   have hrm₁ : r ≤ m₁ := Nat.pow_le_pow_right (by norm_num) hle
   have hL : 2 ^ (k₂ + 1) = r + r := by rw [pow_succ]; ring
-  have hβ₁ : β + k₂ + 1 + 2 * k₁ ≤ γ := by omega
   -- the blocks
   have cBa := blocks_cost_le (K := k) (a := a) hrm ha
   have cBb := blocks_cost_le (K := k) (a := b) hrm hb
@@ -613,11 +622,9 @@ set_option maxHeartbeats 4000000 in
   have hβ₂ : β₂ + (k₂ + 1) + 70 ≤ 2 * G := by omega
   have hz : ((2 : ℤ) ^ (k₂ + 1)).natAbs.size = k₂ + 2 := by
     rw [Int.natAbs_pow]; simp [Nat.size_pow]
-  have cMap : (List.map (fun a => a.length + 1 + (List.map (fun a => max k₂.size 1 + 1 +
-      ((2 ^ (k₂ + 1)).size + 1 + (max a.natAbs.size ((2 : ℤ) ^ (k₂ + 1)).natAbs.size + 1))) a).sum)
-      Cf).sum ≤ 2 ^ (k₂ + 1) * (m₁ * (3 * G) + 1) := by
-    have := sum_map_le_length_mul Cf (fun a => a.length + 1 + (List.map (fun a => max k₂.size 1 + 1 +
-      ((2 ^ (k₂ + 1)).size + 1 + (max a.natAbs.size ((2 : ℤ) ^ (k₂ + 1)).natAbs.size + 1))) a).sum)
+  have cMap := sum_map_le_length_mul Cf (fun a => a.length + 1 + (List.map (fun a =>
+      max k₂.size 1 + 1 + ((2 ^ (k₂ + 1)).size + 1 +
+        (max a.natAbs.size ((2 : ℤ) ^ (k₂ + 1)).natAbs.size + 1))) a).sum)
       (s := m₁ * (3 * G) + 1) fun v hv ↦ by
         have hin := sum_map_le_length_mul v (fun a : ℤ => max k₂.size 1 + 1 +
           ((2 ^ (k₂ + 1)).size + 1 + (max a.natAbs.size ((2 : ℤ) ^ (k₂ + 1)).natAbs.size + 1)))
@@ -629,19 +636,12 @@ set_option maxHeartbeats 4000000 in
           rw [Nat.mul_sub, mul_one]; have : m₁ ≤ m₁ * (3 * G) := Nat.le_mul_of_pos_right _ (by omega)
           omega
         omega
-    rwa [lC] at this
+  rw [lC] at cMap
   generalize Cf.map (fun v ↦ v.map (· / 2 ^ (k₂ + 1))) = C at vCd lCd ⊢
   rw [lCd]
   -- the folding
-  have hk₂r : (k₂ + 1) ≤ G := by omega
-  have cD : (List.map (fun a => min a (2 ^ (k₂ + 1)) + 1 + (m₁.size + 1 + (r.size + 1 +
-      (max a.size r.size + 1 + (min (a + r) (2 ^ (k₂ + 1)) + 1 +
-        (costOf school (rot m₁ 1 (C.getD (a + r) (List.replicate m₁ 0))) +
-          costOf school (vadd (C.getD a (List.replicate m₁ 0))
-            (rot m₁ 1 (C.getD (a + r) (List.replicate m₁ 0)))))))))) (List.range r)).sum ≤
-      r * (m₁ * (5 * G)) := by
-    have := sum_map_le_length_mul (List.range r) (fun a => min a (2 ^ (k₂ + 1)) + 1 + (m₁.size + 1 +
-      (r.size + 1 + (max a.size r.size + 1 + (min (a + r) (2 ^ (k₂ + 1)) + 1 +
+  have cD := sum_map_le_length_mul (List.range r) (fun a => min a (2 ^ (k₂ + 1)) + 1 +
+      (m₁.size + 1 + (r.size + 1 + (max a.size r.size + 1 + (min (a + r) (2 ^ (k₂ + 1)) + 1 +
         (costOf school (rot m₁ 1 (C.getD (a + r) (List.replicate m₁ 0))) +
           costOf school (vadd (C.getD a (List.replicate m₁ 0))
             (rot m₁ 1 (C.getD (a + r) (List.replicate m₁ 0)))))))))) (s := m₁ * (5 * G))
@@ -666,7 +666,7 @@ set_option maxHeartbeats 4000000 in
         have a₄ : r ≤ m₁ := hrm₁
         clear * - h₁ h₂ t₁ u₁ u₂ u₃ a₁ a₂ a₃ a₄
         linarith
-    simpa using this
+  rw [List.length_range] at cD
   have lD : (List.map (fun j ↦ vadd (C.getD j (List.replicate m₁ 0))
       (rot m₁ 1 (C.getD (j + r) (List.replicate m₁ 0)))) (List.range r)).length = r := by simp
   have vD : ∀ v ∈ List.map (fun j ↦ vadd (C.getD j (List.replicate m₁ 0))
@@ -675,7 +675,7 @@ set_option maxHeartbeats 4000000 in
     obtain ⟨j, -, rfl⟩ := List.mem_map.1 hv
     rw [length_vadd (by rw [(vCd j).1, length_rot (vCd (j + r)).1 (by omega)]), (vCd j).1]
   have cU := unblock_cost_le (K := k) hrm lD vD
-  -- adding up, in terms of `Y = N G (k₂ + 1)` and the products' `X`
+  -- adding up, in terms of `Y = N G (k₂ + 1)`
   have hN1 : 1 ≤ N := Nat.one_le_two_pow
   have hG72 : 72 ≤ G := by omega
   have hkG : k + 3 ≤ G := by omega
@@ -686,85 +686,19 @@ set_option maxHeartbeats 4000000 in
   have hrN : r ≤ N := by rw [← hrm]; exact Nat.le_mul_of_pos_right _ (by omega)
   have hm₁N : m₁ ≤ N := by rw [← hrm]; exact Nat.le_mul_of_pos_left _ (by omega)
   have hH : 2 ^ (k₂ + 1) ≤ 2 * N := by rw [hL]; omega
-  have fA : costOf school (fft m₁ e A) ≤ 2 * Y + 10 * N := by
-    have e₁ : 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β + (k₂ + 1) + 70) + 5) =
-        2 * N * (k₂ + 1) * (β + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) := by
-      rw [show 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β + (k₂ + 1) + 70) + 5) =
-        2 ^ (k₂ + 1) * m₁ * (k₂ + 1) * (β + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) by ring, hLm]
-    have e₂ : 2 * N * (k₂ + 1) * (β + (k₂ + 1) + 70) ≤ 2 * N * (k₂ + 1) * G :=
-      Nat.mul_le_mul_left _ (by omega)
-    have e₃ : 2 * N * (k₂ + 1) * G = 2 * Y := by rw [hY]; ring
-    linarith
-  have fB : costOf school (fft m₁ e B) ≤ 2 * Y + 10 * N := by
-    have e₁ : 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β + (k₂ + 1) + 70) + 5) =
-        2 * N * (k₂ + 1) * (β + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) := by
-      rw [show 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β + (k₂ + 1) + 70) + 5) =
-        2 ^ (k₂ + 1) * m₁ * (k₂ + 1) * (β + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) by ring, hLm]
-    have e₂ : 2 * N * (k₂ + 1) * (β + (k₂ + 1) + 70) ≤ 2 * N * (k₂ + 1) * G :=
-      Nat.mul_le_mul_left _ (by omega)
-    have e₃ : 2 * N * (k₂ + 1) * G = 2 * Y := by rw [hY]; ring
-    linarith
-  have fC : costOf school (fft m₁ (2 * m₁ - e) P) ≤ 4 * Y + 10 * N := by
-    have e₁ : 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β₂ + (k₂ + 1) + 70) + 5) =
-        2 * N * (k₂ + 1) * (β₂ + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) := by
-      rw [show 2 ^ (k₂ + 1) * ((k₂ + 1) * m₁ * (β₂ + (k₂ + 1) + 70) + 5) =
-        2 ^ (k₂ + 1) * m₁ * (k₂ + 1) * (β₂ + (k₂ + 1) + 70) + 5 * 2 ^ (k₂ + 1) by ring, hLm]
-    have e₂ : 2 * N * (k₂ + 1) * (β₂ + (k₂ + 1) + 70) ≤ 2 * N * (k₂ + 1) * (2 * G) :=
-      Nat.mul_le_mul_left _ hβ₂
-    have e₃ : 2 * N * (k₂ + 1) * (2 * G) = 4 * Y := by rw [hY]; ring
-    linarith
-  have fP : (List.zipWith (fun a b => costOf school (nussbaumer k₁ a b)) FA FB).sum ≤
-      2 * (N * (2 * k₁ ^ 2 + 1) * (8 * G ^ 2)) := by
-    rw [lFA] at cP
-    refine cP.trans (le_of_eq ?_)
-    rw [show 2 ^ (k₂ + 1) * (m₁ * (2 * k₁ ^ 2 + 1) * (8 * G ^ 2)) =
-      2 ^ (k₂ + 1) * m₁ * ((2 * k₁ ^ 2 + 1) * (8 * G ^ 2)) by ring, hLm]; ring
-  have fM : (List.map (fun a => a.length + 1 + (List.map (fun a => max k₂.size 1 + 1 +
-      ((2 ^ (k₂ + 1)).size + 1 + (max a.natAbs.size ((2 : ℤ) ^ (k₂ + 1)).natAbs.size + 1))) a).sum)
-      Cf).sum ≤ 6 * (N * G) + 2 * N := by
-    have : 2 ^ (k₂ + 1) * (m₁ * (3 * G) + 1) = 3 * G * (2 ^ (k₂ + 1) * m₁) + 2 ^ (k₂ + 1) := by
-      ring
-    rw [this, hLm] at cMap; linarith
-  have fD := cD
-  rw [show r * (m₁ * (5 * G)) = r * m₁ * (5 * G) by ring, hrm] at fD
+  have fA := fft_level hLm (show β + (k₂ + 1) + 70 ≤ G by omega) cFA
+  have fB := fft_level hLm (show β + (k₂ + 1) + 70 ≤ G by omega) cFB
+  have fC := fft_level (G := 2 * G) hLm hβ₂ cC
+  rw [lFA] at cP
+  have eP : 2 ^ (k₂ + 1) * m₁ * ((2 * k₁ ^ 2 + 1) * (8 * G ^ 2)) =
+      2 * N * ((2 * k₁ ^ 2 + 1) * (8 * G ^ 2)) := by rw [hLm]
+  have eM : 2 ^ (k₂ + 1) * m₁ * (3 * G) = 2 * N * (3 * G) := by rw [hLm]
+  have eD : r * m₁ * (5 * G) = N * (5 * G) := by rw [hrm]
   rw [← hN] at cBa cBb cU
-  have fBa : costOf school (blocks r m₁ a) ≤ 2 * Y + N * G + 4 := by
-    have : N * ((k + 1) ^ 2 + k + 9) ≤ N * ((k + 1) * G) + N * G := by
-      have : (k + 1) ^ 2 ≤ (k + 1) * G := by rw [sq]; exact Nat.mul_le_mul_left _ (by omega)
-      have : N * (k + 1) ^ 2 ≤ N * ((k + 1) * G) := Nat.mul_le_mul_left _ this
-      have : N * (k + 9) ≤ N * G := Nat.mul_le_mul_left _ (by omega)
-      rw [show N * ((k + 1) ^ 2 + k + 9) = N * (k + 1) ^ 2 + N * (k + 9) by ring]
-      omega
-    have : N * ((k + 1) * G) ≤ 2 * Y := by
-      rw [hY, show N * ((k + 1) * G) = N * G * (k + 1) by ring]
-      have := Nat.mul_le_mul_left (N * G) (show k + 1 ≤ 2 * (k₂ + 1) by omega)
-      rw [show N * G * (2 * (k₂ + 1)) = 2 * (N * G * (k₂ + 1)) by ring] at this; omega
-    omega
-  have fBb : costOf school (blocks r m₁ b) ≤ 2 * Y + N * G + 4 := by
-    have : N * ((k + 1) ^ 2 + k + 9) ≤ N * ((k + 1) * G) + N * G := by
-      have : (k + 1) ^ 2 ≤ (k + 1) * G := by rw [sq]; exact Nat.mul_le_mul_left _ (by omega)
-      have : N * (k + 1) ^ 2 ≤ N * ((k + 1) * G) := Nat.mul_le_mul_left _ this
-      have : N * (k + 9) ≤ N * G := Nat.mul_le_mul_left _ (by omega)
-      rw [show N * ((k + 1) ^ 2 + k + 9) = N * (k + 1) ^ 2 + N * (k + 9) by ring]
-      omega
-    have : N * ((k + 1) * G) ≤ 2 * Y := by
-      rw [hY, show N * ((k + 1) * G) = N * G * (k + 1) by ring]
-      have := Nat.mul_le_mul_left (N * G) (show k + 1 ≤ 2 * (k₂ + 1) by omega)
-      rw [show N * G * (2 * (k₂ + 1)) = 2 * (N * G * (k₂ + 1)) by ring] at this; omega
-    omega
-  have fU : costOf school (unblock r N (List.map (fun j ↦ vadd (C.getD j (List.replicate m₁ 0))
-      (rot m₁ 1 (C.getD (j + r) (List.replicate m₁ 0)))) (List.range r))) ≤ 4 * Y + N * G + 5 := by
-    have : N * (2 * (k + 1) ^ 2 + 8) ≤ 2 * (N * ((k + 1) * G)) + N * G := by
-      have : (k + 1) ^ 2 ≤ (k + 1) * G := by rw [sq]; exact Nat.mul_le_mul_left _ (by omega)
-      have : N * (k + 1) ^ 2 ≤ N * ((k + 1) * G) := Nat.mul_le_mul_left _ this
-      have : N * 8 ≤ N * G := Nat.mul_le_mul_left _ (by omega)
-      rw [show N * (2 * (k + 1) ^ 2 + 8) = 2 * (N * (k + 1) ^ 2) + N * 8 by ring]
-      omega
-    have : N * ((k + 1) * G) ≤ 2 * Y := by
-      rw [hY, show N * ((k + 1) * G) = N * G * (k + 1) by ring]
-      have := Nat.mul_le_mul_left (N * G) (show k + 1 ≤ 2 * (k₂ + 1) by omega)
-      rw [show N * G * (2 * (k₂ + 1)) = 2 * (N * G * (k₂ + 1)) by ring] at this; omega
-    omega
+  -- the blocks: `(k + 1)² + k + 9 ≤ (k + 1) G + G` and `k + 1 ≤ 2 (k₂ + 1)`
+  have b₁ := Nat.mul_le_mul_left (N * (k + 1)) (show k + 1 ≤ G by omega)
+  have b₂ := Nat.mul_le_mul_left N (show k + 9 ≤ G by omega)
+  have b₃ := Nat.mul_le_mul_left (N * G) (show k + 1 ≤ 2 * (k₂ + 1) by omega)
   have step := nussbaumer_cost_step (N := N) (G := G)
     (or_iff_not_imp_left.2 fun h ↦ by omega : k₁ = k₂ ∨ k₁ = k₂ + 1) hk₂1 hG72
   rw [← hkk] at step
@@ -775,7 +709,7 @@ set_option maxHeartbeats 4000000 in
   have hes' : e.size ≤ k₁ + 2 := by
     have := Nat.size_le_size hes; rwa [h2s] at this
   rw [hm₁s, hrs, hNs, h2s, show Nat.size 2 = 2 by decide, List.length_range]
-  rw [hm₁s, hrs] at fD
+  rw [hm₁s, hrs] at cD
   have v₁ : min k.size 2 ≤ 2 := min_le_right _ _
   have v₂ : max k.size 1 ≤ k := by omega
   have v₃ : max (k + 1).size 2 ≤ k + 1 := by omega
@@ -784,8 +718,9 @@ set_option maxHeartbeats 4000000 in
   have v₆ : max 2 (k₁ + 1) ≤ k + 1 := by omega
   have v₇ : max (k₁ + 2) e.size ≤ k + 1 := by omega
   clear_value Y G β₂ m₁ r N
-  linarith only [fA, fB, fC, fP, fM, fD, fBa, fBb, fU, step, v₁, v₂, v₃, v₄, v₅, v₆, v₇, hes',
-    hrN, hm₁N, hN1, hNG, hN72, hGN, hH, hkG, hk₁s, hk₂s, hks, hk1s, hrm₁, hr1, hm₁pos, hY, hG72, hkk, hle, hk₂1]
+  linarith only [fA, fB, fC, cP, eP, cMap, eM, cD, eD, cBa, cBb, cU, b₁, b₂, b₃, step, v₁, v₂,
+    v₃, v₄, v₅, v₆, v₇, hes', hrN, hm₁N, hN1, hNG, hN72, hGN, hH, hkG, hk₁s, hk₂s, hks, hk1s,
+    hrm₁, hr1, hm₁pos, hY, hG72, hkk, hle, hk₂1]
 
 theorem ofBits_bound : ∀ l : List ℤ, (∀ d ∈ l, 0 ≤ d ∧ d ≤ 1) →
     0 ≤ ofBits l ∧ ofBits l < 2 ^ l.length

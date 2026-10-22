@@ -1,5 +1,9 @@
 import PrimeNumbers.Chapter9.Newton
 import PrimeNumbers.Chapter9.Multipoint
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Data.List.GetD
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Nat.Size
 
 /-!
 # §9.6.4 Fast polynomial remainder

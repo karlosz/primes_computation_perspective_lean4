@@ -1,6 +1,11 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
+import Mathlib.Algebra.Order.SuccPred
+import Mathlib.Data.Fintype.Pigeonhole
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Nat.ModEq
+import Mathlib.Data.Nat.Size
 
 /-!
 # §5.2.1 Pollard rho method for factoring

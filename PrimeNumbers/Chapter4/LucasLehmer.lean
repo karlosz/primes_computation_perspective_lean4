@@ -1,6 +1,7 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
-import Mathlib
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.LucasLehmer
 
 /-!
 # §4.2 The `n + 1` test: Lucas–Lehmer

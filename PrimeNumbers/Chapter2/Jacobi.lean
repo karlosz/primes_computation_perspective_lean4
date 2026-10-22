@@ -1,6 +1,7 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
-import Mathlib
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.LegendreSymbol.JacobiSymbol
 
 /-!
 # §2.3.1 Quadratic residues

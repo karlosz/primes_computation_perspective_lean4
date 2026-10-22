@@ -1,5 +1,9 @@
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter9.CostAttr
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Order.BigOperators.Group.List
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Defs
 
 /-!
 # Costs derived from the code: the counting monad

@@ -1,4 +1,5 @@
 import PrimeNumbers.Chapter2.SquareRoot
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §2.3.4 Representation by quadratic forms

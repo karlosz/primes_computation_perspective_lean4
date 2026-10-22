@@ -1,4 +1,7 @@
 import PrimeNumbers.Chapter9.FastMultipoint
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # Running time of fast multipoint evaluation over `Z_n` (Algorithms 9.6.1–9.6.7)

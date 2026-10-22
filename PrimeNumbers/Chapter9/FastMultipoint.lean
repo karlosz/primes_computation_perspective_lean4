@@ -1,4 +1,8 @@
 import PrimeNumbers.Chapter9.FastMod
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Data.List.GetD
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Defs
 
 /-!
 # Algorithm 9.6.7 with fast multiplication and fast remainder

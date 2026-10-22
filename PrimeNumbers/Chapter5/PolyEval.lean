@@ -4,6 +4,9 @@ import PrimeNumbers.Chapter5.Lehman
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter9.FastMultipointCost
 import PrimeNumbers.Chapter9.NussModel
+import Mathlib.Algebra.Polynomial.Eval.Defs
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §5.5 Polynomial evaluation method (Pollard–Strassen)

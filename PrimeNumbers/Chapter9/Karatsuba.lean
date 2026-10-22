@@ -1,4 +1,5 @@
 import PrimeNumbers.Chapter9.BitCost
+import Mathlib.Data.Nat.Log
 
 /-!
 # §9.5.1 Karatsuba multiplication, and a sub-quadratic cost model

@@ -1,4 +1,7 @@
 import PrimeNumbers.Chapter9.CountedDef
+import Mathlib.Algebra.Order.SuccPred
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Nat.Size
 
 /-!
 # Counted versions of library functions

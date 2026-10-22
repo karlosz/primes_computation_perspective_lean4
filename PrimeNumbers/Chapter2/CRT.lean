@@ -1,5 +1,10 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter2.Euclid
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.List
+import Mathlib.Data.Nat.GCD.BigOperators
+import Mathlib.Data.ZMod.Basic
+import Mathlib.RingTheory.Coprime.Lemmas
 
 /-!
 # §2.1.3 Chinese remainder theorem

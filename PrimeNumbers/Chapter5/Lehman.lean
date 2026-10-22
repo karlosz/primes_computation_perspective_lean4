@@ -1,6 +1,9 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter5.Fermat
 import PrimeNumbers.Chapter2.Euclid
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.DiophantineApproximation.Basic
 
 /-!
 # §5.1.2 Lehman method

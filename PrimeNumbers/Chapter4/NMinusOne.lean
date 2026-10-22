@@ -5,6 +5,8 @@ import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.Fermat
 
 /-!
 # §4.1 The `n - 1` test

@@ -1,5 +1,8 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter2.Poly
+import Mathlib.Data.List.GetD
+import Mathlib.Data.Nat.Size
+import Mathlib.RingTheory.AdjoinRoot
 
 /-!
 # §9.5.8 Nussbaumer convolution (Algorithm 9.5.25) and quasi-linear multiplication

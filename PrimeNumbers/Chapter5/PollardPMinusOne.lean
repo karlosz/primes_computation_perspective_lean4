@@ -3,6 +3,8 @@ import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter3.Sieve
+import Mathlib.Data.Nat.Size
+import Mathlib.FieldTheory.Finite.Basic
 
 /-!
 # §5.4 Pollard `p - 1` method

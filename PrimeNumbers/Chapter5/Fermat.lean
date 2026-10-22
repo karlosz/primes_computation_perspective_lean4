@@ -1,6 +1,7 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.IntSqrt
-import Mathlib
+import Mathlib.Data.Nat.Prime.Basic
+import Mathlib.Data.Nat.Size
 
 /-!
 # §5.1.1 Fermat method

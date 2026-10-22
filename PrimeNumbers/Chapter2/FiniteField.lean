@@ -1,5 +1,6 @@
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.PolyGcd
+import Mathlib.FieldTheory.Finite.Extension
 
 /-!
 # §2.2.2 Finite fields

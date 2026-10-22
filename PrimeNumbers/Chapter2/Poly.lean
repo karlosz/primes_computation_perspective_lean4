@@ -1,5 +1,6 @@
 import PrimeNumbers.Chapter9.CountedLib
-import Mathlib
+import Mathlib.Algebra.Polynomial.FieldDivision
+import Mathlib.Data.List.GetD
 
 /-!
 # §2.2.1 Computable polynomial arithmetic

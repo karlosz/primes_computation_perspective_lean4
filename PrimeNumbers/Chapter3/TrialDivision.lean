@@ -1,6 +1,8 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
-import Mathlib
+import Mathlib.Data.Nat.Factors
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Nat.Size
 
 /-!
 # §3.1 Trial division

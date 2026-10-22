@@ -1,4 +1,8 @@
 import PrimeNumbers.Chapter2.Euclid
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Algebra.Polynomial.Identities
+import Mathlib.Data.Int.ModEq
+import Mathlib.RingTheory.Coprime.Lemmas
 
 /-!
 # §2.3.3 Finding polynomial roots: Hensel lifting

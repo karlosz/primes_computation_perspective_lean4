@@ -1,4 +1,6 @@
 import PrimeNumbers.Chapter9.BitCost
+import Mathlib.Data.Nat.Size
+import Mathlib.Order.MinMax
 
 /-!
 # A quasi-linear cost model

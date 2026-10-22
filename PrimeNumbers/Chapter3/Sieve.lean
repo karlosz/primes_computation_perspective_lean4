@@ -1,5 +1,9 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Assumed
+import Mathlib.Analysis.SpecialFunctions.Gamma.Digamma
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.Harmonic.Bounds
+import Mathlib.NumberTheory.PrimeCounting
 
 /-!
 # §3.2 Sieving: the sieve of Eratosthenes

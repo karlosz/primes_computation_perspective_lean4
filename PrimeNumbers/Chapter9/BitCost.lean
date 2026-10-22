@@ -1,4 +1,18 @@
-import Mathlib
+import Mathlib.Algebra.Order.Ring.Star
+import Mathlib.Data.Finset.Lattice.Fold
+import Mathlib.Data.Int.Star
+import Mathlib.Data.Nat.Log
+import Mathlib.Data.Nat.Size
+import Mathlib.Order.Lattice.Nat
+import Mathlib.Tactic.Common
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.GCongr
+import Mathlib.Tactic.IntervalCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.LinearCombination
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-!
 # §9.1 Bit complexity: the cost model

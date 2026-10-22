@@ -1,4 +1,6 @@
 import PrimeNumbers.Chapter9.CountedLib
+import Mathlib.Algebra.Order.SuccPred
+import Mathlib.Data.Nat.Size
 
 /-!
 # §9.2.2 Integer square root by Newton's method

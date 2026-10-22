@@ -2,6 +2,8 @@ import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter2.Euclid
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter5.PollardRho
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §5.2.2 Pollard rho method for discrete logarithms

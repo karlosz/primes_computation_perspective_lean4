@@ -1,5 +1,9 @@
 import PrimeNumbers.Chapter2.Poly
 import PrimeNumbers.Chapter9.BitCost
+import Mathlib.Algebra.Polynomial.Eval.Defs
+import Mathlib.Data.Nat.Digits.Defs
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §9.6.1 Fast polynomial multiplication: binary segmentation

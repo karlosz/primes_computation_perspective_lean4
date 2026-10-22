@@ -2,6 +2,9 @@ import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.Jacobi
+import Mathlib.Algebra.QuadraticAlgebra.Basic
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.LegendreSymbol.QuadraticReciprocity
 
 /-!
 # §2.3.2 Square roots

@@ -1,6 +1,9 @@
 import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
-import Mathlib
+import Mathlib.Algebra.EuclideanDomain.Defs
+import Mathlib.Data.Nat.Fib.Basic
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # §2.1.1 Greatest common divisor and inverse

@@ -1,4 +1,7 @@
 import PrimeNumbers.Chapter9.FastMul
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Data.Nat.Size
+import Mathlib.Data.ZMod.Defs
 
 /-!
 # §9.6.2 Fast polynomial inversion (Newton iteration)

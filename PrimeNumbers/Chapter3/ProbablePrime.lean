@@ -2,6 +2,9 @@ import PrimeNumbers.Chapter9.CountedLib
 import PrimeNumbers.Chapter9.BitCost
 import PrimeNumbers.Chapter2.Power
 import PrimeNumbers.Chapter2.SquareRoot
+import Mathlib.Analysis.Complex.ExponentialBounds
+import Mathlib.Data.Nat.Size
+import Mathlib.NumberTheory.CarmichaelNumber
 
 /-!
 # §3.4 Pseudoprimes and §3.5 Probable primes and witnesses
@@ -288,6 +291,31 @@ theorem probablePrimeCost_school : ∀ᴼ (n a : ℕ), a < n →
 theorem strongProbablePrimeCost_school : ∀ᴼ (n a : ℕ), 1 < n → a < n →
     costOf school (strongProbablePrime n a) ≤ O(n.size ^ 3) := by
   cost_O
+
+open Asymptotics Filter in
+/-- A uniform bound `f n ≤ c g n` (for large `n`) is a big-O in Mathlib's sense. -/
+theorem isBigO_of_uniform {f g : ℕ → ℕ} (c : ℕ) (h : ∀ᶠ n in atTop, f n ≤ c * g n) :
+    (fun n ↦ (f n : ℝ)) =O[atTop] fun n ↦ (g n : ℝ) :=
+  IsBigO.of_bound c (h.mono fun n hn ↦ by
+    simp only [Real.norm_natCast]; exact_mod_cast hn)
+
+open Asymptotics Filter in
+/-- The bit length is `O(log n)`. -/
+theorem size_isBigO_log : (fun n : ℕ ↦ (n.size : ℝ)) =O[atTop] fun n ↦ Real.log n := by
+  refine IsBigO.of_bound 4 ?_
+  filter_upwards [eventually_ge_atTop 2] with n hn
+  have hpos : 0 < n.size := Nat.size_pos.mpr (by omega)
+  have h₁ : 2 ^ (n.size - 1) ≤ n := Nat.lt_size.mp (by omega)
+  have hl2 : (0 : ℝ) < Real.log 2 := Real.log_pos (by norm_num)
+  have hl2' : 1 / 2 < Real.log 2 := by have := Real.log_two_gt_d9; linarith
+  have h₂ : ((n.size - 1 : ℕ) : ℝ) * Real.log 2 ≤ Real.log n := by
+    rw [← Real.log_pow]; exact Real.log_le_log (by positivity) (by exact_mod_cast h₁)
+  have h₃ : Real.log 2 ≤ Real.log n := Real.log_le_log (by norm_num) (by exact_mod_cast hn)
+  have hln : 0 ≤ Real.log n := le_trans hl2.le h₃
+  rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg hln]
+  have : (n.size : ℝ) = ((n.size - 1 : ℕ) : ℝ) + 1 := by rw [Nat.cast_sub (by omega)]; ring
+  rw [this]
+  nlinarith
 
 open Asymptotics Filter in
 /-- **The book's form**: a strong probable prime test to a fixed base takes `O(ln³ n)` bit

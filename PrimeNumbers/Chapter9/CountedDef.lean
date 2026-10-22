@@ -56,23 +56,24 @@ open Lean Elab Command Term Meta
 /-- Library functions that are not free: a call of one of them in a `counted_def` must be
 charged through its counted version (e.g. `Nat.gcd.counted`, by Algorithm 2.1.2). -/
 private def notFree : List Name :=
-  [``Nat.gcd, ``Nat.lcm, ``Nat.sqrt, ``Int.gcd, ``Int.lcm, ``Nat.xgcd, ``Nat.gcdA, ``Nat.gcdB,
-   ``Int.sqrt, ``Nat.minFac, ``Nat.primeFactorsList, ``Nat.primeFactors, ``Nat.factorization,
-   ``Nat.divisors, ``Nat.factorial, ``Nat.choose, ``Nat.totient, ``Nat.Prime, ``Prime,
-   ``Squarefree, ``IsSquare, ``Nat.Coprime, ``Inv.inv, ``ZMod.inv, ``HDiv.hDiv, ``Nat.find,
-   ``List.prod, ``Multiset.prod, ``Finset.prod, ``Nat.pow, ``Nat.log, ``Nat.clog,
-   ``Array.setIfInBounds, ``Array.set!, ``Array.replicate, ``Array.set,
-   ``legendreSym, ``jacobiSym, ``orderOf]
+  [`Nat.gcd, `Nat.lcm, `Nat.sqrt, `Int.gcd, `Int.lcm, `Nat.xgcd, `Nat.gcdA, `Nat.gcdB,
+   `Int.sqrt, `Nat.minFac, `Nat.primeFactorsList, `Nat.primeFactors, `Nat.factorization,
+   `Nat.divisors, `Nat.factorial, `Nat.choose, `Nat.totient, `Nat.Prime, `Prime,
+   `Squarefree, `IsSquare, `Nat.Coprime, `Inv.inv, `ZMod.inv, `HDiv.hDiv, `Nat.find,
+   `List.prod, `Multiset.prod, `Finset.prod, `Nat.pow, `Nat.log, `Nat.clog,
+   `Array.setIfInBounds, `Array.set!, `Array.replicate, `Array.set,
+   `legendreSym, `jacobiSym, `orderOf]
 
 /-- Library functions that take constant time (one step, counted by the enclosing call): a
 call of any other library function needs a counted version. -/
 private def constTime : List Name :=
-  [``Prod.fst, ``Prod.snd, ``Prod.mk, ``Option.some, ``Option.none, ``Option.getD,
-   ``Option.isSome, ``Option.isNone, ``Option.get!, ``List.cons, ``List.nil, ``List.head?,
-   ``List.headD, ``List.head!, ``List.tail, ``List.isEmpty, ``not, ``and, ``or, ``xor, ``ite,
-   ``dite, ``decide, ``id, ``ZMod.val, ``Fin.val, ``Fin.mk, ``Subtype.val, ``OfNat.ofNat,
-   ``Inhabited.default, ``EmptyCollection.emptyCollection, ``Std.HashMap.emptyWithCapacity,
-   ``Array.empty, ``Array.mkEmpty, ``Bool.true, ``Bool.false, ``Int.ofNat, ``pure]
+  [`Prod.fst, `Prod.snd, `Prod.mk, `Option.some, `Option.none, `Option.getD,
+   `Option.isSome, `Option.isNone, `Option.get!, `List.cons, `List.nil, `List.head?,
+   `List.headD, `List.head!, `List.tail, `List.isEmpty, `Bool.not, `Bool.and, `Bool.or,
+   `Bool.xor, `ite, `dite, `Decidable.decide, `id, `ZMod.val, `Fin.val, `Fin.mk, `Subtype.val,
+   `OfNat.ofNat, `Inhabited.default, `EmptyCollection.emptyCollection,
+   `Std.HashMap.emptyWithCapacity, `Array.empty, `Array.mkEmpty, `Bool.true, `Bool.false,
+   `Int.ofNat, `Pure.pure]
 
 /-- Elaborate a call `g a₁ … aₖ`; if its head is a constant `g` with a counted version,
 return `g.counted` and the elaborated arguments.  A call that cannot be charged — of a

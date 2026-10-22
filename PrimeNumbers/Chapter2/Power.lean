@@ -1,5 +1,6 @@
 import PrimeNumbers.Chapter9.CountedLib
-import Mathlib
+import Mathlib.Data.Nat.Size
+import Mathlib.FieldTheory.Finite.Basic
 
 /-!
 # §2.1.2 Powers

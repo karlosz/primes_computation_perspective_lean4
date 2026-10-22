@@ -24,6 +24,7 @@ import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
 import PrimeNumbers.Chapter5.RhoLog
 import PrimeNumbers.Chapter5.PolyEval
+import Mathlib.Data.ZMod.Basic
 
 /-!
 # Running the algorithms

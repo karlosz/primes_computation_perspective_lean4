@@ -1,4 +1,6 @@
 import PrimeNumbers.Chapter2.Poly
+import Mathlib.Algebra.Polynomial.Div
+import Mathlib.Data.List.GetD
 
 /-!
 # §9.6 Polynomial arithmetic: evaluation at many points
