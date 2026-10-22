@@ -227,33 +227,36 @@ algorithm's own code, so the two cannot drift apart.
   `fuel · (3 C.mulMod k + gcdCost C k + 6 C.lin (2k)) + C.unit`.
 * **Proofs.**  `cost_unfold f.counted` unfolds one step of a counted algorithm and selects
   the branches its hypotheses decide; `cost_bound` (`Chapter9/CostBound.lean`) then closes the
-  inequality: it bounds every charge on the left by the worst-case quantities on the right
-  (proving the size conditions from the hypotheses), scales the bounds of callees and step
-  counts by their multiplicities, and finishes by linear arithmetic.  A typical cost proof is
-  a few `have`s about sizes and callees, `cost_unfold`, `cost_bound`; `cost_bound?` reports
-  the charges nothing bounds.  Recursions that halve their input are bounded by
-  `halvingBound`.  Bounds are proved for an arbitrary cost model where that makes sense,
-  then specialized to `school`.
+  inequality by a fixed procedure: both sides as coefficients times charges and costs, the
+  costs of callees replaced by their bounds (the induction hypothesis, the `@[cost_le]`
+  lemmas), the remaining charges moved to larger ones of the right side by their `@[gcongr]`
+  monotonicity lemmas, and the coefficients compared one by one (`omega`, linear arithmetic,
+  monomial domination).  The facts about the operands (value bounds, bit lengths) are
+  derived, not stated.  A typical cost proof is the induction of the recursion,
+  `cost_unfold` and `cost_bound`; `cost_bound?` prints the normal forms, and a failure names
+  the coefficient that does not fit.  Recursions that halve their input are bounded by the
+  master theorem `halving_master` (`halvingBound` is its linear case).  Bounds are proved
+  for an arbitrary cost model where that makes sense, then specialized to `school`.
 
 With `k` the bit length of the modulus / input:
 
 | Algorithm | Bit operations (grammar-school) | Theorem |
 |---|---|---|
 | 2.1.2 Euclid | ≤ `k(3k + 5) + 4` — `O(ln² N)`, Exercise 2.6; ≤ `k(3k + 6) + 6` for any `k`-bit inputs (worst case `gcdCost`) | `euclidBitCost_school_le'`, `gcdCost_school_le` |
-| 2.1.5 `xⁿ mod m` | ≤ `(4 log₂ n + 1)(k + 1)² + 6(log₂ n + 1)(size n + 4)` — `O(ln n · ln² m)`, Exercise 2.17 | `powModCost_school_le` (any model: `powModCost_le`) |
+| 2.1.5 `xⁿ mod m` | `O((log₂ n + 1)(size m + size n + 1)²)` uniformly — `O(ln n · ln² m)`, Exercise 2.17 | `powModCost_school` (any model: `powModCost_le`) |
 | 2.1.5 in any structure | at most `2 log₂ n` multiplications (`costOf mulCount`); bit cost ≤ multiplications × `K` + five steps on the exponent per bit | `pow_mults_le`, `pow_cost`, `power_cost` |
 | 2.3.5 Jacobi symbol | ≤ `k(3k + 1) + 10(5k + 3)(k + 6)` — `O(ln² m)` (the halvings telescope like the quotients) | `jacobiBitCost_school_le` (any model with schoolbook division: `jacobiBitCost_le`) |
 | 2.1.4 extended Euclid, modular inverse | ≤ `6(k + 1)(3k + 2)` and `6(k + 1)(3k + 2) + 2k + 4` — `O(ln² N)` | `extEuclidCost_school_le'`, `modInvCost_school_le` |
 | 2.3.8 Tonelli (`p − 1 = 2^s t`) | ≤ `6 log₂ t + 4s² + 1` multiplications mod `p` (`costOf mulCount`) — the book's `O(s² + ln t)`; bit cost ≤ multiplications × `C.mulMod` + `sqrtOverhead` (`O(ln² p)` linear operations) | `tonelli_mults_le`, `tonelli_cost_le`, `tonelliCost_school_le` |
 | 2.3.8 full algorithm | ≤ `6 log₂ p + 4s² + 2` multiplications mod `p`, twice `sqrtOverhead`, plus the nonresidue search | `sqrtMod_cost_le` |
 | 3.1.1 trial division | ≤ `(2 log₂ n + √n + 3) · 2(k + 3)²` — `O(√n ln² n)` | `trialDivisionCost_school_le` (any model: `trialDivisionCost_le`) |
-| 3.4.3 Fermat test | ≤ `(4 log₂ n + 1)(k + 1)² + 6(log₂ n + 2)(k + 4)` — `O(ln³ n)` | `probablePrimeCost_school_le` (any model: `probablePrimeCost_le`) |
-| 3.5.2 strong probable prime test | ≤ `(4 log₂ n + 1)(k + 1)² + 9(log₂ n + k + 4)(k + 4)` — `O(ln³ n)` per base | `strongProbablePrimeCost_school_le` (any model: `strongProbablePrimeCost_le`) |
-| 4.1.2 Pepin test | ≤ `(4 log₂ F + 1)(k + 1)² + 6(log₂ F + 3)(k + 4)` | `pepinCost_school_le` |
-| 4.2.7 Lucas–Lehmer | ≤ `(p − 2)(2p² + 5p + 6) + 1` — `O(p³)` | `lucasLehmerCost_school_le` (any model: `lucasLehmerCost_le`) |
+| 3.4.3 Fermat test | `O(ln³ n)` uniformly | `probablePrimeCost_school` (any model: `probablePrimeCost_le`) |
+| 3.5.2 strong probable prime test | `O(ln³ n)` per base, uniformly | `strongProbablePrimeCost_school` (any model: `strongProbablePrimeCost_le`) |
+| 4.1.2 Pepin test | `O((size F_k)³)` uniformly | `pepinCost_school` |
+| 4.2.7 Lucas–Lehmer | `O(p³)` uniformly | `lucasLehmerCost_school` (any model: `lucasLehmerCost_le`) |
 | §3.2 sieve of Eratosthenes | ≤ `3N ln √N + 11√N + 1` steps in the main loop (`costOf writeCount`) unconditionally; ≤ `3N (ln ln √N + c) + 11√N` **assuming Mertens' theorem** (`Assumed.Mertens c`); bit operations: three linear operations per step and `2N + 1` products | `sieveSteps_le_log`, `sieveSteps_le_of_mertens`, `sieve_cost_le` |
 | 9.2.11 integer square root | ≤ `⌈k/2⌉ + 1` Newton steps (`⌈k/2⌉ + 2` divisions, `costOf divCount`); ≤ `((k+1)/2 + 2)((k+1)² + 3(k + 4))` bit operations | `isqrt_eq` (correctness), `isqrt_divs_le`, `isqrtCost_school_le`, `sqrt_counted_cost_school_le` |
-| 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications, 1 integer square root and 4 linear operations; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school_le` |
+| 5.1.1 Fermat method | ≤ `(n+9)/6 + 1 − ⌈√n⌉` passes, each 2 multiplications, 1 integer square root and 4 linear operations; grammar-school with Algorithm 9.2.11: `O(n ln³ n)` | `fermatCost_le'`, `fermatCost_school` |
 | 5.3.1 baby-steps giant-steps | the square root, 1 modular inverse, ≤ `2b + 2 log₂ b` modular multiplications (`b = ⌊√n⌋ + 1`), 3 reductions, `j·b`, and `O(b)` linear operations (insertions, look-ups, indices); grammar-school: `O(√n ln² p)` with explicit constants | `bsgsCost_le`, `bsgsCost_school_le` |
 
 **Where things are.**  `Chapter9/BitCost.lean` contains only the cost model;
@@ -321,7 +324,7 @@ Bit complexity (in the same files), `k` the bit length of `n`:
 
 | Algorithm | Bound | Theorem |
 |---|---|---|
-| 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd + 6 linear operations (any model: `3 C.mulMod k + gcdCost C k + 6 C.lin (2k)`); ≤ `9k² + 21k + 18` grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school_le` |
+| 5.2.1 Pollard rho | per pass ≤ 3 modular multiplications + 1 gcd + 6 linear operations (any model: `3 C.mulMod k + gcdCost C k + 6 C.lin (2k)`); `O(ln² n)` per pass grammar-school | `pollardRhoCost_le`, `pollardRhoCost_school` |
 | 5.4.1 Pollard `p − 1` | the sieve for the primes `≤ B`, the exponents `⌊log_p B⌋`, `pm1Steps B` modular powers with exponents ≤ `B`, a reduction and 1 gcd (any model); `pm1Steps B ≤ π(B)·log₂ B` | `laddersCost_le`, `pm1Cost_le`, `pm1Cost_school_le`, `pm1Steps_le` |
 
 **Heuristics as explicit hypotheses.**  The `O(√p)` running time of Pollard rho rests on
