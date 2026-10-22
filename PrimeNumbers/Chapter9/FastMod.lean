@@ -176,10 +176,8 @@ theorem two_pow_clog_le {k : ℕ} (hk : 1 ≤ k) : 2 ^ Nat.clog 2 k ≤ 2 * k :=
 @[cost_le] theorem clog_cost_le (C : CostModel) {k N : ℕ} (hk : k ≤ N) :
     costOf C (Nat.clog 2 k) ≤ (N.size + 2) * (C.mul (2 * N.size) (2 * N.size) +
       2 * C.divBound (2 * N.size) + 4 * C.lin (2 * N.size + 1)) := by
-  have hs := Nat.size_le_size hk
-  refine (iclog_cost_le C k).trans (Nat.mul_le_mul (by omega) (Nat.add_le_add (Nat.add_le_add
-    (C.mul_mono (by omega) (by omega)) (Nat.mul_le_mul_left 2 (C.divBound_mono (by omega))))
-    (Nat.mul_le_mul_left 4 (C.lin_mono (by omega)))))
+  have := iclog_cost_le C k
+  cost_bound
 
 /-- **Cost of the fast remainder (Algorithm 9.6.4)**: Newton inversion with `⌈log₂ k⌉`
 iterations (`k ≤ len f` the length of the quotient), two more products, a subtraction and
@@ -204,7 +202,6 @@ theorem fastModMonic_cost_le [ArithCost R] (C : CostModel)
     have hk1 : 1 ≤ k := by omega
     have hkf : k ≤ f.length := by omega
     have hpow := two_pow_clog_le hk1
-    have hcl := Nat.clog_mono_right 2 hkf
     have h₁ := invNewton_cost_le C mc hM hlen hs g.reverse (by simp; omega) 1 (Nat.clog 2 k)
       (by omega)
     have hinv := length_invNewton_le mulF g.reverse 1 (Nat.clog 2 k)

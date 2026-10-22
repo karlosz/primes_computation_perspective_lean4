@@ -107,7 +107,7 @@ theorem karatsubaCost_le (c j : ℕ) :
     simp only [karatsubaCost, pow_succ]
     nlinarith
 
-theorem karatsubaCost_mono (c : ℕ) : Monotone (karatsubaCost c) := by
+@[gcongr] theorem karatsubaCost_mono (c : ℕ) : Monotone (karatsubaCost c) := by
   refine monotone_nat_of_le_succ fun j ↦ ?_
   simp only [karatsubaCost]
   have : karatsubaCost c j ≤ 3 * karatsubaCost c j := by omega

@@ -22,8 +22,9 @@ by a fixed procedure, with this contract:
    parameters taken from the right side, or the tightest).  A bound may have other costs
    on its left (`q + E ≤ B`): they are credited to the right.  Each hypothesis serves once.
 3. **Monotonicity.**  The remaining charges and costs on the left go to larger ones of the
-   right (`C.mul a b ≤ C.mul k k` for `a, b ≤ k`, `gcdCost C a ≤ gcdCost C b`, …), or to a
-   larger cost that has a bound — those with the fewest choices first, each where it fits.
+   right (`C.mul a b ≤ C.mul k k` for `a, b ≤ k`, `gcdCost C a ≤ gcdCost C b`: the
+   `@[gcongr]` lemmas), or to a larger cost that has a bound — those with the fewest choices
+   first, each where it fits.
 4. **Coefficients.**  For each basis quantity, the coefficient on the left must be at most
    the one on the right: by `omega` (after distributing products), by linear arithmetic, by
    factoring out the scale variables that no fact mentions (a cost per operation `s`), or
@@ -67,17 +68,8 @@ simproc_decl reduceNatSize (Nat.size _) := fun e => do
 theorem CostModel.unit_le_lin (C : CostModel) (k : ℕ) : C.unit ≤ C.lin k :=
   Nat.le_add_right _ _
 
-theorem CostModel.add_le_lin (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb : b ≤ k) :
-    C.add a b ≤ C.lin k :=
-  (C.add_mono ha hb).trans (Nat.le_add_left _ _)
-
-theorem CostModel.lin_mono (C : CostModel) {a b : ℕ} (h : a ≤ b) : C.lin a ≤ C.lin b :=
+@[gcongr] theorem CostModel.lin_mono (C : CostModel) {a b : ℕ} (h : a ≤ b) : C.lin a ≤ C.lin b :=
   Nat.add_le_add_left (C.add_mono h h) _
-
-theorem CostModel.mul_le_mulMod (C : CostModel) {a b k : ℕ} (ha : a ≤ k) (hb : b ≤ k) :
-    C.mul a b ≤ C.mulMod k :=
-  (C.mul_mono ha hb).trans (Nat.le_add_right _ _)
-
 
 /-! ### Operands: value bounds and bit lengths -/
 
@@ -746,36 +738,16 @@ open CostFacts
 
 /-! ### Charges -/
 
-/-- A proof that the charge `a` is at most the quantity `b`, if the sizes allow: by the
-monotonicity lemma for the pair of heads, with its comparisons of arguments `aᵢ ≤ bⱼ`. -/
+/-- A proof that the charge of a division is at most the worst case `C.divBound k` of the
+sizes, if they allow (the only comparison of charges of different operations: `C.lin` and
+`C.mulMod` are unfolded). -/
 private def boundAtom (a b : Expr) : FactM (Option Expr) := do
-  let some fa := a.getAppFn.constName? | return none
-  let some fb := b.getAppFn.constName? | return none
-  let xa := a.getAppArgs
-  let xb := b.getAppArgs
-  unless xb[0]! == xa[0]! do return none
-  -- the lemma, its explicit arguments after the model, and the comparisons `aᵢ ≤ bⱼ`
-  let rule : Option (Name × Array Expr × List (Nat × Nat)) := match fa, fb with
-    | ``CostModel.unit, ``CostModel.lin => some (``CostModel.unit_le_lin, #[xb[1]!], [])
-    | ``CostModel.add, ``CostModel.add => some (``CostModel.add_mono, #[], [(1, 1), (2, 2)])
-    | ``CostModel.add, ``CostModel.lin => some (``CostModel.add_le_lin, #[], [(1, 1), (2, 1)])
-    | ``CostModel.lin, ``CostModel.lin => some (``CostModel.lin_mono, #[], [(1, 1)])
-    | ``CostModel.mul, ``CostModel.mul => some (``CostModel.mul_mono, #[], [(1, 1), (2, 2)])
-    | ``CostModel.mul, ``CostModel.mulMod =>
-      some (``CostModel.mul_le_mulMod, #[], [(1, 1), (2, 1)])
-    | ``CostModel.divMod, ``CostModel.divBound =>
-      some (``CostModel.divMod_le_divBound, #[], [(1, 1), (2, 1)])
-    | ``CostModel.divMod, ``CostModel.divMod =>
-      if xa[2]! == xb[2]! then some (``CostModel.divMod_mono, #[xa[2]!], [(1, 1)]) else none
-    | ``CostModel.divBound, ``CostModel.divBound =>
-      some (``CostModel.divBound_mono, #[], [(1, 1)])
-    | _, _ => none
-  let some (lem, extra, cmps) := rule | return none
-  let mut hs := #[]
-  for (i, j) in cmps do
-    let some h ← proveLe xa[i]! xb[j]! | return none
-    hs := hs.push h
-  some <$> mkAppM lem (#[xa[0]!] ++ extra ++ hs)
+  let_expr CostModel.divMod C x y := a | return none
+  let_expr CostModel.divBound C' k := b | return none
+  unless C == C' do return none
+  let some hx ← proveLe x k | return none
+  let some hy ← proveLe y k | return none
+  some <$> mkAppM ``CostModel.divMod_le_divBound #[C, hx, hy]
 
 /-- Give the shadowed hypotheses (`this✝`, …) fresh accessible names, so that the steps
 working `at *` reach them too. -/
@@ -1108,6 +1080,28 @@ def PolyNF.atoms (p : PolyNF) : Array Expr :=
   p.foldl (fun acc (_, m) => m.foldl (fun acc (x, _) => if acc.contains x then acc else acc.push x)
     acc) #[]
 
+/-- A proof of `a ≤ b` for applications of one function by its `@[gcongr]` lemma
+(`C.mul a b ≤ C.mul a' b'`, `gcdCost C k ≤ gcdCost C k'`, `Nat.clog 2 t ≤ Nat.clog 2 u`, …),
+the arguments compared by `proveLe`, else again by monotonicity. -/
+partial def congrLe (a b : Expr) (depth : Nat := 6) : FactM (Option Expr) := do
+  let some f := a.getAppFn.constName? | return none
+  unless b.getAppFn.constName? == some f do return none
+  -- (no backtracking: the comparisons may be remembered, and a failed attempt only leaves
+  -- an unassigned goal behind)
+  try
+    let g ← withMain do mkFreshExprMVar (← mkAppM ``LE.le #[a, b])
+    let (ok, st) ← withMain do
+      (g.mvarId!.gcongr none (depth := 1)).run (mainGoalDischarger := fun _ ↦ pure false)
+    unless ok do failure
+    for m in st.newGoals do
+      let some (_, x, y) := (← instantiateMVars (← m.getType)).le? | failure
+      let mut h? ← proveLe x y
+      if h?.isNone && depth > 0 then h? ← congrLe x y (depth - 1)
+      let some h := h? | failure
+      m.assign h
+    return some (← instantiateMVars g)
+  catch _ => return none
+
 /-- The upper bounds `a ≤ U` (`U` free of `a`) of an atom that the proof states, with their
 proofs: the hypotheses `a ≤ U`, `a < U`, the local `∀`-hypotheses instantiated at `a` (their
 hypotheses discharged as those of the lemmas) and the `@[val_le]` lemmas — not the facts
@@ -1153,8 +1147,9 @@ partial def atomBounds (a : Expr) : FactM (Array (Expr × Expr)) := do
   modify fun s => { s with atomBounds := s.atomBounds.insert a out }
   return out
 
-/-- Replace in `p` the atoms that `q` lacks by upper bounds — a polynomial over the naturals
-grows with its atoms — preferring bounds in the atoms of `q`.  Returns the new polynomial and
+/-- Replace in `p` the atoms that `q` lacks by upper bounds (stated, or atoms of `q` larger by
+monotonicity) — a polynomial over the naturals grows with its atoms — preferring bounds in the
+atoms of `q`.  Returns the new polynomial and
 the facts `c m aᵉ ≤ c m Uᵉ` of the replacements. -/
 def substBounded (p q : PolyNF) : FactM (PolyNF × Array Expr) := do
   let qs := q.atoms
@@ -1164,7 +1159,10 @@ def substBounded (p q : PolyNF) : FactM (PolyNF × Array Expr) := do
     let mut changed := false
     for a in p.atoms do
       if qs.contains a then continue
-      let bs ← atomBounds a
+      let mut bs ← atomBounds a
+      -- an atom of `q` that is larger by monotonicity
+      for b in qs do
+        if let some h ← congrLe a b then bs := bs.push (b, h)
       if bs.isEmpty then continue
       let score (U : Expr) : Nat := ((poly U).atoms.filter (!qs.contains ·)).size
       let (U, h) := bs.foldl (fun b c => if score c.1 < score b.1 then c else b) bs[0]!
@@ -1244,27 +1242,12 @@ partial def provePolyLe (P Q : Expr) (subst : Bool := true) : FactM (Option Expr
     facts := facts.push (← withMain do mkAppM ``Nat.zero_le #[← atomsProd M])
   linarithLe P Q facts
 
-/-- A proof that the opaque cost `a` is at most `b` by monotonicity in the sizes: the charges
-and quantities of a cost model, or a quantity `h … k` with a lemma `h_mono : Monotone (h …)`. -/
+/-- A proof that the opaque cost `a` is at most `b` by monotonicity in the sizes: of a charge
+by a larger quantity of the model, or of an application by its `@[gcongr]` lemma. -/
 def atomLe (a b : Expr) : FactM (Option Expr) := do
   if a == b then return some (← withMain do mkAppM ``le_refl #[a])
   if let some p ← withMain (boundAtom a b) then return some p
-  let some h := a.getAppFn.constName? | return none
-  unless b.getAppFn.constName? == some h && a.getAppNumArgs == b.getAppNumArgs &&
-    a.getAppNumArgs > 0 do return none
-  let xs := a.getAppArgs
-  let ys := b.getAppArgs
-  unless xs.pop == ys.pop do return none
-  let mono := h.getPrefix ++ Name.mkSimple (h.getString! ++ "_mono")
-  unless (← getEnv).contains mono do return none
-  let some hle ← withMain (proveLe xs.back! ys.back!) | return none
-  withMain do
-    try
-      let m ← mkAppOptM mono (xs.pop.map some)
-      let pf := mkAppN m #[xs.back!, ys.back!, hle]
-      let ty ← inferType pf
-      if ← isDefEq ty (← mkAppM ``LE.le #[a, b]) then return some pf else return none
-    catch _ => return none
+  congrLe a b
 
 /-- Compare the two sides of the goal in normal form (see above). -/
 def normCompare (verbose : Bool) : FactM Unit := withMain do

@@ -210,7 +210,7 @@ theorem sqrt_counted_cost (C : CostModel) (N : ℕ) :
 starting value: a valid "square root cost" for analyses that use integer square roots. -/
 def schoolSqrt (k : ℕ) : ℕ := ((k + 1) / 2 + 3) * (k + 4) ^ 2
 
-theorem schoolSqrt_mono : Monotone schoolSqrt := fun a b h ↦
+@[gcongr] theorem schoolSqrt_mono : Monotone schoolSqrt := fun a b h ↦
   Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)
 
 /-- In the grammar-school model a call of `Nat.sqrt` on a `k`-bit number costs at most
@@ -235,7 +235,7 @@ def sqrtCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits k fun t ↦ costOf C (
     costOf C (Nat.sqrt t) ≤ sqrtCost C k :=
   le_maxOnBits (fun t ↦ costOf C (Nat.sqrt t)) ht
 
-theorem sqrtCost_mono (C : CostModel) : Monotone (sqrtCost C) := maxOnBits_mono _
+@[gcongr] theorem sqrtCost_mono (C : CostModel) : Monotone (sqrtCost C) := maxOnBits_mono _
 
 @[cost_le] theorem sqrtCost_school_le (k : ℕ) : sqrtCost school k ≤ schoolSqrt k :=
   maxOnBits_le fun t ht ↦ (sqrt_counted_cost_school_le t).trans (schoolSqrt_mono ht)

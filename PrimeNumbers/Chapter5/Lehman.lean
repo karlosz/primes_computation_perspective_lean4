@@ -805,13 +805,7 @@ theorem lehmanCost_school_le {n : ℕ} (hn : 1 ≤ n) :
           (3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4)) +
         (iroot 3 n + 1) * (2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K + 9 * (2 * K + 4)) +
         ((K + 1) * (3 * K + 9) + 7) := by
-      have t₁ := Nat.mul_le_mul_left (lehmanPassBound (iroot 6 n) 1 (iroot 3 n + 1))
-        (show 3 * (K * K) + sqrtCost school (2 * K) + 5 * (2 * K + 2 + 2) ≤
-          3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4) by omega)
-      have t₂ := Nat.mul_le_mul_left (iroot 3 n + 1)
-        (show 2 * (K * K) + 2 * sqrtCost school (2 * K) + school.divBound K + 9 * (2 * K + 2 + 2) ≤
-          2 * (K * K) + 2 * schoolSqrt (2 * K) + (K + 1) * K + 9 * (2 * K + 4) by omega)
-      omega
+      cost_bound
     exact_mod_cast this
   have hW0 : (0 : ℝ) ≤ ((3 * (K * K) + schoolSqrt (2 * K) + 5 * (2 * K + 4) : ℕ) : ℝ) :=
     Nat.cast_nonneg _

@@ -123,10 +123,12 @@ structure CostModel where
   /-- dividing a longer number (by the same divisor length) costs at least as much -/
   divMod_mono : ∀ {a a' : ℕ} (b : ℕ), a ≤ a' → divMod a b ≤ divMod a' b
 
+attribute [gcongr] CostModel.mul_mono CostModel.divMod_mono
+
 /-- A linear-time operation on an `a`-bit and a `b`-bit number. -/
 def CostModel.add (C : CostModel) (a b : ℕ) : ℕ := C.addRate * (max a b + 1)
 
-theorem CostModel.add_mono (C : CostModel) {a a' b b' : ℕ} (ha : a ≤ a') (hb : b ≤ b') :
+@[gcongr] theorem CostModel.add_mono (C : CostModel) {a a' b b' : ℕ} (ha : a ≤ a') (hb : b ≤ b') :
     C.add a b ≤ C.add a' b' :=
   Nat.mul_le_mul_left _ (by omega)
 
@@ -157,7 +159,7 @@ def maxOnBits (k : ℕ) (g : ℕ → ℕ) : ℕ := (Finset.range (2 ^ k)).sup g
 theorem le_maxOnBits {k x : ℕ} (g : ℕ → ℕ) (hx : x.size ≤ k) : g x ≤ maxOnBits k g :=
   Finset.le_sup (f := g) (Finset.mem_range.mpr (Nat.size_le.mp hx))
 
-theorem maxOnBits_mono (g : ℕ → ℕ) : Monotone (maxOnBits · g) := fun _ _ h ↦
+@[gcongr] theorem maxOnBits_mono (g : ℕ → ℕ) : Monotone (maxOnBits · g) := fun _ _ h ↦
   Finset.sup_mono (Finset.range_subset_range.mpr (Nat.pow_le_pow_right (by norm_num) h))
 
 theorem maxOnBits_le {k B : ℕ} {g : ℕ → ℕ} (h : ∀ x, x.size ≤ k → g x ≤ B) :
@@ -175,7 +177,7 @@ theorem maxOnBits₂_le {k B : ℕ} {g : ℕ → ℕ → ℕ}
     (h : ∀ x y, x.size ≤ k → y.size ≤ k → g x y ≤ B) : maxOnBits₂ k g ≤ B :=
   maxOnBits_le fun x hx ↦ maxOnBits_le fun y hy ↦ h x y hx hy
 
-theorem maxOnBits₂_mono (g : ℕ → ℕ → ℕ) : Monotone (maxOnBits₂ · g) := fun _ _ h ↦
+@[gcongr] theorem maxOnBits₂_mono (g : ℕ → ℕ → ℕ) : Monotone (maxOnBits₂ · g) := fun _ _ h ↦
   maxOnBits₂_le fun _ _ hx hy ↦ le_maxOnBits₂ g (hx.trans h) (hy.trans h)
 
 /-- The worst cost of a division of numbers of at most `k` bits (a division is not more
@@ -186,7 +188,7 @@ theorem CostModel.divMod_le_divBound (C : CostModel) {a b k : ℕ} (ha : a ≤ k
     C.divMod a b ≤ C.divBound k :=
   (C.divMod_mono b ha).trans (Finset.le_sup (f := C.divMod k) (Finset.mem_range.mpr (by omega)))
 
-theorem CostModel.divBound_mono (C : CostModel) : Monotone C.divBound := fun a b h ↦
+@[gcongr] theorem CostModel.divBound_mono (C : CostModel) : Monotone C.divBound := fun a b h ↦
   Finset.sup_le fun c hc ↦ C.divMod_le_divBound (Nat.le_refl a |>.trans h)
     (by have := Finset.mem_range.mp hc; omega)
 
@@ -370,7 +372,7 @@ theorem halvingBound_mono (c d : ℕ) : Monotone (halvingBound c d) := fun a b h
   have := Nat.mul_le_mul_left d (show 2 * max a 1 - 1 ≤ 2 * max b 1 - 1 by omega)
   omega
 
-theorem halvingBound_le {c c' d d' n n' : ℕ} (hc : c ≤ c') (hd : d ≤ d') (hn : n ≤ n') :
+@[gcongr] theorem halvingBound_le {c c' d d' n n' : ℕ} (hc : c ≤ c') (hd : d ≤ d') (hn : n ≤ n') :
     halvingBound c d n ≤ halvingBound c' d' n' := by
   refine le_trans ?_ (halvingBound_mono c' d' hn)
   unfold halvingBound

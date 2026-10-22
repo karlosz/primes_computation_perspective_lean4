@@ -194,11 +194,9 @@ worst case — "much more tedious than trial division", as the book says. -/
   rcases Nat.lt_or_ge ((n + 9) / 6 + 1) (ceilSqrt n) with hlt | hge
   · rw [show (n + 9) / 6 + 1 - ceilSqrt n = 0 by omega]
     cost_unfold fermatLoop.counted
-  · refine (fermatCost_le C (A := (n + 9) / 6) (by omega) _ (by omega) (le_ceilSqrt_mul_self n)).trans
-      (Nat.add_le_add (Nat.mul_le_mul_left _ ?_) le_rfl)
-    have hA : ((n + 9) / 6).size ≤ n.size := Nat.size_le_size (by omega)
-    exact Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_left _ (C.mul_mono hA hA))
-      (sqrtCost_mono C (by omega))) (Nat.mul_le_mul_left _ (C.lin_mono (by omega)))
+  · have := fermatCost_le C (A := (n + 9) / 6) (by omega) ((n + 9) / 6 + 1 - ceilSqrt n)
+      (by omega) (le_ceilSqrt_mul_self n)
+    cost_bound
 
 /-- **Bit complexity of the Fermat method, grammar-school arithmetic**, with the integer
 square roots computed by Algorithm 9.2.11 (`sqrtCost_school_le`): `O(n ln³ n)` bit

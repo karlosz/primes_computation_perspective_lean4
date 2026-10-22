@@ -391,10 +391,8 @@ bits whose product has coefficients below `2^b` (the condition of `mulNat_eq`). 
     have hpack : ∀ L : List ℕ, (∀ x ∈ L, x < 2 ^ w) → L.length ≤ d →
         costOf C (pack b L) ≤ halvingBound (2 * C.unit + 6 * C.add (2 * w) (2 * w))
           (4 * C.unit + 4 * C.add K K + C.mul w.size K) (2 * d) := fun L hL hl ↦ by
-      refine (pack_cost_le C hbw h2K L hL (hK' _ (by omega)) (hX _ (by omega))).trans
-        (halvingBound_le ?_ ?_ (by omega))
-      · have := C.add_mono (show w ≤ 2 * w by omega) (show w ≤ 2 * w by omega); omega
-      · omega
+      have := pack_cost_le C hbw h2K L hL (hK' _ (by omega)) (hX _ (by omega))
+      cost_bound
     have sF : (pack b F).size ≤ w * d :=
       (size_pack_le_of_le hbw hF).trans (Nat.mul_le_mul_left _ hlF)
     have sG : (pack b G).size ≤ w * d :=
@@ -419,17 +417,9 @@ bits whose product has coefficients below `2^b` (the condition of `mulNat_eq`). 
     simp only [hF0, hG0, or_self, if_false, List.length_cons] at *
     cost_bound
 
-theorem mulNatBound_mono (C : CostModel) {b b' d K : ℕ} (h : b ≤ b') :
+@[gcongr] theorem mulNatBound_mono (C : CostModel) {b b' d K : ℕ} (h : b ≤ b') :
     mulNatBound C b d K ≤ mulNatBound C b' d K := by
-  unfold mulNatBound
-  have h₁ := C.mul_mono (Nat.mul_le_mul_right d h) (Nat.mul_le_mul_right d h)
-  have h₂ := C.add_mono (show 2 * b ≤ 2 * b' by omega) (show 2 * b ≤ 2 * b' by omega)
-  have h₃ := C.mul_mono (Nat.size_le_size h) (le_refl K)
-  have := halvingBound_le (n := 2 * d) (n' := 2 * d)
-    (show 2 * C.unit + 6 * C.add (2 * b) (2 * b) ≤ 2 * C.unit + 6 * C.add (2 * b') (2 * b') by omega)
-    (show 4 * C.unit + 4 * C.add K K + C.mul b.size K ≤ 4 * C.unit + 4 * C.add K K + C.mul b'.size K by
-      omega) le_rfl
-  omega
+  unfold mulNatBound; cost_bound
 
 /-- **Binary segmentation with the width chosen automatically**: the width
 `b = size (len · ΣF · ΣG) + 1` costs two sums, two small products and a few steps. -/

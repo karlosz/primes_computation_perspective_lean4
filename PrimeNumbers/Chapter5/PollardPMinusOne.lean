@@ -292,7 +292,6 @@ theorem powMod_cost_le_powBound {c p : ℕ} (hp : p ≤ B) (hc : c < n) :
     costOf C (powMod c p n) + C.unit ≤ powBound C n B := by
   have h := powModCost_le C hc (k := B.size) p (Nat.size_le_size hp)
   have := Nat.log_mono_right (b := 2) hp
-  have h₃ := C.unit_le_lin (B.size + 2)
   unfold powBound
   cost_bound
 

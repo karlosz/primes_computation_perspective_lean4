@@ -254,7 +254,7 @@ def gcdCost (C : CostModel) (k : ℕ) : ℕ := maxOnBits₂ k fun x y ↦ costOf
     costOf C (euclid x y) ≤ gcdCost C k :=
   le_maxOnBits₂ (fun x y ↦ costOf C (euclid x y)) hx hy
 
-theorem gcdCost_mono (C : CostModel) : Monotone (gcdCost C) := maxOnBits₂_mono _
+@[gcongr] theorem gcdCost_mono (C : CostModel) : Monotone (gcdCost C) := maxOnBits₂_mono _
 
 /-- **Bit complexity of the Euclid algorithm, in either order of the arguments**: in the
 grammar-school model a gcd of `k`-bit numbers costs at most `k (3k + 6) + 6` (the order

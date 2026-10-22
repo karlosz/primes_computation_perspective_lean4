@@ -254,7 +254,6 @@ theorem divideOut_fst_pos {d N : ℕ} (hN : 0 < N) (F : List ℕ) : 0 < (divideO
 @[cost_le] theorem trialCost_le {d N : ℕ} (hN0 : 0 < N) (hN : N ≤ n) (F : List ℕ) (hd2 : 2 ≤ d)
     (hdn : d ≤ n) :
     costOf C (trialLoop d N F) ≤ costOf opCount (trialLoop d N F) * opBound C n := by
-  have hmul := fun (d : ℕ) (hd : d ≤ n) ↦ C.mul_mono (Nat.size_le_size hd) (Nat.size_le_size hd)
   have hsq : ∀ d ≤ n, (d * d).size ≤ 2 * n.size + 1 := fun d hd ↦ by
     have := size_mul_le d d; have := Nat.size_le_size hd; omega
   fun_induction trialLoop d N F with
@@ -263,7 +262,6 @@ theorem divideOut_fst_pos {d N : ℕ} (hN : 0 < N) (F : List ℕ) : 0 < (divideO
     have ih := ih (divideOut_fst_pos hN0 F) ((divideOut_fst_le d N F).trans hN) (by omega)
       (by nlinarith)
     have hdo := divideOutCost_le C hd2 (hdN.trans hN) hN0 hN F
-    have hm := hmul d hdn
     have hs := hsq d hdn
     cost_unfold_both trialLoop.counted
     simp only [r] at ih

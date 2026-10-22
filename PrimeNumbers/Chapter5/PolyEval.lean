@@ -366,9 +366,6 @@ def psValuesBound (C : CostModel) (n B : ℕ) : ℕ :=
       have s₁ : (1 + a).size ≤ K := Nat.size_le_size (by omega)
       have s₂ : ((1 + a) * B).size ≤ 2 * K := (size_mul_le _ _).trans (by omega)
       have s₃ : a.size ≤ 2 * K := (Nat.size_le_size (show a ≤ B + 4 + 2 by omega)).trans (by omega)
-      have := C.mul_mono s₁ hBK
-      have := C.divMod_mono n.size s₂
-      have : (Nat.size 1) ≤ 2 * K := by simp; omega
       cost_bound
   have h₃ : (List.map (fun a => C.divMod a.size n.size) (List.range B)).sum ≤
       B * C.divMod K n.size := by

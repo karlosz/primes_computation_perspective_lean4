@@ -379,8 +379,6 @@ products `p · p` (the test `p² ≤ N` and the start `p²` of the multiples), `
     (hsize : bits.size = N + 1) :
     costOf C (sieveLoop N p bits) ≤ 3 * costOf writeCount (sieveLoop N p bits) * C.lin (N.size + 2) +
       (2 * (N + 2 - p) + 1) * C.mul (N + 2).size (N + 2).size := by
-  have hM : ∀ p ≤ N + 2, C.mul p.size p.size ≤ C.mul (N + 2).size (N + 2).size := fun p hp ↦
-    C.mul_mono (Nat.size_le_size hp) (Nat.size_le_size hp)
   fun_induction sieveLoop N p bits with
   | case1 p bits h ih =>
     have hpp : p ≤ N := (Nat.le_mul_self p).trans h.1
