@@ -158,9 +158,9 @@ def isNat (e : Expr) : MetaM Bool := do
   if e.hasLooseBVars then return false
   try return (← whnfR (← inferType e)).isConstOf ``Nat catch _ => return false
 
-/-- Is this hypothesis about costs (it mentions a cost model, a cost or a halving bound)? -/
+/-- Is this hypothesis about costs (it mentions a cost model or a cost)? -/
 def mentionsCost (ty : Expr) : Bool :=
-  ty.getUsedConstants.any fun c => isCostConst c || c == ``halvingBound
+  ty.getUsedConstants.any isCostConst
 
 /-- The atoms of an arithmetic fact for `omega`: its maximal subterms not built by the
 arithmetic and the logic that `omega` knows. -/
@@ -874,8 +874,7 @@ each coefficient on the left is at most the one on the right. -/
 /-- Is `e` a cost in the model `C` (it mentions `C` in a cost; the costs in other models —
 counts of operations — are coefficients)? -/
 def hasCost (env : Environment) (C : Option Expr) (e : Expr) : Bool :=
-  (e.getUsedConstants.any fun c => isCostConst c || c == ``halvingBound ||
-    ((costLeExt.getState env).get? c).isSome) &&
+  (e.getUsedConstants.any fun c => isCostConst c || ((costLeExt.getState env).get? c).isSome) &&
   match C with
   | some C => (e.find? (· == C)).isSome
   | none => true
