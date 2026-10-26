@@ -225,6 +225,10 @@ abbrev divCount : CostModel := counting 0 1 0
 abbrev opCount : CostModel := counting 1 1 0
 /-- Counts elementary steps (memory writes). -/
 abbrev writeCount : CostModel := counting 0 0 1
+/-- **Counts operations**: every multiplication, division and step (a call, a list or array
+step) counts one, the additions and comparisons going with the steps of the code around
+them — the "operations with integers" of the book's running times of factoring methods. -/
+abbrev stepCount : CostModel := counting 1 1 1
 
 theorem school_divMod_self (k : ℕ) : school.divMod k k = k := by simp
 @[simp] theorem school_add (a b : ℕ) : school.add a b = max a b + 1 := by

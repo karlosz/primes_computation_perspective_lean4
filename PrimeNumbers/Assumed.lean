@@ -1,5 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.NumberTheory.PrimeCounting
+import Mathlib.NumberTheory.Divisors
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 /-!
 # Assumed theorems
@@ -34,5 +36,11 @@ def PrimeNumberTheorem : Prop :=
 /-- **Theorem 1.2.1 (Brun)**: the sum of the reciprocals of the twin primes converges. -/
 def Brun : Prop :=
   Summable fun p : ℕ ↦ if p.Prime ∧ (p + 2).Prime then (1 / (p : ℝ)) else 0
+
+/-- **The divisor bound** `τ(m) = m^{o(1)}` (used in §5.6.3 and for Theorem 5.6.4, stated in
+the book without proof): for each `ε > 0` there is a `C` with `τ(m) ≤ C m^ε` for all
+`m ≥ 1`. -/
+def DivisorBound : Prop :=
+  ∀ ε : ℝ, 0 < ε → ∃ C : ℝ, ∀ m : ℕ, 1 ≤ m → (m.divisors.card : ℝ) ≤ C * (m : ℝ) ^ ε
 
 end PrimeNumbers.Assumed
