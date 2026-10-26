@@ -258,6 +258,104 @@ theorem findNonresidue_spec (hp : p ≠ 2) : ¬IsSquare ((findNonresidue p : ℕ
   · rw [decide_eq_true_iff]
     rwa [key, ZMod.natCast_zmod_val]
 
+/-- The search returns at most its first success. -/
+theorem searchFrom_le_of {P : ℕ → Bool} {fuel d e : ℕ} (hde : d ≤ e) (he : e < d + fuel)
+    (hP : P e) : searchFrom P fuel d ≤ e := by
+  induction fuel generalizing d with
+  | zero => omega
+  | succ fuel ih =>
+    rw [searchFrom]
+    split_ifs with h
+    · exact hde
+    · exact ih (by rcases Nat.eq_or_lt_of_le hde with rfl | h' <;> [exact absurd hP h; omega])
+        (by omega)
+
+/-- **The least quadratic nonresidue is at most `√p + 1`.**  If `n` is the least
+nonresidue modulo the odd prime `p` and `m = ⌊p/n⌋ + 1`, then `0 < m n - p < n`, so
+`m n ≡ m n - p` is a residue and `m` is a nonresidue: `m ≥ n`, so `n (n - 1) ≤ p`. -/
+theorem exists_nonresidue_le_sqrt (hp : p ≠ 2) :
+    ∃ n, 2 ≤ n ∧ n ≤ Nat.sqrt p + 1 ∧ ¬IsSquare ((n : ℕ) : ZMod p) ∧
+      ∀ k, 1 ≤ k → k < n → IsSquare ((k : ℕ) : ZMod p) := by
+  have hpp : p.Prime := Fact.out
+  have hex : ∃ n, 1 ≤ n ∧ ¬IsSquare ((n : ℕ) : ZMod p) := by
+    obtain ⟨z, hz⟩ := FiniteField.exists_nonsquare (F := ZMod p)
+      (by rw [Ne, ZMod.ringChar_zmod_n]; exact hp)
+    refine ⟨z.val, ?_, by rwa [ZMod.natCast_zmod_val]⟩
+    rcases Nat.eq_zero_or_pos z.val with h | h
+    · exfalso; apply hz; rw [ZMod.val_eq_zero] at h; rw [h]; exact ⟨0, by ring⟩
+    · exact h
+  classical
+  let n := Nat.find hex
+  have hn₁ : 1 ≤ n := (Nat.find_spec hex).1
+  have hn₂ : ¬IsSquare ((n : ℕ) : ZMod p) := (Nat.find_spec hex).2
+  have hmin : ∀ k, 1 ≤ k → k < n → IsSquare ((k : ℕ) : ZMod p) := fun k hk hkn ↦ by
+    by_contra h; exact Nat.find_min hex hkn ⟨hk, h⟩
+  have hn2 : 2 ≤ n := by
+    by_contra h
+    have : n = 1 := by omega
+    exact hn₂ (by rw [this]; exact ⟨1, by simp⟩)
+  -- `n < p`: the residues `n mod p` repeat
+  have hnp : n < p := by
+    by_contra h; push Not at h
+    have hm := hmin (n % p) ?_ (Nat.mod_lt _ hpp.pos |>.trans_le h)
+    · exact hn₂ (by rwa [ZMod.natCast_mod] at hm)
+    · rcases Nat.eq_zero_or_pos (n % p) with h0 | h0
+      · exfalso; apply hn₂
+        rw [(ZMod.natCast_eq_zero_iff _ _).2 (Nat.dvd_of_mod_eq_zero h0)]; exact ⟨0, by ring⟩
+      · exact h0
+  refine ⟨n, hn2, ?_, hn₂, hmin⟩
+  set m := p / n + 1 with hm_def
+  have hmn : p < m * n := by
+    show p < (p / n + 1) * n; rw [add_mul, one_mul]; exact Nat.lt_div_mul_add (by omega)
+  have hp3 : 3 ≤ p := by have := hpp.two_le; omega
+  have hmp : m < p := by
+    have : p / n ≤ p / 2 := Nat.div_le_div_left hn2 (by norm_num)
+    have : p / 2 < p - 1 := by omega
+    rw [hm_def]; omega
+  have hmn' : m * n - p < n := by
+    have := Nat.div_mul_le_self p n
+    have : p / n * n ≠ p := fun h ↦ by
+      have : n ∣ p := ⟨p / n, by rw [mul_comm]; exact h.symm⟩
+      rcases (Nat.dvd_prime hpp).1 this with h1 | h1 <;> omega
+    simp only [m, add_mul, one_mul]; omega
+  -- `m n - p` is a residue, so `m n` is, so `m` is a nonresidue
+  have hr := hmin (m * n - p) (by omega) hmn'
+  have hcast : (((m * n - p : ℕ)) : ZMod p) = (m : ZMod p) * n := by
+    rw [Nat.cast_sub hmn.le, ZMod.natCast_self, sub_zero, Nat.cast_mul]
+  rw [hcast] at hr
+  have hm : ¬IsSquare ((m : ℕ) : ZMod p) := by
+    intro hm
+    have hm0 : ((m : ℕ) : ZMod p) ≠ 0 := by
+      rw [Ne, ZMod.natCast_eq_zero_iff]; intro h
+      have := Nat.le_of_dvd (by rw [hm_def]; exact Nat.succ_pos _) h; omega
+    have hn0 : ((n : ℕ) : ZMod p) ≠ 0 := by
+      rw [Ne, ZMod.natCast_eq_zero_iff]; intro h; have := Nat.le_of_dvd (by omega) h; omega
+    -- a residue times a nonresidue is a nonresidue
+    have h1 := (legendreSym.eq_one_iff p (a := (m : ℤ)) (by exact_mod_cast hm0)).2 (by exact_mod_cast hm)
+    have h2 := (legendreSym.eq_neg_one_iff p (a := (n : ℤ))).2 (by exact_mod_cast hn₂)
+    have h3 := (legendreSym.eq_one_iff p (a := ((m : ℤ) * n)) (by exact_mod_cast mul_ne_zero hm0 hn0)).2
+      (by exact_mod_cast hr)
+    rw [legendreSym.mul, h1, h2] at h3; norm_num at h3
+  have hmge : n ≤ m := by
+    by_contra h; push Not at h
+    exact hm (hmin m (by rw [hm_def]; exact Nat.succ_le_succ (Nat.zero_le _)) h)
+  -- `n (n - 1) ≤ p`, so `n - 1 ≤ √p`
+  have : (n - 1) * (n - 1) ≤ p := by
+    have : (n - 1) * n ≤ p := by
+      have := Nat.div_mul_le_self p n
+      have : (n - 1) * n ≤ p / n * n := Nat.mul_le_mul_right n (by omega)
+      omega
+    exact (Nat.mul_le_mul_left (n - 1) (by omega : n - 1 ≤ n)).trans this
+  have := Nat.le_sqrt.2 this; omega
+
+/-- The nonresidue found is the least one: at most `√p + 1`. -/
+theorem findNonresidue_le (hp : p ≠ 2) : findNonresidue p ≤ Nat.sqrt p + 1 := by
+  obtain ⟨n, hn2, hnp, hn, -⟩ := exists_nonresidue_le_sqrt hp
+  have hj : jacobi n p = -1 := by
+    rw [jacobi_eq_legendreSym _ p hp, legendreSym.eq_neg_one_iff]; exact_mod_cast hn
+  have := Nat.sqrt_le_self p
+  exact (searchFrom_le_of hn2 (by omega) (by simpa using hj)).trans hnp
+
 /-- **Correctness of Algorithm 2.3.8.**  For an odd prime `p` and a square `a` modulo `p`
 (i.e. `(a/p) = 1`, or `a ≡ 0`), `sqrtMod p a` is a solution of `x² ≡ a (mod p)`. -/
 theorem sqrtMod_sq (hp : p ≠ 2) {a : ZMod p} (ha : IsSquare a) : sqrtMod p a ^ 2 = a := by

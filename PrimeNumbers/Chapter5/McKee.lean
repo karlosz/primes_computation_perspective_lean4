@@ -55,15 +55,10 @@ counted_def dedupNat : List ℕ → List ℕ
 counted_def factorPairs (L : List ℕ) : List (ℕ × ℕ) :=
   (dedupNat L).map fun p ↦ (p, (L.filter fun y ↦ y = p).length)
 
-/-- A quadratic nonresidue modulo the odd prime `p` by Euler's criterion: the least `z ≥ 2`
-with `z^{(p-1)/2} ≢ 1 (mod p)` — at most `√p + 1` (`exists_nonresidue_le_sqrt`). -/
-counted_def eulerNonresidue (p : ℕ) : ℕ :=
-  searchFrom (fun z ↦ powMod z (p / 2) p ≠ 1) p 2
-
 /-- The factorization with a quadratic nonresidue for each prime (Tonelli's algorithm needs
 one; it is found once per prime, not once per square root). -/
 counted_def withNonresidues (fs : List (ℕ × ℕ)) : List (ℕ × ℕ × ℕ) :=
-  fs.map fun pe ↦ (pe.1, pe.2, eulerNonresidue pe.1)
+  fs.map fun pe ↦ (pe.1, pe.2, findNonresidue pe.1)
 
 /-! ### The search -/
 
@@ -279,135 +274,6 @@ theorem dedupNat_spec (L : List ℕ) : (dedupNat L).Nodup ∧ ∀ x, x ∈ dedup
       refine ⟨List.nodup_cons.2 ⟨by rwa [h₂], h₁⟩, fun y ↦ ?_⟩
       simp only [List.mem_cons, h₂]
 
-/-- **The least quadratic nonresidue is at most `√p + 1`.**  If `n` is the least
-nonresidue modulo the odd prime `p` and `m = ⌊p/n⌋ + 1`, then `0 < m n - p < n`, so
-`m n ≡ m n - p` is a residue and `m` is a nonresidue: `m ≥ n`, so `n (n - 1) ≤ p`. -/
-theorem exists_nonresidue_le_sqrt {p : ℕ} [Fact p.Prime] (hp : p ≠ 2) :
-    ∃ n, 2 ≤ n ∧ n ≤ Nat.sqrt p + 1 ∧ ¬IsSquare ((n : ℕ) : ZMod p) ∧
-      ∀ k, 1 ≤ k → k < n → IsSquare ((k : ℕ) : ZMod p) := by
-  have hpp : p.Prime := Fact.out
-  have hex : ∃ n, 1 ≤ n ∧ ¬IsSquare ((n : ℕ) : ZMod p) := by
-    obtain ⟨z, hz⟩ := FiniteField.exists_nonsquare (F := ZMod p)
-      (by rw [Ne, ZMod.ringChar_zmod_n]; exact hp)
-    refine ⟨z.val, ?_, by rwa [ZMod.natCast_zmod_val]⟩
-    rcases Nat.eq_zero_or_pos z.val with h | h
-    · exfalso; apply hz; rw [ZMod.val_eq_zero] at h; rw [h]; exact ⟨0, by ring⟩
-    · exact h
-  classical
-  let n := Nat.find hex
-  have hn₁ : 1 ≤ n := (Nat.find_spec hex).1
-  have hn₂ : ¬IsSquare ((n : ℕ) : ZMod p) := (Nat.find_spec hex).2
-  have hmin : ∀ k, 1 ≤ k → k < n → IsSquare ((k : ℕ) : ZMod p) := fun k hk hkn ↦ by
-    by_contra h; exact Nat.find_min hex hkn ⟨hk, h⟩
-  have hn2 : 2 ≤ n := by
-    by_contra h
-    have : n = 1 := by omega
-    exact hn₂ (by rw [this]; exact ⟨1, by simp⟩)
-  -- `n < p`: the residues `n mod p` repeat
-  have hnp : n < p := by
-    by_contra h; push Not at h
-    have hm := hmin (n % p) ?_ (Nat.mod_lt _ hpp.pos |>.trans_le h)
-    · exact hn₂ (by rwa [ZMod.natCast_mod] at hm)
-    · rcases Nat.eq_zero_or_pos (n % p) with h0 | h0
-      · exfalso; apply hn₂
-        rw [(ZMod.natCast_eq_zero_iff _ _).2 (Nat.dvd_of_mod_eq_zero h0)]; exact ⟨0, by ring⟩
-      · exact h0
-  refine ⟨n, hn2, ?_, hn₂, hmin⟩
-  set m := p / n + 1 with hm_def
-  have hmn : p < m * n := by
-    show p < (p / n + 1) * n; rw [add_mul, one_mul]; exact Nat.lt_div_mul_add (by omega)
-  have hp3 : 3 ≤ p := by have := hpp.two_le; omega
-  have hmp : m < p := by
-    have : p / n ≤ p / 2 := Nat.div_le_div_left hn2 (by norm_num)
-    have : p / 2 < p - 1 := by omega
-    rw [hm_def]; omega
-  have hmn' : m * n - p < n := by
-    have := Nat.div_mul_le_self p n
-    have : p / n * n ≠ p := fun h ↦ by
-      have : n ∣ p := ⟨p / n, by rw [mul_comm]; exact h.symm⟩
-      rcases (Nat.dvd_prime hpp).1 this with h1 | h1 <;> omega
-    simp only [m, add_mul, one_mul]; omega
-  -- `m n - p` is a residue, so `m n` is, so `m` is a nonresidue
-  have hr := hmin (m * n - p) (by omega) hmn'
-  have hcast : (((m * n - p : ℕ)) : ZMod p) = (m : ZMod p) * n := by
-    rw [Nat.cast_sub hmn.le, ZMod.natCast_self, sub_zero, Nat.cast_mul]
-  rw [hcast] at hr
-  have hm : ¬IsSquare ((m : ℕ) : ZMod p) := by
-    intro hm
-    have hm0 : ((m : ℕ) : ZMod p) ≠ 0 := by
-      rw [Ne, ZMod.natCast_eq_zero_iff]; intro h
-      have := Nat.le_of_dvd (by rw [hm_def]; exact Nat.succ_pos _) h; omega
-    have hn0 : ((n : ℕ) : ZMod p) ≠ 0 := by
-      rw [Ne, ZMod.natCast_eq_zero_iff]; intro h; have := Nat.le_of_dvd (by omega) h; omega
-    -- a residue times a nonresidue is a nonresidue
-    have h1 := (legendreSym.eq_one_iff p (a := (m : ℤ)) (by exact_mod_cast hm0)).2 (by exact_mod_cast hm)
-    have h2 := (legendreSym.eq_neg_one_iff p (a := (n : ℤ))).2 (by exact_mod_cast hn₂)
-    have h3 := (legendreSym.eq_one_iff p (a := ((m : ℤ) * n)) (by exact_mod_cast mul_ne_zero hm0 hn0)).2
-      (by exact_mod_cast hr)
-    rw [legendreSym.mul, h1, h2] at h3; norm_num at h3
-  have hmge : n ≤ m := by
-    by_contra h; push Not at h
-    exact hm (hmin m (by rw [hm_def]; exact Nat.succ_le_succ (Nat.zero_le _)) h)
-  -- `n (n - 1) ≤ p`, so `n - 1 ≤ √p`
-  have : (n - 1) * (n - 1) ≤ p := by
-    have : (n - 1) * n ≤ p := by
-      have := Nat.div_mul_le_self p n
-      have : (n - 1) * n ≤ p / n * n := Nat.mul_le_mul_right n (by omega)
-      omega
-    exact (Nat.mul_le_mul_left (n - 1) (by omega : n - 1 ≤ n)).trans this
-  have := Nat.le_sqrt.2 this; omega
-
-/-- The search returns at most its first success. -/
-theorem searchFrom_le_of {P : ℕ → Bool} {fuel d e : ℕ} (hde : d ≤ e) (he : e < d + fuel)
-    (hP : P e) : searchFrom P fuel d ≤ e := by
-  induction fuel generalizing d with
-  | zero => omega
-  | succ fuel ih =>
-    rw [searchFrom]
-    split_ifs with h
-    · exact hde
-    · exact ih (by rcases Nat.eq_or_lt_of_le hde with rfl | h' <;> [exact absurd hP h; omega])
-        (by omega)
-
-theorem le_searchFrom (P : ℕ → Bool) (fuel d : ℕ) : d ≤ searchFrom P fuel d := by
-  induction fuel generalizing d with
-  | zero => rw [searchFrom]
-  | succ fuel ih => rw [searchFrom]; split_ifs <;> [exact le_rfl; exact (ih _).trans' (by omega)]
-
-/-- Euler's criterion finds a nonresidue below `√p + 2`. -/
-theorem eulerNonresidue_spec {p : ℕ} [Fact p.Prime] (hp : p ≠ 2) :
-    ¬IsSquare ((eulerNonresidue p : ℕ) : ZMod p) ∧ 2 ≤ eulerNonresidue p ∧
-      eulerNonresidue p ≤ Nat.sqrt p + 1 := by
-  have hpp : p.Prime := Fact.out
-  have hp3 : 3 ≤ p := by have := hpp.two_le; omega
-  obtain ⟨n, hn2, hnp, hn, -⟩ := exists_nonresidue_le_sqrt hp
-  have hnlt : n < p := by
-    have : 2 * (p - 1) ≤ (p - 1) * (p - 1) := Nat.mul_le_mul_right (p - 1) (by omega)
-    have := Nat.sqrt_lt'.2 (show p < (p - 1) ^ 2 by rw [sq]; omega); omega
-  have hn0 : ((n : ℕ) : ZMod p) ≠ 0 := fun h ↦ hn (by rw [h]; exact ⟨0, by ring⟩)
-  -- the predicate: `z^{p/2} ≢ 1`
-  have hPn : powMod n (p / 2) p ≠ 1 := by
-    rw [powMod_eq]; intro h
-    apply hn; rw [ZMod.euler_criterion p hn0]
-    have := (ZMod.natCast_eq_natCast_iff' (n ^ (p / 2)) 1 p).2 (by
-      rw [h, Nat.one_mod_eq_one.2 hpp.one_lt.ne'])
-    push_cast at this; exact this
-  have h₁ := searchFrom_le_of (P := fun z ↦ powMod z (p / 2) p ≠ 1) (fuel := p) hn2
-    (by omega) (by simpa using hPn)
-  have h₂ := le_searchFrom (fun z ↦ powMod z (p / 2) p ≠ 1) p 2
-  have h₃ := searchFrom_spec (fun z ↦ powMod z (p / 2) p ≠ 1) p 2 ⟨n, hn2, by omega,
-    by simpa using hPn⟩
-  unfold eulerNonresidue
-  set z := searchFrom (fun z ↦ powMod z (p / 2) p ≠ 1) p 2
-  refine ⟨fun hz ↦ ?_, h₂, h₁.trans hnp⟩
-  have hz0 : ((z : ℕ) : ZMod p) ≠ 0 := by
-    rw [Ne, ZMod.natCast_eq_zero_iff]; intro h; have := Nat.le_of_dvd (by omega) h; omega
-  rw [ZMod.euler_criterion p hz0] at hz
-  apply (by simpa using h₃ : powMod z (p / 2) p ≠ 1)
-  rw [powMod_eq]
-  have := (ZMod.natCast_eq_natCast_iff' (z ^ (p / 2)) 1 p).1 (by push_cast; exact hz)
-  rw [this, Nat.one_mod_eq_one.2 hpp.one_lt.ne']
-
 /-- The pairs of the factorization by trial division, with nonresidues, are a factorization
 of `d`. -/
 theorem factorPairs_spec {d : ℕ} (hd : 0 < d) :
@@ -426,7 +292,7 @@ theorem factorPairs_spec {d : ℕ} (hd : 0 < d) :
     have hpL := (hmem p).1 hp
     have hpp := hprime p hpL
     have := Fact.mk hpp
-    refine ⟨hpp, ?_, fun h2 ↦ (eulerNonresidue_spec h2).1⟩
+    refine ⟨hpp, ?_, fun h2 ↦ findNonresidue_spec h2⟩
     simp only [hcount]; exact List.count_pos_iff.2 hpL
   · simp only [factorProd, withNonresidues, factorPairs, List.map_map, Function.comp_def,
       hcount]
