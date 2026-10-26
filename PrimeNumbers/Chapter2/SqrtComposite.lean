@@ -10,10 +10,14 @@ Exercise 2.36 (and Algorithm 2.3.11, Hensel lifting).
 
 Given the factorization `m = ∏ pᵢ^eᵢ`, all solutions of `x² ≡ a (mod m)`:
 
-* `rootsPrimePow` — modulo a prime power `p^e`: for odd `p ∤ a`, a square root modulo `p`
+* `unitRoots` — modulo `p^e` for `p ∤ a`: for odd `p`, a square root modulo `p`
   (`sqrtMod`, Algorithm 2.3.8, after Euler's criterion) lifted by Hensel's method
-  (`henselSqrt`, Algorithm 2.3.11 for `x² - a`), and its negative; otherwise (`p ∣ a` or
-  `p = 2`) the digits of the roots found one at a time (`digitRoots`);
+  (`henselSqrt`, Algorithm 2.3.11 for `x² - a`), and its negative; for `p = 2` the digits
+  of the roots found one at a time (`digitRoots`);
+* `rootsPrimePow` — modulo `p^e` for any `a`: with `a ≡ p^k y`, `p ∤ y` (`stripP`), the
+  multiples of `p^⌈e/2⌉` if `p^e ∣ a`, none if `k` is odd, else `p^{k/2}` times the lifts
+  of the roots of `y` modulo `p^{e-k}` (`sq_val`: a root has valuation `k/2`); the work is
+  proportional to the number of roots;
 * `rootsMod` — modulo `m`, by the Chinese remainder theorem (`crtPair`, Theorem 2.1.6).
 
 `rootsMod_spec`: the list returned is exactly the set of roots in `[0, m)`.
@@ -48,10 +52,11 @@ counted_def digitRoots (a p : ℕ) : ℕ → ℕ × List ℕ
     let (q, rs) := digitRoots a p e
     (q * p, rs.flatMap fun r ↦ liftDigit a p q r)
 
-/-- **The roots of `x² ≡ a (mod p^e)`** (`e ≥ 1`), with the modulus `p^e`: for odd `p ∤ a`,
-none if `a` is a nonresidue modulo `p` (Euler's criterion), else `±` the Hensel lift of
-the square root modulo `p`; otherwise digit by digit. -/
-counted_def rootsPrimePow (a p e : ℕ) : ℕ × List ℕ :=
+/-- **The roots of `x² ≡ a (mod p^e)`** (`e ≥ 1`), with the modulus `p^e`, for `p ∤ a`: for
+odd `p`, none if `a` is a nonresidue modulo `p` (Euler's criterion), else `±` the Hensel lift
+of the square root modulo `p`; for `p = 2` digit by digit.  (Correct for any `a`, but fast
+only for `p ∤ a`.) -/
+counted_def unitRoots (a p e : ℕ) : ℕ × List ℕ :=
   if p % 2 = 1 ∧ a % p ≠ 0 then
     if powMod a (p / 2) p = 1 then
       let r := (sqrtMod p (a : ZMod p)).val
@@ -59,6 +64,29 @@ counted_def rootsPrimePow (a p e : ℕ) : ℕ × List ℕ :=
       (q, [t, q - t])
     else (p ^ e, [])
   else digitRoots a p e
+
+/-- `x = p^k y` with `k ≤ e`, and `p ∤ y` unless `k = e`. -/
+counted_def stripP (p : ℕ) : (x e : ℕ) → ℕ × ℕ
+  | x, 0 => (0, x)
+  | x, e + 1 =>
+    if x % p = 0 then
+      let (k, y) := stripP p (x / p) e
+      (k + 1, y)
+    else (0, x)
+
+/-- **The roots of `x² ≡ a (mod p^e)`** (`e ≥ 1`), with the modulus `p^e`.  With
+`a ≡ p^k y (mod p^e)`, `p ∤ y`: if `k = e` (`p^e ∣ a`), the multiples of `p^⌈e/2⌉`; if `k`
+is odd, none; otherwise `p^{k/2} (s + p^{e-k} j)` for the roots `s` of `y` modulo `p^{e-k}`
+(`unitRoots`) and `j < p^{k/2}`.  The work is proportional to the number of roots. -/
+counted_def rootsPrimePow (a p e : ℕ) : ℕ × List ℕ :=
+  let q := p ^ e
+  let (k, y) := stripP p (a % q) e
+  if k = e then (q, (List.range (p ^ (e / 2))).map fun j ↦ p ^ ((e + 1) / 2) * j)
+  else if k % 2 = 1 then (q, [])
+  else
+    let (m, S) := unitRoots y p (e - k)
+    let h := p ^ (k / 2)
+    (q, S.flatMap fun s ↦ (List.range h).map fun j ↦ h * (s + m * j))
 
 /-- **The Chinese remainder theorem for two moduli (Theorem 2.1.6)**: the `t < m₁ m₂` with
 `t ≡ r (mod m₁)` and `t ≡ s (mod m₂)`, for coprime `m₁, m₂` and `r < m₁`. -/
@@ -291,11 +319,11 @@ theorem zmod_sq_of_isSqrtMod {a p e w : ℕ} (he : 1 ≤ e) (h : IsSqrtMod a (p 
     Nat.ModEq.of_dvd (dvd_pow_self p (by omega)) h.2
   rw [sq, ← Nat.cast_mul]; exact (ZMod.natCast_eq_natCast_iff _ _ _).2 this
 
-theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
-    (rootsPrimePow a p e).1 = p ^ e ∧
-      ∀ t, t ∈ (rootsPrimePow a p e).2 ↔ IsSqrtMod a (p ^ e) t := by
+theorem unitRoots_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
+    (unitRoots a p e).1 = p ^ e ∧
+      ∀ t, t ∈ (unitRoots a p e).2 ↔ IsSqrtMod a (p ^ e) t := by
   have := Fact.mk hp
-  unfold rootsPrimePow
+  unfold unitRoots
   split_ifs with h₁ h₂
   · -- `p` odd, `p ∤ a`, `a` a residue: `±` the Hensel lift of `√a mod p`
     have hp2 : p ≠ 2 := by rintro rfl; simp at h₁
@@ -368,6 +396,151 @@ theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
     rw [this, Nat.one_mod_eq_one.2 hp.one_lt.ne']
   · exact digitRoots_spec a p hp.pos e
 
+
+theorem stripP_spec (p : ℕ) (e : ℕ) : ∀ x : ℕ,
+    x = p ^ (stripP p x e).1 * (stripP p x e).2 ∧ (stripP p x e).1 ≤ e ∧
+      ((stripP p x e).1 < e → ¬p ∣ (stripP p x e).2) := by
+  induction e with
+  | zero => intro x; simp [stripP]
+  | succ e ih =>
+    intro x
+    rw [stripP]
+    split_ifs with h
+    · obtain ⟨h₁, h₂, h₃⟩ := ih (x / p)
+      dsimp only
+      refine ⟨?_, by omega, fun hk ↦ h₃ (by omega)⟩
+      rw [pow_succ, mul_comm (p ^ _) p, mul_assoc, ← h₁, Nat.mul_div_cancel' (Nat.dvd_of_mod_eq_zero h)]
+    · exact ⟨by simp, by omega, fun _ ↦ fun hd ↦ h (Nat.mod_eq_zero_of_dvd hd)⟩
+
+/-- `p^m ∣ p^j s` with `p ∤ s` iff `m ≤ j`. -/
+theorem pow_dvd_pow_mul_iff {p m j s : ℕ} (hp : p.Prime) (hs : ¬p ∣ s) :
+    p ^ m ∣ p ^ j * s ↔ m ≤ j := by
+  constructor
+  · intro h
+    by_contra hc; push Not at hc
+    have : p ^ (j + 1) ∣ p ^ j * s := (pow_dvd_pow p hc).trans h
+    rw [pow_succ] at this
+    exact hs (Nat.dvd_of_mul_dvd_mul_left (pow_pos hp.pos j) this)
+  · intro h; exact (pow_dvd_pow p h).trans (dvd_mul_right _ _)
+
+/-- **The valuation of a root**: if `r² ≡ p^k y (mod p^e)` with `p ∤ y` and `k < e`, then
+`k` is even and `r = p^{k/2} s` with `p ∤ s` and `s² ≡ y (mod p^{e-k})`. -/
+theorem sq_val {p e k y r : ℕ} (hp : p.Prime) (hk : k < e) (hy : ¬p ∣ y)
+    (hr : r * r % p ^ e = p ^ k * y % p ^ e) :
+    k % 2 = 0 ∧ ∃ s, ¬p ∣ s ∧ r = p ^ (k / 2) * s ∧ s * s % p ^ (e - k) = y % p ^ (e - k) := by
+  -- `r ≠ 0`
+  have hr0 : r ≠ 0 := by
+    rintro rfl
+    have : p ^ e ∣ p ^ k * y := Nat.dvd_of_mod_eq_zero (by simpa using hr.symm)
+    exact absurd ((pow_dvd_pow_mul_iff hp hy).1 this) (by omega)
+  obtain ⟨j, s, hs, rfl⟩ := Nat.exists_eq_pow_mul_and_not_dvd hr0 p hp.ne_one
+  have hss : ¬p ∣ s * s := fun h ↦ hs ((Nat.Prime.dvd_mul hp).1 h |>.elim id id)
+  have hrr : p ^ j * s * (p ^ j * s) = p ^ (2 * j) * (s * s) := by ring
+  -- the valuations of both sides agree below `e`
+  have hmod : p ^ (2 * j) * (s * s) ≡ p ^ k * y [MOD p ^ e] := by rw [← hrr]; exact hr
+  have key : ∀ m ≤ e, (p ^ m ∣ p ^ (2 * j) * (s * s) ↔ p ^ m ∣ p ^ k * y) := fun m hm ↦ by
+    have hpm : p ^ m ∣ p ^ e := pow_dvd_pow p hm
+    exact hmod.dvd_iff hpm
+  have h2j : 2 * j = k := by
+    rcases lt_trichotomy (2 * j) k with h | h | h
+    · have := (key (2 * j + 1) (by omega)).2 ((pow_dvd_pow_mul_iff hp hy).2 (by omega))
+      exact absurd ((pow_dvd_pow_mul_iff hp hss).1 this) (by omega)
+    · exact h
+    · have := (key (k + 1) (by omega)).1 ((pow_dvd_pow_mul_iff hp hss).2 (by omega))
+      exact absurd ((pow_dvd_pow_mul_iff hp hy).1 this) (by omega)
+  refine ⟨by omega, s, hs, by rw [show k / 2 = j by omega], ?_⟩
+  -- cancel `p^k`
+  have hpe : p ^ e = p ^ k * p ^ (e - k) := by rw [← pow_add]; congr 1; omega
+  rw [h2j, hpe] at hmod
+  exact Nat.ModEq.mul_left_cancel' (pow_ne_zero k hp.ne_zero) hmod
+
+theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
+    (rootsPrimePow a p e).1 = p ^ e ∧
+      ∀ t, t ∈ (rootsPrimePow a p e).2 ↔ IsSqrtMod a (p ^ e) t := by
+  unfold rootsPrimePow; dsimp only
+  have hq0 : 0 < p ^ e := pow_pos hp.pos e
+  have hlt : a % p ^ e < p ^ e := Nat.mod_lt _ hq0
+  obtain ⟨hx, hke, hpy⟩ := stripP_spec p e (a % p ^ e)
+  generalize stripP p (a % p ^ e) e = KY at hx hke hpy ⊢
+  obtain ⟨k, y⟩ := KY
+  simp only at hx hke hpy ⊢
+  have hpky : p ^ k * y % p ^ e = p ^ k * y := Nat.mod_eq_of_lt (by rw [← hx]; exact hlt)
+  split_ifs with h₁ h₂
+  · -- `p^e ∣ a`: the multiples of `p^⌈e/2⌉`
+    subst h₁
+    have ha0 : a % p ^ k = 0 := by
+      rcases Nat.eq_zero_or_pos y with hy | hy
+      · rw [hx, hy, mul_zero]
+      · exfalso; have := Nat.le_mul_of_pos_right (p ^ k) hy; omega
+    refine ⟨rfl, fun t ↦ ?_⟩
+    simp only [List.mem_map, List.mem_range, IsSqrtMod, ha0]
+    have hc : p ^ ((k + 1) / 2) * p ^ (k / 2) = p ^ k := by rw [← pow_add]; congr 1; omega
+    constructor
+    · rintro ⟨j, hj, rfl⟩
+      refine ⟨by rw [← hc]; exact Nat.mul_lt_mul_of_pos_left hj (pow_pos hp.pos _), ?_⟩
+      apply Nat.mod_eq_zero_of_dvd
+      exact (pow_dvd_pow p (show k ≤ 2 * ((k + 1) / 2) by omega)).trans
+        ⟨j * j, by rw [pow_mul']; ring⟩
+    · rintro ⟨ht, hsq⟩
+      rcases Nat.eq_zero_or_pos t with rfl | htp
+      · exact ⟨0, pow_pos hp.pos _, by simp⟩
+      obtain ⟨i, s', hs', rfl⟩ := Nat.exists_eq_pow_mul_and_not_dvd htp.ne' p hp.ne_one
+      have hss : ¬p ∣ s' * s' := fun h ↦ hs' ((Nat.Prime.dvd_mul hp).1 h |>.elim id id)
+      have hdiv : p ^ k ∣ p ^ (2 * i) * (s' * s') := by
+        rw [show p ^ (2 * i) * (s' * s') = p ^ i * s' * (p ^ i * s') by ring]
+        exact Nat.dvd_of_mod_eq_zero hsq
+      have hik := (pow_dvd_pow_mul_iff hp hss).1 hdiv
+      refine ⟨p ^ (i - (k + 1) / 2) * s', ?_, ?_⟩
+      · have : p ^ ((k + 1) / 2) * (p ^ (i - (k + 1) / 2) * s') < p ^ ((k + 1) / 2) * p ^ (k / 2) := by
+          rw [hc, ← mul_assoc, ← pow_add, show (k + 1) / 2 + (i - (k + 1) / 2) = i by omega]
+          exact ht
+        exact Nat.lt_of_mul_lt_mul_left this
+      · rw [← mul_assoc, ← pow_add, show (k + 1) / 2 + (i - (k + 1) / 2) = i by omega]
+  · -- odd valuation: no roots
+    refine ⟨rfl, fun t ↦ ⟨by simp, fun ⟨_, hsq⟩ ↦ ?_⟩⟩
+    have := (sq_val (r := t) hp (show k < e by omega) (hpy (by omega))
+      (by rw [hsq, hx, hpky])).1
+    omega
+  · -- even valuation `k < e`: `p^{k/2} (s + p^{e-k} j)`
+    have hke' : k < e := by omega
+    have hpy' := hpy hke'
+    obtain ⟨u₁, u₂⟩ := unitRoots_spec (a := y) hp (show 1 ≤ e - k by omega)
+    generalize unitRoots y p (e - k) = MS at u₁ u₂ ⊢
+    obtain ⟨m, S⟩ := MS
+    simp only at u₁ u₂ ⊢
+    subst u₁
+    have hk2 : p ^ (k / 2) * p ^ (k / 2) = p ^ k := by rw [← pow_add]; congr 1; omega
+    have hpe : p ^ k * p ^ (e - k) = p ^ e := by rw [← pow_add]; congr 1; omega
+    have hm0 : 0 < p ^ (e - k) := pow_pos hp.pos _
+    have hh0 : 0 < p ^ (k / 2) := pow_pos hp.pos _
+    refine ⟨trivial, fun t ↦ ?_⟩
+    simp only [List.mem_flatMap, List.mem_map, List.mem_range, u₂]
+    constructor
+    · rintro ⟨s, ⟨hs, hss⟩, j, hj, rfl⟩
+      constructor
+      · have : s + p ^ (e - k) * j < p ^ (e - k) * p ^ (k / 2) := by nlinarith
+        calc p ^ (k / 2) * (s + p ^ (e - k) * j) < p ^ (k / 2) * (p ^ (e - k) * p ^ (k / 2)) :=
+              Nat.mul_lt_mul_of_pos_left this hh0
+          _ = p ^ e := by rw [← hpe, ← hk2]; ring
+      · rw [hx]
+        have h₁ : (s + p ^ (e - k) * j) * (s + p ^ (e - k) * j) ≡ y [MOD p ^ (e - k)] := by
+          have : (s + p ^ (e - k) * j) * (s + p ^ (e - k) * j) ≡ s * s [MOD p ^ (e - k)] := by
+            simp [Nat.ModEq, Nat.add_mul_mod_self_left, Nat.mul_mod, Nat.add_mod]
+          exact this.trans hss
+        have h₂ := Nat.ModEq.mul_left' (p ^ k) h₁
+        rw [hpe] at h₂
+        rw [show p ^ (k / 2) * (s + p ^ (e - k) * j) * (p ^ (k / 2) * (s + p ^ (e - k) * j)) =
+          p ^ k * ((s + p ^ (e - k) * j) * (s + p ^ (e - k) * j)) by rw [← hk2]; ring]
+        rw [h₂, hpky]
+    · rintro ⟨ht, hsq⟩
+      obtain ⟨-, s', -, rfl, hs'⟩ := sq_val hp hke' hpy' (by rw [hsq, hx, hpky])
+      refine ⟨s' % p ^ (e - k), ⟨Nat.mod_lt _ hm0, ?_⟩, s' / p ^ (e - k), ?_,
+        by rw [Nat.mod_add_div]⟩
+      · rw [← Nat.mul_mod, ← hs']
+      · have : p ^ (k / 2) * s' < p ^ (k / 2) * (p ^ (e - k) * p ^ (k / 2)) := by
+          rw [show p ^ (k / 2) * (p ^ (e - k) * p ^ (k / 2)) = p ^ e by rw [← hpe, ← hk2]; ring]
+          exact ht
+        exact Nat.div_lt_of_lt_mul (Nat.lt_of_mul_lt_mul_left this)
 
 /-- A factorization: distinct primes, with positive exponents. -/
 def IsFactorization (fs : List (ℕ × ℕ)) : Prop :=
