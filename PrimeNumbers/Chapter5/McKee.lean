@@ -55,6 +55,11 @@ counted_def dedupNat : List ℕ → List ℕ
 counted_def factorPairs (L : List ℕ) : List (ℕ × ℕ) :=
   (dedupNat L).map fun p ↦ (p, (L.filter fun y ↦ y = p).length)
 
+/-- The factorization with a quadratic nonresidue for each prime (Tonelli's algorithm needs
+one; it is found once per prime, not once per square root). -/
+counted_def withNonresidues (fs : List (ℕ × ℕ)) : List (ℕ × ℕ × ℕ) :=
+  fs.map fun pe ↦ (pe.1, pe.2, findNonresidue pe.1)
+
 /-! ### The search -/
 
 /-- The candidates `w, w + d, w + 2d, …` (`fuel` of them) with `w² < a n`: the first with
@@ -80,7 +85,7 @@ counted_def searchRoots (n d a x₀ : ℕ) : List ℕ → Option ℕ
 
 /-- The loop `for (1 ≤ a ≤ 2√(d/3))`: the classes of `w` with `w² ≡ a n (mod d)` from the
 factorization `fs` of `d`. -/
-counted_def searchA (n d x₀ : ℕ) (fs : List (ℕ × ℕ)) : (a fuel : ℕ) → Option ℕ
+counted_def searchA (n d x₀ : ℕ) (fs : List (ℕ × ℕ × ℕ)) : (a fuel : ℕ) → Option ℕ
   | _, 0 => none
   | a, fuel + 1 =>
     if 3 * (a * a) ≤ 4 * d then
@@ -114,7 +119,8 @@ counted_def mckee (n : ℕ) : Option (ℕ × ℕ) :=
     let g := Nat.gcd n d
     if 1 < g ∧ g < n then some (g, n / g)
     else
-      match searchA n d x₀ (factorPairs (trialDivision d)) 1 d with      -- 3. [Congruences]
+      let fs := withNonresidues (factorPairs (trialDivision d))
+      match searchA n d x₀ fs 1 d with                                   -- 3. [Congruences]
       | some g => some (g, n / g)                                        -- 4. [gcd computation]
       | none => none
 
@@ -176,7 +182,7 @@ theorem searchRoots_sound {n d a x₀ : ℕ} (hn : 0 < n) (hd : n = x₀ * x₀ 
     · exact ih h
 
 theorem searchA_sound {n d x₀ : ℕ} (hn : 0 < n) (hd : n = x₀ * x₀ + d)
-    {fs : List (ℕ × ℕ)} {a fuel g : ℕ} (h : searchA n d x₀ fs a fuel = some g) :
+    {fs : List (ℕ × ℕ × ℕ)} {a fuel g : ℕ} (h : searchA n d x₀ fs a fuel = some g) :
     1 < g ∧ g < n ∧ g ∣ n := by
   induction fuel generalizing a with
   | zero => simp [searchA] at h
@@ -268,22 +274,28 @@ theorem dedupNat_spec (L : List ℕ) : (dedupNat L).Nodup ∧ ∀ x, x ∈ dedup
       refine ⟨List.nodup_cons.2 ⟨by rwa [h₂], h₁⟩, fun y ↦ ?_⟩
       simp only [List.mem_cons, h₂]
 
-/-- The pairs of the factorization by trial division are a factorization of `d`. -/
+/-- The pairs of the factorization by trial division, with nonresidues, are a factorization
+of `d`. -/
 theorem factorPairs_spec {d : ℕ} (hd : 0 < d) :
-    IsFactorization (factorPairs (trialDivision d)) ∧
-      factorProd (factorPairs (trialDivision d)) = d := by
+    IsFactorization (withNonresidues (factorPairs (trialDivision d))) ∧
+      factorProd (withNonresidues (factorPairs (trialDivision d))) = d := by
   set L := trialDivision d
   obtain ⟨hprod, hprime⟩ := trialDivision_spec hd
   obtain ⟨hnd, hmem⟩ := dedupNat_spec L
   have hcount : ∀ p, (L.filter fun y ↦ decide (y = p)).length = L.count p := fun p ↦ by
     rw [List.count_eq_length_filter]; congr 1
   refine ⟨⟨?_, fun pe hpe ↦ ?_⟩, ?_⟩
-  · simpa [factorPairs, List.map_map, Function.comp_def] using hnd
-  · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hpe
+  · simpa [withNonresidues, factorPairs, List.map_map, Function.comp_def] using hnd
+  · simp only [withNonresidues, factorPairs, List.map_map, List.mem_map,
+      Function.comp_def] at hpe
+    obtain ⟨p, hp, rfl⟩ := hpe
     have hpL := (hmem p).1 hp
-    refine ⟨hprime p hpL, ?_⟩
+    have hpp := hprime p hpL
+    have := Fact.mk hpp
+    refine ⟨hpp, ?_, fun h2 ↦ findNonresidue_spec h2⟩
     simp only [hcount]; exact List.count_pos_iff.2 hpL
-  · simp only [factorProd, factorPairs, List.map_map, Function.comp_def, hcount]
+  · simp only [factorProd, withNonresidues, factorPairs, List.map_map, Function.comp_def,
+      hcount]
     rw [← List.prod_toFinset _ hnd, ← hprod]
     have : (dedupNat L).toFinset = L.toFinset := by ext x; simp [hmem]
     rw [this, Finset.prod_list_count]
@@ -332,7 +344,7 @@ theorem searchRoots_isSome {n d a x₀ w : ℕ} {ws : List ℕ} (hw : w ∈ ws)
       · rw [hnone] at h; simp at h
       · exact ih hw
 
-theorem searchA_isSome {n d x₀ : ℕ} {fs : List (ℕ × ℕ)} {a₀ : ℕ} (h₀ : 3 * (a₀ * a₀) ≤ 4 * d)
+theorem searchA_isSome {n d x₀ : ℕ} {fs : List (ℕ × ℕ × ℕ)} {a₀ : ℕ} (h₀ : 3 * (a₀ * a₀) ≤ 4 * d)
     (h : (searchRoots n d a₀ x₀ (rootsMod (a₀ * n % d) fs).2).isSome) :
     ∀ {k a fuel : ℕ}, k < fuel → a₀ = a + k → (searchA n d x₀ fs a fuel).isSome := by
   intro k
@@ -669,7 +681,8 @@ theorem mckee_complete {n : ℕ} (hn : 1 < n)
   obtain ⟨hfs, hfd⟩ := factorPairs_spec hd0
   obtain ⟨-, hroots⟩ := rootsMod_spec (a * n % d) hfs
   rw [hfd] at hroots
-  have hwd : w % d ∈ (rootsMod (a * n % d) (factorPairs (trialDivision d))).2 := by
+  have hwd : w % d ∈
+      (rootsMod (a * n % d) (withNonresidues (factorPairs (trialDivision d)))).2 := by
     refine (hroots _).2 ⟨Nat.mod_lt _ hd0, ?_⟩
     rw [Nat.mod_mod, ← Nat.mul_mod, hrep, Nat.add_mul_mod_self_left]
   have hcls := searchClass_isSome (n := n) (d := d) (a := a) (x₀ := x₀) hd0 hv hrep hc hc'
@@ -683,7 +696,7 @@ theorem mckee_complete {n : ℕ} (hn : 1 < n)
     rcases Nat.lt_or_ge d 2 with hd2 | hd2
     · nlinarith
     · nlinarith
-  have hA := searchA_isSome (fs := factorPairs (trialDivision d)) h3a hroot
+  have hA := searchA_isSome (fs := withNonresidues (factorPairs (trialDivision d))) h3a hroot
     (k := a - 1) (a := 1) (fuel := d) (by omega) (by omega)
   split at h
   · simp at h

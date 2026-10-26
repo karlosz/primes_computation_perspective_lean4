@@ -127,7 +127,7 @@ def sqrtCases : List Case := [
       let ps := [randPrime 1 (k / 3), randPrime 2 (k / 3 + 1), randPrime 3 (k / 3 + 2)]
       let m := ps.foldl (· * ·) 1
       let a := randBelow 4 m ^ 2 % m
-      task (a, ps.map fun p ↦ (p, 1)) fun (a, fs) ↦ (rootsMod a fs).2 } ]
+      task (a, withNonresidues (ps.map fun p ↦ (p, 1))) fun (a, fs) ↦ (rootsMod a fs).2 } ]
 
 /-! ## Binary quadratic forms -/
 

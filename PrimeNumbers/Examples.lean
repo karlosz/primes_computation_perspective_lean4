@@ -355,13 +355,13 @@ open PrimeNumbers.Chapter9 in
 /-! ## Exercise 2.36: square roots modulo a composite of known factorization -/
 
 /-- `rootsMod a fs` lists exactly the square roots of `a` modulo `m = ∏ p^e` (compared with
-an exhaustive search). -/
+an exhaustive search); the nonresidues for Tonelli's algorithm are found once per prime. -/
 def allRootsOk (a : ℕ) (fs : List (ℕ × ℕ)) : Bool :=
-  let (m, rs) := rootsMod a fs
+  let (m, rs) := rootsMod a (withNonresidues fs)
   rs.all (fun t ↦ t < m && t * t % m == a % m) &&
     ((List.range m).filter fun t ↦ t * t % m == a % m).length == rs.length
 
-#guard (rootsMod 1 [(2, 3), (3, 2), (5, 1)]).2.length = 16    -- the 16 roots of 1 mod 360
+#guard (rootsMod 1 (withNonresidues [(2, 3), (3, 2), (5, 1)])).2.length = 16  -- 16 roots mod 360
 #guard allRootsOk 1 [(2, 3), (3, 2), (5, 1)]
 #guard allRootsOk 63 [(3, 4)]          -- 63 = 3² · 7: 3 (s + 9 j) for the roots s of 7 mod 9
 #guard allRootsOk 0 [(3, 5)]           -- the multiples of 27 modulo 243

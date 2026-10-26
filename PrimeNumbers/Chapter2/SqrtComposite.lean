@@ -11,7 +11,8 @@ Exercise 2.36 (and Algorithm 2.3.11, Hensel lifting).
 Given the factorization `m = ∏ pᵢ^eᵢ`, all solutions of `x² ≡ a (mod m)`:
 
 * `unitRoots` — modulo `p^e` for `p ∤ a`: for odd `p`, a square root modulo `p`
-  (`sqrtMod`, Algorithm 2.3.8, after Euler's criterion) lifted by Hensel's method
+  (`tonelli`, Algorithm 2.3.8, with a nonresidue `z` given, after Euler's criterion)
+  lifted by Hensel's method
   (`henselSqrt`, Algorithm 2.3.11 for `x² - a`), and its negative; for `p = 2` the digits
   of the roots found one at a time (`digitRoots`);
 * `rootsPrimePow` — modulo `p^e` for any `a`: with `a ≡ p^k y`, `p ∤ y` (`stripP`), the
@@ -56,10 +57,10 @@ counted_def digitRoots (a p : ℕ) : ℕ → ℕ × List ℕ
 odd `p`, none if `a` is a nonresidue modulo `p` (Euler's criterion), else `±` the Hensel lift
 of the square root modulo `p`; for `p = 2` digit by digit.  (Correct for any `a`, but fast
 only for `p ∤ a`.) -/
-counted_def unitRoots (a p e : ℕ) : ℕ × List ℕ :=
+counted_def unitRoots (a p e z : ℕ) : ℕ × List ℕ :=
   if p % 2 = 1 ∧ a % p ≠ 0 then
     if powMod a (p / 2) p = 1 then
-      let r := (sqrtMod p (a : ZMod p)).val
+      let r := (tonelli (a : ZMod p) (z : ZMod p)).val
       let (q, t) := henselLoop a p p r (e - 1)
       (q, [t, q - t])
     else (p ^ e, [])
@@ -78,13 +79,13 @@ counted_def stripP (p : ℕ) : (x e : ℕ) → ℕ × ℕ
 `a ≡ p^k y (mod p^e)`, `p ∤ y`: if `k = e` (`p^e ∣ a`), the multiples of `p^⌈e/2⌉`; if `k`
 is odd, none; otherwise `p^{k/2} (s + p^{e-k} j)` for the roots `s` of `y` modulo `p^{e-k}`
 (`unitRoots`) and `j < p^{k/2}`.  The work is proportional to the number of roots. -/
-counted_def rootsPrimePow (a p e : ℕ) : ℕ × List ℕ :=
+counted_def rootsPrimePow (a p e z : ℕ) : ℕ × List ℕ :=
   let q := p ^ e
   let (k, y) := stripP p (a % q) e
   if k = e then (q, (List.range (p ^ (e / 2))).map fun j ↦ p ^ ((e + 1) / 2) * j)
   else if k % 2 = 1 then (q, [])
   else
-    let (m, S) := unitRoots y p (e - k)
+    let (m, S) := unitRoots y p (e - k) z
     let h := p ^ (k / 2)
     (q, S.flatMap fun s ↦ (List.range h).map fun j ↦ h * (s + m * j))
 
@@ -96,11 +97,11 @@ counted_def crtPair (r m₁ s m₂ : ℕ) : ℕ :=
 /-- **Exercise 2.36: the square roots of `a` modulo `m = ∏ p^e`**, given the factorization
 as the pairs `(p, e)` (distinct primes, `e ≥ 1`): the modulus `m` and the roots in
 `[0, m)`. -/
-counted_def rootsMod (a : ℕ) : List (ℕ × ℕ) → ℕ × List ℕ
+counted_def rootsMod (a : ℕ) : List (ℕ × ℕ × ℕ) → ℕ × List ℕ
   | [] => (1, [0])
-  | (p, e) :: fs =>
+  | (p, e, z) :: fs =>
     let (m, rs) := rootsMod a fs
-    let (q, ss) := rootsPrimePow a p e
+    let (q, ss) := rootsPrimePow a p e z
     (m * q, ss.flatMap fun s ↦ rs.map fun r ↦ crtPair r m s q)
 
 
@@ -319,9 +320,10 @@ theorem zmod_sq_of_isSqrtMod {a p e w : ℕ} (he : 1 ≤ e) (h : IsSqrtMod a (p 
     Nat.ModEq.of_dvd (dvd_pow_self p (by omega)) h.2
   rw [sq, ← Nat.cast_mul]; exact (ZMod.natCast_eq_natCast_iff _ _ _).2 this
 
-theorem unitRoots_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
-    (unitRoots a p e).1 = p ^ e ∧
-      ∀ t, t ∈ (unitRoots a p e).2 ↔ IsSqrtMod a (p ^ e) t := by
+theorem unitRoots_spec {a p e z : ℕ} (hp : p.Prime) (he : 1 ≤ e)
+    (hz : p ≠ 2 → ¬IsSquare ((z : ℕ) : ZMod p)) :
+    (unitRoots a p e z).1 = p ^ e ∧
+      ∀ t, t ∈ (unitRoots a p e z).2 ↔ IsSqrtMod a (p ^ e) t := by
   have := Fact.mk hp
   unfold unitRoots
   split_ifs with h₁ h₂
@@ -335,10 +337,10 @@ theorem unitRoots_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
       have := (ZMod.natCast_eq_natCast_iff' (a ^ (p / 2)) 1 p).2 (by
         rw [h₂, Nat.one_mod_eq_one.2 hp.one_lt.ne'])
       push_cast at this; exact this
-    set r := (sqrtMod p (a : ZMod p)).val
+    set r := (tonelli (a : ZMod p) (z : ZMod p)).val
     have hrp : r < p := ZMod.val_lt _
     have hr2 : (r : ZMod p) ^ 2 = a := by
-      simp only [r, ZMod.natCast_val, ZMod.cast_id', id]; exact sqrtMod_sq hp2 hsq
+      simp only [r, ZMod.natCast_val, ZMod.cast_id', id]; exact tonelli_sq hp2 hsq (hz hp2)
     have hrr : r * r % p = a % p := by
       have := hr2; rw [sq, ← Nat.cast_mul] at this
       exact (ZMod.natCast_eq_natCast_iff' _ _ _).1 this
@@ -454,9 +456,10 @@ theorem sq_val {p e k y r : ℕ} (hp : p.Prime) (hk : k < e) (hy : ¬p ∣ y)
   rw [h2j, hpe] at hmod
   exact Nat.ModEq.mul_left_cancel' (pow_ne_zero k hp.ne_zero) hmod
 
-theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
-    (rootsPrimePow a p e).1 = p ^ e ∧
-      ∀ t, t ∈ (rootsPrimePow a p e).2 ↔ IsSqrtMod a (p ^ e) t := by
+theorem rootsPrimePow_spec {a p e z : ℕ} (hp : p.Prime) (he : 1 ≤ e)
+    (hz : p ≠ 2 → ¬IsSquare ((z : ℕ) : ZMod p)) :
+    (rootsPrimePow a p e z).1 = p ^ e ∧
+      ∀ t, t ∈ (rootsPrimePow a p e z).2 ↔ IsSqrtMod a (p ^ e) t := by
   unfold rootsPrimePow; dsimp only
   have hq0 : 0 < p ^ e := pow_pos hp.pos e
   have hlt : a % p ^ e < p ^ e := Nat.mod_lt _ hq0
@@ -504,8 +507,8 @@ theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
   · -- even valuation `k < e`: `p^{k/2} (s + p^{e-k} j)`
     have hke' : k < e := by omega
     have hpy' := hpy hke'
-    obtain ⟨u₁, u₂⟩ := unitRoots_spec (a := y) hp (show 1 ≤ e - k by omega)
-    generalize unitRoots y p (e - k) = MS at u₁ u₂ ⊢
+    obtain ⟨u₁, u₂⟩ := unitRoots_spec (a := y) hp (show 1 ≤ e - k by omega) hz
+    generalize unitRoots y p (e - k) z = MS at u₁ u₂ ⊢
     obtain ⟨m, S⟩ := MS
     simp only at u₁ u₂ ⊢
     subst u₁
@@ -542,42 +545,44 @@ theorem rootsPrimePow_spec {a p e : ℕ} (hp : p.Prime) (he : 1 ≤ e) :
           exact ht
         exact Nat.div_lt_of_lt_mul (Nat.lt_of_mul_lt_mul_left this)
 
-/-- A factorization: distinct primes, with positive exponents. -/
-def IsFactorization (fs : List (ℕ × ℕ)) : Prop :=
-  (fs.map Prod.fst).Nodup ∧ ∀ pe ∈ fs, pe.1.Prime ∧ 1 ≤ pe.2
+/-- A factorization: distinct primes `p` with positive exponents `e`, and for odd `p` a
+quadratic nonresidue `z` modulo `p` (for Tonelli's algorithm). -/
+def IsFactorization (fs : List (ℕ × ℕ × ℕ)) : Prop :=
+  (fs.map Prod.fst).Nodup ∧
+    ∀ x ∈ fs, x.1.Prime ∧ 1 ≤ x.2.1 ∧ (x.1 ≠ 2 → ¬IsSquare ((x.2.2 : ℕ) : ZMod x.1))
 
 /-- The number `∏ p^e` of a factorization. -/
-def factorProd (fs : List (ℕ × ℕ)) : ℕ := (fs.map fun pe ↦ pe.1 ^ pe.2).prod
+def factorProd (fs : List (ℕ × ℕ × ℕ)) : ℕ := (fs.map fun x ↦ x.1 ^ x.2.1).prod
 
-theorem coprime_factorProd {p e : ℕ} {fs : List (ℕ × ℕ)} (hp : p.Prime)
-    (hfs : ∀ pe ∈ fs, pe.1.Prime) (hnot : p ∉ fs.map Prod.fst) :
+theorem coprime_factorProd {p e : ℕ} {fs : List (ℕ × ℕ × ℕ)} (hp : p.Prime)
+    (hfs : ∀ x ∈ fs, x.1.Prime) (hnot : p ∉ fs.map Prod.fst) :
     Nat.Coprime (factorProd fs) (p ^ e) := by
   unfold factorProd
   refine Nat.Coprime.pow_right _ (Nat.coprime_list_prod_left_iff.2 fun x hx ↦ ?_)
-  obtain ⟨⟨q, k⟩, hq, rfl⟩ := List.mem_map.1 hx
+  obtain ⟨⟨q, k, z⟩, hq, rfl⟩ := List.mem_map.1 hx
   refine Nat.Coprime.pow_left _ ((Nat.coprime_primes (hfs _ hq) hp).2 fun h ↦ hnot ?_)
-  exact List.mem_map.2 ⟨(q, k), hq, h⟩
+  exact List.mem_map.2 ⟨(q, k, z), hq, h⟩
 
 /-- **Exercise 2.36 is correct**: given a factorization of `m`, `rootsMod` returns `m` and
 exactly the square roots of `a` modulo `m` in `[0, m)`. -/
-theorem rootsMod_spec (a : ℕ) {fs : List (ℕ × ℕ)} (h : IsFactorization fs) :
+theorem rootsMod_spec (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFactorization fs) :
     (rootsMod a fs).1 = factorProd fs ∧
       ∀ t, t ∈ (rootsMod a fs).2 ↔ IsSqrtMod a (factorProd fs) t := by
   induction fs with
   | nil => simp [rootsMod, factorProd, IsSqrtMod, Nat.mod_one]
   | cons pe fs ih =>
-    obtain ⟨p, e⟩ := pe
+    obtain ⟨p, e, z⟩ := pe
     obtain ⟨hnd, hpe⟩ := h
     simp only [List.map_cons, List.nodup_cons] at hnd
-    obtain ⟨hp, he⟩ := hpe (p, e) (by simp)
+    obtain ⟨hp, he, hz⟩ := hpe (p, e, z) (by simp)
     obtain ⟨h₁, h₂⟩ := ih ⟨hnd.2, fun x hx ↦ hpe x (by simp [hx])⟩
-    obtain ⟨k₁, k₂⟩ := rootsPrimePow_spec (a := a) hp he
+    obtain ⟨k₁, k₂⟩ := rootsPrimePow_spec (a := a) hp he hz
     have hcop := coprime_factorProd (e := e) hp (fun x hx ↦ (hpe x (by simp [hx])).1) hnd.1
-    have hf : factorProd ((p, e) :: fs) = factorProd fs * p ^ e := by
+    have hf : factorProd ((p, e, z) :: fs) = factorProd fs * p ^ e := by
       simp [factorProd, mul_comm]
     simp only [rootsMod]
     generalize rootsMod a fs = R at h₁ h₂ ⊢
-    generalize rootsPrimePow a p e = Q at k₁ k₂ ⊢
+    generalize rootsPrimePow a p e z = Q at k₁ k₂ ⊢
     obtain ⟨m, rs⟩ := R
     obtain ⟨q, ss⟩ := Q
     simp only at h₁ h₂ k₁ k₂ ⊢
