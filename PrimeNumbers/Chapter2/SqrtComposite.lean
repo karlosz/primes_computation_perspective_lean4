@@ -594,4 +594,192 @@ theorem rootsMod_spec (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFactoriza
     · rintro ⟨s, hs, r, hr, rfl⟩; exact ⟨r, s, hr, hs, rfl⟩
     · rintro ⟨r, s, hr, hs, rfl⟩; exact ⟨s, hs, r, hr, rfl⟩
 
+
+/-! ### The number of roots -/
+
+theorem mem_liftDigit_mod {a p q r t : ℕ} (hq : 0 < q) (hr : r < q) (ht : t ∈ liftDigit a p q r) :
+    t % q = r := by
+  obtain ⟨⟨j, -, rfl⟩, -⟩ := mem_liftDigit.1 ht
+  rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hr]
+
+theorem liftDigit_nodup (a p q r : ℕ) (hq : 0 < q) : (liftDigit a p q r).Nodup := by
+  unfold liftDigit
+  refine List.Nodup.filter _ (List.Nodup.map (fun i j h ↦ ?_) List.nodup_range)
+  have : q * i = q * j := by omega
+  exact Nat.eq_of_mul_eq_mul_left hq this
+
+theorem digitRoots_nodup (a p : ℕ) (hp : 0 < p) (e : ℕ) : (digitRoots a p e).2.Nodup := by
+  induction e with
+  | zero => simp [digitRoots]
+  | succ e ih =>
+    obtain ⟨hq, hmem⟩ := digitRoots_spec a p hp e
+    simp only [digitRoots]
+    generalize digitRoots a p e = R at ih hq hmem ⊢
+    obtain ⟨q, rs⟩ := R
+    simp only at ih hq hmem ⊢
+    subst hq
+    have hq0 : 0 < p ^ e := pow_pos hp e
+    refine List.nodup_flatMap.2 ⟨fun r _ ↦ liftDigit_nodup a p _ r hq0, ?_⟩
+    refine ih.imp_of_mem fun {r r'} hr hr' hne ↦ ?_
+    intro t ht ht'
+    exact hne ((mem_liftDigit_mod hq0 ((hmem r).1 hr).1 ht).symm.trans
+      (mem_liftDigit_mod hq0 ((hmem r').1 hr').1 ht'))
+
+/-- **The roots of a unit modulo `2^f` are `±s` modulo `2^{f-1}`**: if `s, t` are odd with
+`s² ≡ t² (mod 2^f)`, then `2^{f-1}` divides `t - s` or `t + s` (one of the two is `2` times
+an odd number). -/
+theorem two_adic_roots {f s t : ℕ} (hf : 1 ≤ f) (hs : s % 2 = 1) (ht : t % 2 = 1)
+    (h : (2 : ℤ) ^ f ∣ ((t : ℤ) - s) * (t + s)) :
+    (2 : ℤ) ^ (f - 1) ∣ (t : ℤ) - s ∨ (2 : ℤ) ^ (f - 1) ∣ (t : ℤ) + s := by
+  obtain ⟨u, hu⟩ : (2 : ℤ) ∣ (t : ℤ) - s := by
+    have : ((t : ℤ) - s) % 2 = 0 := by omega
+    exact Int.dvd_of_emod_eq_zero this
+  obtain ⟨v, hv⟩ : (2 : ℤ) ∣ (t : ℤ) + s := by
+    have : ((t : ℤ) + s) % 2 = 0 := by omega
+    exact Int.dvd_of_emod_eq_zero this
+  -- `u + v = t` is odd: one of `u, v` is odd
+  have huv : u + v = t := by linarith
+  rw [hu, hv, show 2 * u * (2 * v) = 2 ^ 2 * (u * v) by ring] at h
+  have hf2 : (2 : ℤ) ^ f = 2 ^ (f - 1) * 2 := by rw [← pow_succ]; congr 1; omega
+  rcases Int.emod_two_eq_zero_or_one u with hu2 | hu2
+  · -- `v` odd: `2^{f-1} ∣ 2 u`
+    have hv2 : v % 2 = 1 := by omega
+    left; rw [hu]
+    have h' : (2 : ℤ) ^ (f - 1) * 2 ∣ 2 * (2 * u * v) := by rw [← hf2]; convert h using 1; ring
+    have h'' : (2 : ℤ) ^ (f - 1) ∣ 2 * u * v := by
+      obtain ⟨c, hc⟩ := h'; exact ⟨c, by linarith⟩
+    have hcop : IsCoprime ((2 : ℤ) ^ (f - 1)) v := by
+      apply IsCoprime.pow_left
+      exact ⟨-(v / 2), 1, by have := Int.emod_add_mul_ediv v 2; linarith⟩
+    exact hcop.dvd_of_dvd_mul_right h''
+  · have hu2' : u % 2 = 1 := hu2
+    right; rw [hv]
+    have h' : (2 : ℤ) ^ (f - 1) * 2 ∣ 2 * (2 * v * u) := by rw [← hf2]; convert h using 1; ring
+    have h'' : (2 : ℤ) ^ (f - 1) ∣ 2 * v * u := by
+      obtain ⟨c, hc⟩ := h'; exact ⟨c, by linarith⟩
+    have hcop : IsCoprime ((2 : ℤ) ^ (f - 1)) u := by
+      apply IsCoprime.pow_left
+      exact ⟨-(u / 2), 1, by have := Int.emod_add_mul_ediv u 2; linarith⟩
+    exact hcop.dvd_of_dvd_mul_right h''
+
+
+/-- At most four square roots of an odd number modulo `2^f`. -/
+theorem digitRoots_two_length_le {y : ℕ} (hy : y % 2 = 1) (f : ℕ) :
+    (digitRoots y 2 f).2.length ≤ 4 := by
+  rcases Nat.eq_zero_or_pos f with rfl | hf
+  · simp [digitRoots]
+  obtain ⟨-, hmem⟩ := digitRoots_spec y 2 (by norm_num) f
+  have hnd := digitRoots_nodup y 2 (by norm_num) f
+  set L := (digitRoots y 2 f).2
+  by_cases hne : L = []
+  · simp [hne]
+  obtain ⟨s, hsL⟩ := List.exists_mem_of_ne_nil L hne
+  have hs := (hmem s).1 hsL
+  set h := 2 ^ (f - 1)
+  have hh0 : 0 < h := by positivity
+  have h2h : 2 ^ f = h * 2 := by rw [← pow_succ]; congr 1; omega
+  set F : Finset ℕ := {s % h, s % h + h, (h - s % h) % h, (h - s % h) % h + h}
+  have hodd : ∀ t, IsSqrtMod y (2 ^ f) t → t % 2 = 1 := fun t ⟨_, ht⟩ ↦ by
+    have : t * t % 2 = y % 2 :=
+      (Nat.ModEq.of_dvd (dvd_pow_self 2 (by omega)) ht : t * t ≡ y [MOD 2])
+    rw [Nat.mul_mod] at this; rcases Nat.mod_two_eq_zero_or_one t with h0 | h1 <;> simp_all
+  have hsub : ∀ t ∈ L, t ∈ F := by
+    intro t ht
+    have htr := (hmem t).1 ht
+    have hdvd : (2 : ℤ) ^ f ∣ ((t : ℤ) - s) * (t + s) := by
+      have h₁ : (s * s : ℕ) ≡ t * t [MOD 2 ^ f] := hs.2.trans htr.2.symm
+      have := (Int.natCast_modEq_iff.2 h₁).dvd
+      push_cast at this; convert this using 1; ring
+    have hdiv : t / h < 2 := Nat.div_lt_of_lt_mul (by rw [← h2h]; exact htr.1)
+    have hrep := Nat.mod_add_div t h
+    rcases two_adic_roots hf (hodd s hs) (hodd t htr) hdvd with h₁ | h₁
+    · have : t % h = s % h := by
+        have hz : ((t : ℕ) : ZMod h) = s := by
+          have := (ZMod.intCast_zmod_eq_zero_iff_dvd _ h).2 (by exact_mod_cast h₁)
+          push_cast at this; linear_combination this
+        exact (ZMod.natCast_eq_natCast_iff' _ _ _).1 hz
+      simp only [F, Finset.mem_insert, Finset.mem_singleton]
+      interval_cases hq : (t / h) <;> omega
+    · have : t % h = (h - s % h) % h := by
+        have hz : ((t : ℕ) : ZMod h) = ((h - s % h : ℕ) : ZMod h) := by
+          have := (ZMod.intCast_zmod_eq_zero_iff_dvd ((t : ℤ) + s) h).2 (by exact_mod_cast h₁)
+          push_cast [Nat.cast_sub (Nat.mod_lt s hh0).le, ZMod.natCast_mod, ZMod.natCast_self]
+            at this ⊢
+          linear_combination this
+        rw [(ZMod.natCast_eq_natCast_iff' _ _ _).1 hz]
+      simp only [F, Finset.mem_insert, Finset.mem_singleton]
+      interval_cases hq : (t / h) <;> omega
+  calc L.length = L.toFinset.card := (List.toFinset_card_of_nodup hnd).symm
+    _ ≤ F.card := Finset.card_le_card fun t ht ↦ hsub t (List.mem_toFinset.1 ht)
+    _ ≤ 4 := Finset.card_le_four
+
+/-- At most four roots of a unit modulo `p^f`: two for odd `p`, four for `p = 2`. -/
+theorem unitRoots_length_le {a p f z : ℕ} (hp : p.Prime) (hpa : ¬p ∣ a) :
+    (unitRoots a p f z).2.length ≤ 4 := by
+  unfold unitRoots
+  split_ifs with h₁ h₂
+  · dsimp only; generalize henselLoop a p p _ (f - 1) = L; obtain ⟨q, t⟩ := L; simp
+  · simp
+  · have hp2 : p = 2 := by
+      by_contra hne
+      have : p % 2 = 1 := hp.eq_two_or_odd.resolve_left hne
+      exact h₁ ⟨this, fun h ↦ hpa (Nat.dvd_of_mod_eq_zero h)⟩
+    subst hp2
+    exact digitRoots_two_length_le (by omega) f
+
+
+/-- At most `4 g` roots modulo `p^e`, for a common divisor `g` of `a` and `p^e`. -/
+theorem rootsPrimePow_length_le {a p e z : ℕ} (hp : p.Prime) :
+    ∃ g, g ∣ a ∧ g ∣ p ^ e ∧ (rootsPrimePow a p e z).2.length ≤ 4 * g := by
+  have hq0 : 0 < p ^ e := pow_pos hp.pos e
+  have hdiv : ∀ g, g ∣ a % p ^ e → g ∣ p ^ e → g ∣ a := fun g h₁ h₂ ↦ by
+    rw [← Nat.mod_add_div a (p ^ e)]; exact dvd_add h₁ (dvd_mul_of_dvd_left h₂ _)
+  unfold rootsPrimePow; dsimp only
+  obtain ⟨hx, hke, hpy⟩ := stripP_spec p e (a % p ^ e)
+  generalize stripP p (a % p ^ e) e = KY at hx hke hpy ⊢
+  obtain ⟨k, y⟩ := KY
+  simp only at hx hke hpy ⊢
+  split_ifs with h₁ h₂
+  · subst h₁
+    refine ⟨p ^ k, hdiv _ ⟨y, hx⟩ dvd_rfl, dvd_rfl, ?_⟩
+    simp only [List.length_map, List.length_range]
+    have := Nat.pow_le_pow_right hp.pos (show k / 2 ≤ k by omega); omega
+  · exact ⟨1, one_dvd _, one_dvd _, by simp⟩
+  · refine ⟨p ^ k, hdiv _ ⟨y, hx⟩ (pow_dvd_pow p hke), pow_dvd_pow p hke, ?_⟩
+    have hS := unitRoots_length_le (a := y) (f := e - k) (z := z) hp (hpy (by omega))
+    generalize unitRoots y p (e - k) z = MS at hS ⊢
+    obtain ⟨m, S⟩ := MS
+    simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
+      List.sum_replicate, smul_eq_mul] at hS ⊢
+    have := Nat.pow_le_pow_right hp.pos (show k / 2 ≤ k by omega)
+    calc S.length * p ^ (k / 2) ≤ 4 * p ^ k := Nat.mul_le_mul hS this
+
+/-- At most `4^{|fs|} g` roots modulo `m`, for a common divisor `g` of `a` and `m`. -/
+theorem rootsMod_length_le (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFactorization fs) :
+    ∃ g, g ∣ a ∧ g ∣ factorProd fs ∧ (rootsMod a fs).2.length ≤ 4 ^ fs.length * g := by
+  induction fs with
+  | nil => exact ⟨1, one_dvd _, one_dvd _, by simp [rootsMod]⟩
+  | cons x fs ih =>
+    obtain ⟨p, e, z⟩ := x
+    obtain ⟨hnd, hpe⟩ := h
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    obtain ⟨hp, -, -⟩ := hpe (p, e, z) (by simp)
+    obtain ⟨g, hga, hgm, hlen⟩ := ih ⟨hnd.2, fun x hx ↦ hpe x (by simp [hx])⟩
+    obtain ⟨g', hga', hgq, hlen'⟩ := rootsPrimePow_length_le (a := a) (e := e) (z := z) hp
+    have hcop := coprime_factorProd (e := e) hp (fun x hx ↦ (hpe x (by simp [hx])).1) hnd.1
+    have hcop' : Nat.Coprime g g' := Nat.Coprime.of_dvd hgm hgq hcop
+    refine ⟨g * g', hcop'.mul_dvd_of_dvd_of_dvd hga hga', ?_, ?_⟩
+    · simp only [factorProd, List.map_cons, List.prod_cons]
+      rw [mul_comm g]; exact Nat.mul_dvd_mul hgq hgm
+    · simp only [rootsMod]
+      generalize rootsMod a fs = R at hlen ⊢
+      generalize rootsPrimePow a p e z = Q at hlen' ⊢
+      obtain ⟨m, rs⟩ := R
+      obtain ⟨q, ss⟩ := Q
+      simp only [List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
+        smul_eq_mul, List.length_cons, pow_succ] at hlen hlen' ⊢
+      calc ss.length * rs.length ≤ (4 * g') * (4 ^ fs.length * g) := Nat.mul_le_mul hlen' hlen
+        _ = 4 ^ fs.length * 4 * (g * g') := by ring
+
 end PrimeNumbers.Chapter2
+
