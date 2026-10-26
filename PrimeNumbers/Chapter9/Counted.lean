@@ -286,6 +286,16 @@ def _root_.List.map.counted (f : α → β) (l : List α) (f_charge : α → m U
   | [] => NatArith.charge 1
   | a :: l => do NatArith.charge 1; f_charge a; List.map.counted f l f_charge
 
+/-- `flatMap` pays a step, the charge of its function and the append of its result at every
+element. -/
+def _root_.List.flatMap.counted (f : α → List β) (l : List α) (f_charge : α → m Unit) :
+    m Unit :=
+  match l with
+  | [] => NatArith.charge 1
+  | a :: l => do
+    NatArith.charge 1; f_charge a; NatArith.charge ((f a).length + 1)
+    List.flatMap.counted f l f_charge
+
 def _root_.List.zipWith.counted {γ : Type} (f : α → β → γ) (l : List α) (l' : List β)
     (f_charge : α → β → m Unit) : m Unit :=
   match l, l' with
@@ -427,6 +437,21 @@ variable (C : CostModel) {α β : Type}
   | cons a l ih =>
     simp only [List.map.counted, List.map_cons, List.sum_cons, List.length_cons]
     change 1 * C.unit + (CostM.cost C (fc a) + CostM.cost C (List.map.counted f l fc)) = _
+    rw [ih]; ring
+
+/-- `flatMap` pays one step, the charge of its function and the append of its result at
+every element. -/
+@[cost_simps] theorem CostM.flatMap_cost (f : α → List β) (l : List α)
+    (fc : α → CostM C Unit) :
+    CostM.cost C (List.flatMap.counted f l fc) =
+      (l.length + 1) * C.unit + (l.map fun a => CostM.cost C (fc a)).sum +
+        (l.map fun a => (f a).length + 1).sum * C.unit := by
+  induction l with
+  | nil => simp [List.flatMap.counted]
+  | cons a l ih =>
+    simp only [List.flatMap.counted, List.map_cons, List.sum_cons, List.length_cons]
+    change 1 * C.unit + (CostM.cost C (fc a) + (((f a).length + 1) * C.unit +
+      CostM.cost C (List.flatMap.counted f l fc))) = _
     rw [ih]; ring
 
 /-- `foldl` pays one step and the charge of its function at every step; with an invariant

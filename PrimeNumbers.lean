@@ -26,6 +26,7 @@ import PrimeNumbers.Chapter2.Jacobi
 import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter2.Hensel
 import PrimeNumbers.Chapter2.Cornacchia
+import PrimeNumbers.Chapter2.SqrtComposite
 import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
 import PrimeNumbers.Chapter4.NMinusOne
