@@ -231,6 +231,19 @@ most `2 log₂ N + 1` times. -/
     cost_bound
   | case2 x y hy => cost_unfold euclid.counted
 
+/-- **The cost of the Euclid loop, in any cost model**: per pass a division of numbers of
+at most `k` bits and a step (the call and the test `y > 0`), and the last test. -/
+theorem euclidCost_le (C : CostModel) {x y k : ℕ} (hx : x.size ≤ k) (hy : y.size ≤ k) :
+    costOf C (euclid x y) ≤ (costOf divCount (euclid x y) + 1) * (C.divBound k + C.lin k) := by
+  fun_induction euclid x y with
+  | case1 x y hy0 ih =>
+    have ih := ih hy ((size_le_of_lt (Nat.mod_lt _ hy0)).trans hy)
+    have := C.divMod_le_divBound hx hy
+    rw [euclid_divCount hy0]
+    cost_unfold euclid.counted
+    cost_bound
+  | case2 x y hy0 => cost_unfold euclid.counted; cost_bound
+
 /-- **Bit complexity of the Euclid algorithm (Exercise 2.6).**  For `y < x ≤ N`, with `N`
 of `k` bits, Algorithm 2.1.2 takes at most `k (3k + 5) + 4` bit operations in the
 grammar-school model: the `O(ln² N)` stated after Theorem 2.1.3. -/
@@ -406,6 +419,51 @@ inputs (`CofactorInv`), and the quotient bits telescope as in Exercise 2.6. -/
   | case2 a b g u v w hw =>
     cost_unfold extEuclidLoop.counted
 
+/-- **The cost of the extended Euclid loop, in any cost model**: per pass a division and
+three products of numbers of at most `k` bits (the cofactors never exceed the inputs,
+`CofactorInv`), three subtractions and a step, and the last test. -/
+theorem extEuclidCost_le (C : CostModel) {k X Y : ℕ} (hX : X.size ≤ k)
+    (hY : Y.size ≤ k) (a b : ℤ) (g : ℕ) (u v : ℤ) (w : ℕ) (hg : 0 < g) (hgk : g.size ≤ k)
+    (hwk : w.size ≤ k) (hau : CofactorInv a u g w Y) (hbv : CofactorInv b v g w X) :
+    costOf C (extEuclidLoop a b g u v w) ≤
+      (costOf divCount (euclid g w) + 1) * (C.divBound k + 3 * C.mul k k + 4 * C.lin k) := by
+  fun_induction extEuclidLoop a b g u v w with
+  | case1 a b g u v w hw q ih =>
+    have hmod : g - q * w < w := by
+      have := Nat.mod_lt g hw
+      have : g / w * w + g % w = g := Nat.div_add_mod' g w
+      have : q * w = g / w * w := rfl
+      omega
+    have ih := ih hw hwk ((Nat.size_le_size hmod.le).trans hwk) hau.step hbv.step
+    have hmod' : g % w = g - q * w := by
+      have := Nat.div_add_mod' g w
+      have : q * w = g / w * w := rfl
+      omega
+    have hsteps : costOf divCount (euclid g w) = costOf divCount (euclid w (g - q * w)) + 1 := by
+      rw [euclid_divCount hw, hmod']
+    -- sizes of the operands of this pass
+    have hq : q.size ≤ k := (Nat.size_le_size (Nat.div_le_self g w)).trans hgk
+    have hu : u.natAbs.size ≤ k := (Nat.size_le_size (hau.natAbs_le hg)).trans hY
+    have hv : v.natAbs.size ≤ k := (Nat.size_le_size (hbv.natAbs_le hg)).trans hX
+    have hau' := hau.step.natAbs_le hw
+    have hbv' := hbv.step.natAbs_le hw
+    rw [hau.natAbs_sub] at hau'; rw [hbv.natAbs_sub] at hbv'
+    have hqw : q * w ≤ g := Nat.div_mul_le_self g w
+    have s₁ : a.natAbs.size ≤ k := (Nat.size_le_size (by omega)).trans hY
+    have s₂ : (g / w * u.natAbs).size ≤ k := (Nat.size_le_size (by omega)).trans hY
+    have s₃ : b.natAbs.size ≤ k := (Nat.size_le_size (by omega)).trans hX
+    have s₄ : (g / w * v.natAbs).size ≤ k := (Nat.size_le_size (by omega)).trans hX
+    have s₅ : (q * w).size ≤ k := (Nat.size_le_size hqw).trans hgk
+    have := C.divMod_le_divBound hgk hwk
+    cost_unfold extEuclidLoop.counted
+    simp only [Int.natAbs_mul, Int.natAbs_natCast] at *
+    simp only [q] at *
+    rw [hsteps]
+    cost_bound
+  | case2 a b g u v w hw =>
+    cost_unfold extEuclidLoop.counted
+    cost_bound
+
 /-- The Euclid loop runs at most `2 size N + 2` times on any `x, y ≤ N`. -/
 @[cost_le] theorem euclidSteps_le' {x y N : ℕ} (hx : x ≤ N) (hy : y ≤ N) :
     costOf Chapter9.divCount (euclid x y) ≤ 2 * N.size + 2 := by
@@ -440,6 +498,44 @@ operations — `O(ln² N)`, like the plain Euclid algorithm. -/
   fun_induction extEuclidLoop a b g u v w with
   | case1 a b g u v w hw q ih => exact ih h.step hw (h.natAbs_le hg)
   | case2 a b g u v w hw => exact ha
+
+/-- **The cost of the modular inverse, in any cost model**: for `x, m ≤ N`, with `N` of `k`
+bits, at most `2k + 3` passes of Algorithm 2.1.4 on numbers of at most `k` bits, and the
+final reduction. -/
+theorem modInvCost_le (C : CostModel) {x m N : ℕ} (hm0 : 0 < m) (hx : x ≤ N)
+    (hm : m ≤ N) :
+    costOf C (modInv x m) ≤
+      (2 * N.size + 4) * (C.divBound N.size + 3 * C.mul N.size N.size + 4 * C.lin N.size) := by
+  have hxk := Nat.size_le_size hx
+  have hmk := Nat.size_le_size hm
+  rcases Nat.eq_zero_or_pos x with rfl | hx0
+  · -- `x = 0`: at most one pass
+    have hv : extEuclid 0 m = (0, 1, m) := by
+      unfold extEuclid; rw [extEuclidLoop]; simp only [hm0, ↓reduceIte]
+      rw [extEuclidLoop]; simp
+    have h₁ : costOf C (extEuclidLoop 0 1 m 1 0 0) ≤ C.lin N.size := by
+      cost_unfold extEuclidLoop.counted; cost_bound
+    have := C.divMod_le_divBound (Nat.zero_le N.size) hmk
+    simp only [modInv.counted, extEuclid.counted]; cost_simp
+    cost_unfold extEuclidLoop.counted
+    simp only [Nat.zero_div, Nat.cast_zero, zero_mul, Int.natAbs_zero, Nat.size_zero, sub_zero,
+      Nat.sub_zero, hv, Int.zero_emod, Int.natAbs_one, Int.natAbs_natCast] at *
+    have : (1 : ℕ).size ≤ N.size := Nat.size_le_size (by omega)
+    cost_bound
+  have h₁ := extEuclidCost_le C (k := N.size) (X := x) (Y := m) hxk hmk 1 0 x 0 1 m hx0 hxk hmk
+    ⟨by simp, by simp⟩ ⟨by simp, by simp⟩
+  have hsteps := euclidSteps_le' hx hm
+  have h₂ : (extEuclid x m).1.natAbs ≤ m :=
+    extEuclidLoop_fst_natAbs_le 1 0 x 0 1 m ⟨by simp, by simp⟩ hx0 (by simp; omega)
+  have h₃ := C.divMod_le_divBound ((Nat.size_le_size h₂).trans hmk) hmk
+  have h₄ : ((extEuclid x m).1 % m).natAbs.size ≤ N.size := by
+    refine (Nat.size_le_size (show _ ≤ m by
+      have := Int.emod_nonneg (extEuclid x m).1 (show (m : ℤ) ≠ 0 by omega)
+      have := Int.emod_lt_of_pos (extEuclid x m).1 (show (0 : ℤ) < m by omega)
+      omega)).trans hmk
+  simp only [modInv.counted, extEuclid.counted]; cost_simp
+  simp only [Int.natAbs_natCast] at *
+  cost_bound
 
 /-- **Bit complexity of the modular inverse** (grammar-school): for `0 < x` and
 `x, m ≤ N`, with `N` of `k` bits and `m > 0`, computing `x⁻¹ mod m` by Algorithm 2.1.4

@@ -59,7 +59,7 @@ of the square root modulo `p`; for `p = 2` digit by digit.  (Correct for any `a`
 only for `p ∤ a`.) -/
 counted_def unitRoots (a p e z : ℕ) : ℕ × List ℕ :=
   if p % 2 = 1 ∧ a % p ≠ 0 then
-    if powMod a (p / 2) p = 1 then
+    if powMod (a % p) (p / 2) p = 1 then
       let r := (tonelli (a : ZMod p) (z : ZMod p)).val
       let (q, t) := henselLoop a p p r (e - 1)
       (q, [t, q - t])
@@ -333,7 +333,7 @@ theorem unitRoots_spec {a p e z : ℕ} (hp : p.Prime) (he : 1 ≤ e)
       rw [Ne, ZMod.natCast_eq_zero_iff, Nat.dvd_iff_mod_eq_zero]; exact h₁.2
     have hsq : IsSquare (a : ZMod p) := by
       rw [ZMod.euler_criterion p ha0]
-      rw [powMod_eq] at h₂
+      rw [powMod_eq, ← Nat.pow_mod] at h₂
       have := (ZMod.natCast_eq_natCast_iff' (a ^ (p / 2)) 1 p).2 (by
         rw [h₂, Nat.one_mod_eq_one.2 hp.one_lt.ne'])
       push_cast at this; exact this
@@ -393,7 +393,7 @@ theorem unitRoots_spec {a p e z : ℕ} (hp : p.Prime) (he : 1 ≤ e)
     have hsq : IsSquare (a : ZMod p) := ⟨t, by rw [← zmod_sq_of_isSqrtMod he ht, sq]⟩
     rw [ZMod.euler_criterion p ha0] at hsq
     exfalso; apply h₂
-    rw [powMod_eq]
+    rw [powMod_eq, ← Nat.pow_mod]
     have := (ZMod.natCast_eq_natCast_iff' (a ^ (p / 2)) 1 p).1 (by push_cast; exact hsq)
     rw [this, Nat.one_mod_eq_one.2 hp.one_lt.ne']
   · exact digitRoots_spec a p hp.pos e
@@ -781,5 +781,224 @@ theorem rootsMod_length_le (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFact
       calc ss.length * rs.length ≤ (4 * g') * (4 ^ fs.length * g) := Nat.mul_le_mul hlen' hlen
         _ = 4 ^ fs.length * 4 * (g * g') := by ring
 
-end PrimeNumbers.Chapter2
+/-! ## Running time: operation counts
 
+The square roots are counted in operations (`stepCount`: a multiplication, a division or a
+step of the code counts one), as McKee's test (Theorem 5.6.4) needs: the roots modulo
+`p^e ≤ N` of a unit cost `O(log² N)` operations, and the roots of any `a` that many and
+`O(log N)` per root. -/
+
+section RunningTime
+
+open PrimeNumbers.Chapter9
+
+/-- A Hensel step is an inverse modulo `p` and a dozen operations. -/
+@[cost_le] theorem henselSqrt_ops_le {a p q r N : ℕ} (hp0 : 0 < p) (hp : p ≤ N) :
+    costOf stepCount (henselSqrt a p q r) ≤ 16 * N.size + 50 := by
+  have := modInvCost_le stepCount (x := 2 * r % p) hp0 ((Nat.mod_lt _ hp0).le.trans hp) hp
+  simp only [counting_divBound, counting_mul, counting_lin] at this
+  cost_unfold henselSqrt.counted
+
+@[cost_le] theorem henselLoop_ops_le {a p N : ℕ} (hp0 : 0 < p) (hp : p ≤ N) (q r k : ℕ) :
+    costOf stepCount (henselLoop a p q r k) ≤ k * (16 * N.size + 52) + 1 := by
+  induction k generalizing q r with
+  | zero => cost_unfold henselLoop.counted
+  | succ k ih =>
+    have := ih (q * p) (henselSqrt a p q r)
+    have := henselSqrt_ops_le (a := a) (q := q) (r := r) hp0 hp
+    cost_unfold henselLoop.counted
+    cost_bound
+
+/-- The digit lifting with `p = 2`: a constant number of operations. -/
+@[cost_le] theorem liftDigit_two_ops_le (a q r : ℕ) :
+    costOf stepCount (liftDigit a 2 q r) ≤ 40 := by
+  cost_unfold liftDigit.counted
+  simp [List.range_succ]
+
+@[val_le] theorem liftDigit_two_length_le (a q r : ℕ) : (liftDigit a 2 q r).length ≤ 2 := by
+  unfold liftDigit
+  exact (List.length_filter_le _ _).trans (by simp)
+
+/-- For odd `y` at most four roots at each level (`digitRoots_two_length_le`), each lifted
+at a constant cost. -/
+@[cost_le] theorem digitRoots_two_ops_le {y : ℕ} (hy : y % 2 = 1) (f : ℕ) :
+    costOf stepCount (digitRoots y 2 f) ≤ 200 * f + 1 := by
+  induction f with
+  | zero => cost_unfold digitRoots.counted
+  | succ f ih =>
+    have hl := digitRoots_two_length_le hy f
+    cost_unfold digitRoots.counted
+    cost_bound
+
+/-- **The roots of a unit modulo `p^f`** (`p ≤ N`, `f ≤ size N`): Euler's criterion,
+Tonelli's algorithm and `f - 1` Hensel steps, or for `p = 2` the digit lifting —
+`O(log² N)` operations. -/
+@[cost_le] theorem unitRoots_ops_le {a p f z N : ℕ} (hp : p.Prime) (hpa : ¬p ∣ a)
+    (hpN : p ≤ N) (hf : f ≤ N.size) :
+    costOf stepCount (unitRoots a p f z) ≤ 100 * (N.size + 2) ^ 2 := by
+  have hp0 := hp.pos
+  have hs : p.size ≤ N.size := Nat.size_le_size hpN
+  have hsp : (oddPart (p - 1)).1 < p.size := Nat.lt_size.mpr (two_pow_oddPart_le hp0)
+  have h₂ := tonelli_cost_le stepCount hp0 (a : ZMod p) (z : ZMod p)
+  unfold sqrtOverhead at h₂
+  have := tonelli_mults_le (a : ZMod p) (z : ZMod p)
+  have := Nat.log_mono_right (b := 2) ((oddPart_snd_le (p - 1)).trans (Nat.sub_le p 1))
+  have := Nat.log_mono_right (b := 2) (Nat.div_le_self p 2)
+  have := log_two_le_size p
+  have : (oddPart (p - 1)).1 ^ 2 ≤ N.size * N.size := by
+    rw [sq]; exact Nat.mul_le_mul (by omega) (by omega)
+  have : (2 * p.size + 4) * (14 * (Nat.log 2 p + 2)) ≤ (2 * N.size + 4) * (14 * (N.size + 2)) := by
+    gcongr; omega
+  have : (f - 1) * (16 * N.size + 52) ≤ N.size * (16 * N.size + 52) :=
+    Nat.mul_le_mul_right _ (by omega)
+  -- otherwise `p = 2` and `a` is odd
+  have hdig : ¬(p % 2 = 1 ∧ a % p ≠ 0) → costOf stepCount (digitRoots a p f) ≤ 200 * f + 1 := by
+    intro h
+    have hp2 : p = 2 := by
+      have : a % p ≠ 0 := fun h0 ↦ hpa (Nat.dvd_of_mod_eq_zero h0)
+      rcases hp.eq_two_or_odd with h2 | h2
+      · exact h2
+      · exact absurd ⟨h2, this⟩ h
+    subst hp2
+    refine digitRoots_two_ops_le ?_ f
+    rcases Nat.mod_two_eq_zero_or_one a with h0 | h1
+    · exact absurd (Nat.dvd_of_mod_eq_zero h0) hpa
+    · exact h1
+  cost_unfold unitRoots.counted
+  split_ifs <;> first | (have := hdig ‹_›; cost_bound) | cost_bound
+
+@[cost_le] theorem stripP_ops_le (p x e : ℕ) : costOf stepCount (stripP p x e) ≤ 3 * e + 1 := by
+  induction e generalizing x with
+  | zero => cost_unfold stripP.counted
+  | succ e ih =>
+    have := ih (x / p)
+    cost_unfold stripP.counted
+    split_ifs <;> omega
+
+/-- **The roots modulo `p^e ≤ N`**: the unit roots (`unitRoots_ops_le`) and `O(log N)`
+operations per root. -/
+@[cost_le] theorem rootsPrimePow_ops_le {a p e z N : ℕ} (hp : p.Prime) (hpN : p ^ e ≤ N) :
+    costOf stepCount (rootsPrimePow a p e z) ≤
+      (6 * N.size + 6) * ((rootsPrimePow a p e z).2.length + 1) + 100 * (N.size + 2) ^ 2 := by
+  have hp2 := hp.two_le
+  have heN : e < N.size := by
+    rw [Nat.lt_size]
+    exact (Nat.pow_le_pow_left hp2 e).trans hpN
+  have hst := stripP_ops_le p (a % p ^ e) e
+  obtain ⟨hx, hke, hpy⟩ := stripP_spec p e (a % p ^ e)
+  unfold rootsPrimePow.counted
+  simp only [cost_simps, powCost_counting]
+  unfold rootsPrimePow; dsimp only
+  generalize stripP p (a % p ^ e) e = KY at hx hke hpy ⊢
+  obtain ⟨k, y⟩ := KY
+  simp only at hx hke hpy ⊢
+  split_ifs with h₁ h₂
+  · cost_bound
+  · cost_bound
+  · have hU := unitRoots_ops_le (a := y) (f := e - k) (z := z) hp (hpy (by omega))
+      ((Nat.le_self_pow (by omega) p).trans hpN) (by omega)
+    generalize unitRoots y p (e - k) z = MS at hU ⊢
+    obtain ⟨m, S⟩ := MS
+    simp only [List.length_flatMap] at hU ⊢
+    have := Nat.mul_le_mul_left S.length (Nat.one_le_pow (k / 2) p hp.pos)
+    have := Nat.mul_le_mul_right (S.length * p ^ (k / 2)) (show 12 ≤ 6 * N.size + 6 by omega)
+    have : e - 1 + (k / 2 - 1) ≤ 2 * N.size := by omega
+    cost_bound
+
+/-- A Chinese remainder step modulo `m₂ ≤ N`: an inverse and a few operations. -/
+@[cost_le] theorem crtPair_ops_le {r m₁ s m₂ N : ℕ} (hm₂ : 0 < m₂) (hN : m₂ ≤ N) :
+    costOf stepCount (crtPair r m₁ s m₂) ≤ 16 * N.size + 45 := by
+  have := modInvCost_le stepCount (x := m₁ % m₂) hm₂ ((Nat.mod_lt _ hm₂).le.trans hN) hN
+  simp only [counting_divBound, counting_mul, counting_lin] at this
+  cost_unfold crtPair.counted
+
+theorem factorProd_pos {fs : List (ℕ × ℕ × ℕ)} (h : ∀ x ∈ fs, x.1.Prime) : 0 < factorProd fs := by
+  induction fs with
+  | nil => simp [factorProd]
+  | cons x fs ih =>
+    simp only [factorProd, List.map_cons, List.prod_cons] at ih ⊢
+    exact Nat.mul_pos (pow_pos (h x (by simp)).pos _) (ih fun y hy ↦ h y (by simp [hy]))
+
+theorem rootsPrimePow_fst (a p e z : ℕ) : (rootsPrimePow a p e z).1 = p ^ e := by
+  unfold rootsPrimePow; dsimp only
+  split_ifs <;> rfl
+
+theorem rootsMod_fst (a : ℕ) (fs : List (ℕ × ℕ × ℕ)) : (rootsMod a fs).1 = factorProd fs := by
+  induction fs with
+  | nil => simp [rootsMod, factorProd]
+  | cons x fs ih =>
+    obtain ⟨p, e, z⟩ := x
+    simp only [rootsMod, factorProd, List.map_cons, List.prod_cons] at ih ⊢
+    rw [ih, rootsPrimePow_fst, mul_comm]
+
+/-- The roots modulo `m` number at most `4^{|fs|} gcd(a, m)` (`rootsMod_length_le`). -/
+theorem rootsMod_length_le_gcd (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFactorization fs) :
+    (rootsMod a fs).2.length ≤ 4 ^ fs.length * Nat.gcd a (factorProd fs) := by
+  obtain ⟨g, hga, hgm, hlen⟩ := rootsMod_length_le a h
+  have hpos := factorProd_pos fun x hx ↦ (h.2 x hx).1
+  exact hlen.trans (Nat.mul_le_mul_left _
+    (Nat.le_of_dvd (Nat.gcd_pos_of_pos_right _ hpos) (Nat.dvd_gcd hga hgm)))
+
+/-- **Exercise 2.36, operations**: with `B = 4^{|fs|} gcd(a, m)` bounding the number of
+roots, each prime costs `O(log N)` operations per root and `O(log² N)` for its unit
+roots. -/
+@[cost_le] theorem rootsMod_ops_le (a : ℕ) {fs : List (ℕ × ℕ × ℕ)} (h : IsFactorization fs)
+    {N : ℕ} (hN : factorProd fs ≤ N) :
+    costOf stepCount (rootsMod a fs) ≤
+      fs.length * ((24 * N.size + 60) * (4 ^ fs.length * Nat.gcd a (factorProd fs) + 1) +
+        100 * (N.size + 2) ^ 2) + 1 := by
+  induction fs with
+  | nil => cost_unfold rootsMod.counted
+  | cons x fs ih =>
+    obtain ⟨p, e, z⟩ := x
+    have hfs : IsFactorization fs := by
+      obtain ⟨hnd, hpe⟩ := h
+      simp only [List.map_cons, List.nodup_cons] at hnd
+      exact ⟨hnd.2, fun x hx ↦ hpe x (by simp [hx])⟩
+    obtain ⟨hp, -, -⟩ := h.2 (p, e, z) (by simp)
+    have hprod : factorProd ((p, e, z) :: fs) = p ^ e * factorProd fs := by
+      simp [factorProd]
+    have hpos := factorProd_pos fun x hx ↦ (hfs.2 x hx).1
+    have hq0 : 0 < p ^ e := pow_pos hp.pos e
+    have hqN : p ^ e ≤ N := by
+      rw [hprod] at hN; exact (Nat.le_mul_of_pos_right _ hpos).trans hN
+    have hmN : factorProd fs ≤ N := by
+      rw [hprod] at hN; exact (Nat.le_mul_of_pos_left _ hq0).trans hN
+    -- the bounds on the numbers of roots
+    set G := Nat.gcd a (factorProd ((p, e, z) :: fs))
+    set B := 4 ^ (fs.length + 1) * G
+    have hGpos : 0 < G := Nat.gcd_pos_of_pos_right _ (by rw [hprod]; positivity)
+    have hG' : Nat.gcd a (factorProd fs) ≤ G :=
+      Nat.le_of_dvd hGpos (Nat.dvd_gcd (Nat.gcd_dvd_left _ _)
+        ((Nat.gcd_dvd_right _ _).trans (by rw [hprod]; exact dvd_mul_left _ _)))
+    have h4 : 4 ^ fs.length * Nat.gcd a (factorProd fs) ≤ B := by
+      have := Nat.pow_le_pow_right (show 0 < 4 by norm_num) (Nat.le_succ fs.length)
+      exact Nat.mul_le_mul this hG'
+    have hM := (rootsMod_length_le_gcd a hfs).trans h4
+    have hL : (rootsPrimePow a p e z).2.length ≤ B := by
+      obtain ⟨g, hga, hgq, hlen⟩ := rootsPrimePow_length_le (a := a) (e := e) (z := z) hp
+      have : g ≤ G := Nat.le_of_dvd hGpos
+        (Nat.dvd_gcd hga (hgq.trans (by rw [hprod]; exact dvd_mul_right _ _)))
+      have : 4 ≤ 4 ^ (fs.length + 1) := Nat.le_self_pow (by omega) 4
+      exact hlen.trans (Nat.mul_le_mul this ‹g ≤ G›)
+    have hLM := rootsMod_length_le_gcd a h
+    simp only [rootsMod, List.length_flatMap, List.length_map, List.map_const',
+      List.sum_replicate, smul_eq_mul, List.length_cons] at hLM
+    -- the cost of the levels
+    have ih := ih hfs hmN
+    have hR := rootsPrimePow_ops_le (a := a) (z := z) hp hqN
+    have hK : ∀ r t, costOf stepCount (crtPair r (rootsMod a fs).1 t (rootsPrimePow a p e z).1) ≤
+        16 * N.size + 45 := fun r t ↦ by
+      rw [rootsPrimePow_fst]; exact crtPair_ops_le hq0 hqN
+    have ih' : costOf stepCount (rootsMod a fs) ≤
+        fs.length * ((24 * N.size + 60) * (B + 1) + 100 * (N.size + 2) ^ 2) + 1 :=
+      ih.trans (by gcongr)
+    clear ih
+    have := Nat.mul_le_mul_right (16 * N.size + 47) hLM
+    have := Nat.mul_le_mul_right (6 * N.size + 9) hL
+    cost_unfold rootsMod.counted
+    cost_bound
+
+end RunningTime
+
+end PrimeNumbers.Chapter2

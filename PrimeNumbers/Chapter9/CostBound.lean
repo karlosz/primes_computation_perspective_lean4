@@ -48,6 +48,9 @@ namespace PrimeNumbers.Chapter9
 
 open Lean Meta Elab Tactic
 
+/-- `cost_bound`: close a cost inequality `L ≤ R` (see the module documentation). -/
+syntax (name := costBoundStx) "cost_bound" : tactic
+
 /-- The constants of cost terms: cost models, costs of counted code, and the cost classes. -/
 def isCostConst (c : Name) : Bool :=
   [``CostModel, ``CostM, ``MulCost, ``DivCost, ``PowCost, ``AddCost, ``CmpCost, ``InvCost,
@@ -1382,8 +1385,23 @@ def normCompare (verbose : Bool) : FactM Unit := withMain do
       -- combination it needs), else the coefficient that does not fit
       let g ← getMainGoal
       let s ← Meta.saveState
+      -- products of naturals are nonnegative (linear arithmetic sees them as atoms)
+      let mut pos : Array Expr := #[]
+      let mut seen : Array (Array (Expr × Nat)) := #[]
+      let sides ← withMain do
+        let mut es := #[P, Q]
+        for d in ← getLCtx do
+          if d.isImplementationDetail then continue
+          if let some (_, l, r) := (← instantiateMVars d.type).cleanupAnnotations.le? then
+            if ← isNat l then es := es ++ #[l, r]
+        return es
+      for e in sides do
+        for (_, m) in poly e do
+          if m.foldl (fun n (_, k) => n + k) 0 ≥ 2 && !seen.contains m then
+            seen := seen.push m
+            pos := pos.push (← mkAppM ``Nat.zero_le #[← atomsProd m])
       try
-        Mathlib.Tactic.Linarith.linarith false facts.toList {} g
+        Mathlib.Tactic.Linarith.linarith false (facts ++ pos).toList {} g
         replaceMainGoal []
         return
       catch _ => s.restore
@@ -1440,6 +1458,10 @@ def costPrepare (verbose : Bool) : FactM Unit := do
     let ids := names.map mkIdent
     evalTactic (← `(tactic| try simp only [school_mulMod, school_lin, school_divMod_self]
       at $ids:ident* ⊢))
+    -- the charges of a counting model are numbers
+    evalTactic (← `(tactic| try simp only [counting_mul, counting_divMod, counting_unit,
+      counting_add, counting_lin, counting_mulMod, counting_divBound, powCost_counting]
+      at $ids:ident* ⊢))
     evalTactic (← `(tactic| try simp only [CostModel.lin, CostModel.mulMod, max_self,
       school_add, school_mul, school_divMod, school_unit, one_mul, mul_one,
       Nat.size_zero, Nat.size_one, Nat.size_two, reduceNatSize] at $ids:ident* ⊢))
@@ -1449,13 +1471,132 @@ def goalModel : TacticM (Option Expr) := withMainContext do
   let tgt ← whnfR (← instantiateMVars (← getMainTarget))
   return tgt.le?.bind fun (_, l, _) => costModelOf l
 
+/-! ### Sums over lists
+
+A sum `(l.map f).sum` on the left (the charges of `map`, `filter`, `flatMap` at each
+element) is bounded by `l.length * B`, where `B` is the summand with the element's costs and
+values replaced by their bounds (`@[cost_le]`, `@[val_le]` lemmas, hypotheses) — a bound
+not depending on the element, checked by `cost_bound` itself. -/
+
+/-- The sums `(l.map f).sum` in `e`, outside binders. -/
+partial def listSums (e : Expr) (acc : Array Expr) : Array Expr :=
+  if e.hasLooseBVars then acc
+  else if e.isAppOfArity ``List.sum 4 && e.appArg!.isAppOfArity ``List.map 4 then
+    if acc.contains e then acc else acc.push e
+  else match e with
+    | .app f a => listSums a (listSums f acc)
+    | .mdata _ b => listSums b acc
+    | _ => acc
+
+/-- A bound on the cost or value `t` (depending on `x`) not depending on `x`. -/
+def atomBoundFree (x t : Expr) : FactM (Option Expr) := do
+  let env ← getEnv
+  let free (b : Expr) := !b.containsFVar x.fvarId!
+  if let some g := costKey? t then
+    -- costs: hypotheses `∀ …, costOf C (g …) ≤ B`, then the `@[cost_le]` lemmas
+    let mut cands : Array Expr := #[]
+    for d in ← withMain getLCtx do
+      if d.isImplementationDetail then continue
+      let ty ← instantiateMVars d.type
+      if (← withMain (isProp ty)) then
+        if let some (l, _) := ty.le? then
+          if l == t then cands := cands.push d.toExpr; continue
+        if ty.isForall then
+          if (← withMain (costLemmaKey? ty)) == some g then cands := cands.push d.toExpr
+    for decl in (((costLeExt.getState env).get? g).getD #[]) do
+      cands := cands.push (← mkConstWithFreshMVarLevels decl)
+    for f in cands do
+      if let some b ← instBound f t then
+        if free b.ub then return some b.ub
+  for b in (← hypBounds t) ++ (← lemmaBounds t) do
+    if free b.ub then return some (← if b.strict then mkAppM ``HAdd.hAdd #[b.ub, mkNatLit 1]
+      else pure b.ub)
+  return none
+
+mutual
+/-- The summand bound: `e` with the parts depending on `x` replaced by bounds. -/
+partial def boundFree (x e : Expr) : FactM (Option Expr) := do
+  if !e.containsFVar x.fvarId! then return some e
+  match_expr e with
+  | HAdd.hAdd _ _ _ _ a b =>
+    let some a ← boundFree x a | return none
+    let some b ← boundFree x b | return none
+    return some (← mkAppM ``HAdd.hAdd #[a, b])
+  | HMul.hMul _ _ _ _ a b =>
+    let some a ← boundFree x a | return none
+    let some b ← boundFree x b | return none
+    return some (← mkAppM ``HMul.hMul #[a, b])
+  | _ =>
+    if e.isAppOfArity ``List.sum 4 && e.appArg!.isAppOfArity ``List.map 4 then
+      let l := e.appArg!.appArg!
+      if l.containsFVar x.fvarId! then return none
+      let some (b, _) ← sumBound e | return none
+      if b.containsFVar x.fvarId! then return none
+      return some (← mkAppM ``HMul.hMul #[← mkAppM ``List.length #[l], b])
+    atomBoundFree x e
+
+/-- For `S = (l.map f).sum`: a bound `B` on the summands and the proof of
+`S ≤ l.length * B`. -/
+partial def sumBound (S : Expr) : FactM (Option (Expr × Expr)) := do
+  let m := S.appArg!
+  let f := m.appFn!.appArg!
+  let l := m.appArg!
+  let α := m.getAppArgs[0]!
+  let main ← getMainGoal
+  -- a goal with an element `x ∈ l` in its context
+  let ty ← main.withContext do
+    withLocalDeclD `x α fun x => do
+      mkForallFVars #[x] (← mkArrow (← mkAppM ``Membership.mem #[l, x]) (mkConst ``True))
+  let tmp ← main.withContext (mkFreshExprMVar ty)
+  let (xs, g) ← tmp.mvarId!.introN 2 [`x, `hx]
+  let saved ← getGoals
+  setGoals [g]
+  try
+    let x := mkFVar xs[0]!
+    let body := (mkApp f x).headBeta
+    let some b ← boundFree x body | return none
+    if b.containsFVar xs[0]! then return none
+    -- `f x ≤ B`, by `cost_bound`
+    let goal ← g.withContext (mkFreshExprMVar (← mkAppM ``LE.le #[body, b]))
+    let s ← Meta.saveState
+    let ok ← try
+        let gs ← Term.withoutErrToSorry <| Tactic.run goal.mvarId!
+          (evalTactic (← `(tactic| first | omega | cost_bound)))
+        pure gs.isEmpty
+      catch _ => pure false
+    unless ok do s.restore; return none
+    let pf ← instantiateMVars goal
+    let lam ← g.withContext (mkLambdaFVars #[mkFVar xs[0]!, mkFVar xs[1]!] pf)
+    let h ← main.withContext (mkAppM ``sum_map_le_length_mul #[l, f, lam])
+    return some (b, h)
+  finally
+    setGoals saved
+end
+
+/-- Bound the sums on the left of the goal, adding the bounds to the context. -/
+def sumFacts : FactM Unit := do
+  let tgt ← withMain do whnfR (← instantiateMVars (← getMainTarget))
+  let some (_, lhs, _) := tgt.cleanupAnnotations.le? | return
+  let mut i := 0
+  for S in listSums lhs #[] do
+    let some (_, h) ← sumBound S | continue
+    let g ← getMainGoal
+    let (_, g') ← (← g.assert (Name.mkSimple s!"hsum{i}") (← g.withContext (inferType h))
+      h).intro1P
+    replaceMainGoal [g']
+    i := i + 1
+
 /-- The steps of `cost_bound` on a goal without branches. -/
 def costBoundCore (verbose : Bool) : TacticM Unit := do
   renameShadowed
   -- local definitions unfolded, bit lengths of numerals evaluated
   step "simp" <| evalTactic (← `(tactic| try simp (config := { zetaDelta := true }) only
     [Nat.size_zero, Nat.size_one, Nat.size_two, reduceNatSize] at *))
+  -- the lengths of mapped lists, and sums of constants
+  step "simp" <| evalTactic (← `(tactic| try simp only [List.length_map, List.length_range,
+    List.map_const', List.sum_replicate, smul_eq_mul]))
   let go : FactM Unit := do
+    step "sums" sumFacts
     costPrepare verbose
     step "compare" <| normCompare verbose
   discard <| go.run { ctx := ← getMainGoal, model := ← goalModel }
@@ -1475,8 +1616,7 @@ def costBound (verbose : Bool) : TacticM Unit := do
     costBoundCore verbose
   setGoals rest
 
-/-- `cost_bound`: close a cost inequality `L ≤ R` (see the module documentation). -/
-elab "cost_bound" : tactic => costBound false
+elab_rules : tactic | `(tactic| cost_bound) => costBound false
 
 /-- `cost_bound?`: as `cost_bound`, reporting the normal forms and the bounds used. -/
 elab "cost_bound?" : tactic => costBound true

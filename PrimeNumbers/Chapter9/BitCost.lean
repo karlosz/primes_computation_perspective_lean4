@@ -250,6 +250,13 @@ def CostModel.lin (C : CostModel) (k : ℕ) : ℕ := C.unit + C.add k k
 
 @[simp] theorem counting_mulMod (m d u k : ℕ) : (counting m d u).mulMod k = m + d := rfl
 
+@[simp] theorem counting_lin (m d u k : ℕ) : (counting m d u).lin k = u := by
+  simp [CostModel.lin]
+
+@[simp] theorem counting_divBound (m d u k : ℕ) : (counting m d u).divBound k = d :=
+  le_antisymm (Finset.sup_le fun _ _ ↦ le_rfl)
+    (Finset.le_sup (f := (counting m d u).divMod k) (Finset.mem_range.mpr (Nat.succ_pos k)))
+
 /-- In the grammar-school model a modular multiplication costs `2k² + k ≤ 2 (k + 1)²`. -/
 
 theorem school_mulMod (k : ℕ) : school.mulMod k = 2 * k ^ 2 + k := by

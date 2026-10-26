@@ -72,6 +72,11 @@ instance : PowCost ℤ :=
   ⟨fun C a e => ∑ i ∈ Finset.range (e - 1), C.mul (a.natAbs ^ (i + 1)).size a.natAbs.size⟩
 instance (n : ℕ) : PowCost (ZMod n) := ⟨fun C _ e => (e - 1) * C.mulMod n.size⟩
 
+/-- A power of naturals under a counting model: `e - 1` multiplications. -/
+@[simp] theorem powCost_counting (m d u x e : ℕ) :
+    PowCost.powCost (counting m d u) x e = (e - 1) * m := by
+  simp [PowCost.powCost]
+
 /-- The cost of an addition or subtraction of values of type `α` — and of the other
 linear-time operations: shifts, multiplication or division by a power of two. -/
 class AddCost (α : Type) where
