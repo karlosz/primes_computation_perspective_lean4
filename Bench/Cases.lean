@@ -119,7 +119,25 @@ def sqrtCases : List Case := [
   { problem := "quadratic residues and square roots", name := "cornacchia", ref := "Alg 2.3.12"
     param := "bits of the prime p ≡ 1 (mod 4)", bound := "O(k³) (the square root)"
     growth := .poly 3, sizes := pow2s 6 11
-    prepare := fun k ↦ task (randPrimeMod 1 k 4 1) fun p ↦ cornacchia p 1 } ]
+    prepare := fun k ↦ task (randPrimeMod 1 k 4 1) fun p ↦ cornacchia p 1 },
+  { problem := "quadratic residues and square roots", name := "rootsMod", ref := "Ex 2.36"
+    param := "bits of m = p₁p₂p₃ (factorization given)", bound := "O(k³) per root (8 roots)"
+    growth := .poly 3, sizes := pow2s 6 11
+    prepare := fun k ↦ do
+      let ps := [randPrime 1 (k / 3), randPrime 2 (k / 3 + 1), randPrime 3 (k / 3 + 2)]
+      let m := ps.foldl (· * ·) 1
+      let a := randBelow 4 m ^ 2 % m
+      task (a, ps.map fun p ↦ (p, 1)) fun (a, fs) ↦ (rootsMod a fs).2 } ]
+
+/-! ## Binary quadratic forms -/
+
+def formCases : List Case := [
+  { problem := "binary quadratic forms", name := "QF.reduce", ref := "Alg 5.6.2"
+    param := "bits of A, B, C", bound := "≤ size A + 2 passes, each O(k²)", growth := .poly 2
+    sizes := pow2s 8 15
+    prepare := fun k ↦
+      task ((randBits 1 k : ℤ), (randBits 3 (k - 1) : ℤ), (randBits 2 k : ℤ)) fun (A, B, C) ↦
+        QF.reduce A B C } ]
 
 /-! ## Integer square roots -/
 
@@ -276,6 +294,10 @@ def factoringCases : List Case := [
     param := "bits of n = pq (balanced)", bound := "(4n^{1/3} + 2) passes, O(n^{1/3} ln³ n)"
     growth := .exp (1 / 3), sizes := steps 20 44 4
     prepare := fun k ↦ task (semiprimes k) fun ns ↦ ns.map lehman },
+  { problem := "factoring", name := "mckee", ref := "Alg 5.6.3, Thm 5.6.4"
+    param := "bits of n = pq (balanced)", bound := "O(n^{1/3+ε})"
+    growth := .exp (1 / 3), sizes := steps 20 44 4
+    prepare := fun k ↦ task (semiprimes k) fun ns ↦ ns.map mckee },
   { problem := "factoring", name := "pollardRho", ref := "Alg 5.2.1"
     param := "bits of n = pq (balanced)", bound := "T passes, T ≈ √p (heuristic)"
     growth := .exp 0.25, sizes := steps 40 80 8
@@ -328,6 +350,7 @@ def dlogCases : List Case := [
 
 def allCases : List Case :=
   gcdCases ++ powerCases ++ crtCases ++ sqrtCases ++ isqrtCases ++ mulCases ++ polyFieldCases ++
-    polyMulCases ++ multipointCases ++ sieveCases ++ primalityCases ++ factoringCases ++ dlogCases
+    polyMulCases ++ multipointCases ++ sieveCases ++ primalityCases ++ formCases ++
+    factoringCases ++ dlogCases
 
 end Bench

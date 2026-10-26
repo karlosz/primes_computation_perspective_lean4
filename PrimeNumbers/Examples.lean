@@ -5,6 +5,7 @@ import PrimeNumbers.Chapter2.Jacobi
 import PrimeNumbers.Chapter2.SquareRoot
 import PrimeNumbers.Chapter2.Hensel
 import PrimeNumbers.Chapter2.Cornacchia
+import PrimeNumbers.Chapter2.SqrtComposite
 import PrimeNumbers.Chapter2.FiniteField
 import PrimeNumbers.Chapter3.TrialDivision
 import PrimeNumbers.Chapter3.ProbablePrime
@@ -24,6 +25,8 @@ import PrimeNumbers.Chapter5.PollardRho
 import PrimeNumbers.Chapter5.PollardPMinusOne
 import PrimeNumbers.Chapter5.RhoLog
 import PrimeNumbers.Chapter5.PolyEval
+import PrimeNumbers.Chapter5.QuadForms
+import PrimeNumbers.Chapter5.McKee
 import Mathlib.Data.ZMod.Basic
 
 /-!
@@ -347,5 +350,44 @@ open PrimeNumbers.Chapter9 in
 
 open PrimeNumbers.Chapter9 in
 #guard karatsuba 9 (2 ^ 511 + 12345) (3 ^ 300 + 1) = (2 ^ 511 + 12345) * (3 ^ 300 + 1)
+
+
+/-! ## Exercise 2.36: square roots modulo a composite of known factorization -/
+
+/-- `rootsMod a fs` lists exactly the square roots of `a` modulo `m = ∏ p^e` (compared with
+an exhaustive search). -/
+def allRootsOk (a : ℕ) (fs : List (ℕ × ℕ)) : Bool :=
+  let (m, rs) := rootsMod a fs
+  rs.all (fun t ↦ t < m && t * t % m == a % m) &&
+    ((List.range m).filter fun t ↦ t * t % m == a % m).length == rs.length
+
+#guard (rootsMod 1 [(2, 3), (3, 2), (5, 1)]).2.length = 16    -- the 16 roots of 1 mod 360
+#guard allRootsOk 1 [(2, 3), (3, 2), (5, 1)]
+#guard allRootsOk 63 [(3, 4)]          -- 63 = 3² · 7: 3 (s + 9 j) for the roots s of 7 mod 9
+#guard allRootsOk 0 [(3, 5)]           -- the multiples of 27 modulo 243
+#guard allRootsOk 2 [(7, 3), (11, 2)]  -- 2 is a nonresidue modulo 11: no roots
+#guard allRootsOk 17 [(2, 5), (13, 1)]
+
+/-! ## §5.6.1 Reduction of binary quadratic forms (Algorithm 5.6.2) -/
+
+-- The book's `x² + xy + 4y²` and `2x² + xy + 2y²` (discriminant `-15`) are both reduced,
+-- so by Theorem 5.6.1 they are not equivalent.
+#guard QF.reduce 1 1 4 = (1, 1, 4)
+#guard QF.reduce 2 1 2 = (2, 1, 2)
+#guard QF.reduce 15 25 11 = (1, 1, 9)
+#guard QF.reduce 6 7 3 = (2, 1, 3)
+#guard QF.reduce 10 (-9) 3 = (3, 3, 4)
+#guard QF.reduce 1000003 2000005 1000003 = (1, 1, 1000003)   -- a few passes: A halves
+
+/-! ## §5.6.2 Factoring with representations, and McKee's test (Algorithm 5.6.3) -/
+
+-- `65 = 8² + 1² = 7² + 4²` gives the factor `gcd(8·4 - 1·7, 65) = 5` (`sumTwoSquares_factor`).
+#guard Nat.gcd (8 * 4 - 1 * 7) 65 = 5
+
+#guard mckee 49 = some (7, 7)                                  -- step 1: a square
+#guard (mckee (1000003 * 1000033)).map (fun pq ↦ pq.1 * pq.2) = some (1000003 * 1000033)
+#guard (mckee (1000003 * 1000033)).map (·.1) ∈ [some 1000003, some 1000033]
+#guard mckee 1000003 = none                                    -- a prime
+#guard mckee 1000000007 = none
 
 end PrimeNumbers.Examples
