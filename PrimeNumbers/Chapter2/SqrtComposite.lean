@@ -795,8 +795,9 @@ open PrimeNumbers.Chapter9
 /-- A Hensel step is an inverse modulo `p` and a dozen operations. -/
 @[cost_le] theorem henselSqrt_ops_le {a p q r N : ℕ} (hp0 : 0 < p) (hp : p ≤ N) :
     costOf stepCount (henselSqrt a p q r) ≤ 16 * N.size + 50 := by
-  have := modInvCost_le stepCount (x := 2 * r % p) hp0 ((Nat.mod_lt _ hp0).le.trans hp) hp
-  simp only [counting_divBound, counting_mul, counting_lin] at this
+  have := modInvCost_le stepCount (x := 2 * r % p) (D := 1) (M := 1) (fun _ _ _ ↦ by simp)
+    (fun _ _ _ ↦ by simp) hp0 ((Nat.mod_lt _ hp0).le.trans hp) hp
+  simp only [counting_add, counting_lin] at this
   cost_unfold henselSqrt.counted
 
 @[cost_le] theorem henselLoop_ops_le {a p N : ℕ} (hp0 : 0 < p) (hp : p ≤ N) (q r k : ℕ) :
@@ -908,8 +909,9 @@ operations per root. -/
 /-- A Chinese remainder step modulo `m₂ ≤ N`: an inverse and a few operations. -/
 @[cost_le] theorem crtPair_ops_le {r m₁ s m₂ N : ℕ} (hm₂ : 0 < m₂) (hN : m₂ ≤ N) :
     costOf stepCount (crtPair r m₁ s m₂) ≤ 16 * N.size + 45 := by
-  have := modInvCost_le stepCount (x := m₁ % m₂) hm₂ ((Nat.mod_lt _ hm₂).le.trans hN) hN
-  simp only [counting_divBound, counting_mul, counting_lin] at this
+  have := modInvCost_le stepCount (x := m₁ % m₂) (D := 1) (M := 1) (fun _ _ _ ↦ by simp)
+    (fun _ _ _ ↦ by simp) hm₂ ((Nat.mod_lt _ hm₂).le.trans hN) hN
+  simp only [counting_add, counting_lin] at this
   cost_unfold crtPair.counted
 
 theorem factorProd_pos {fs : List (ℕ × ℕ × ℕ)} (h : ∀ x ∈ fs, x.1.Prime) : 0 < factorProd fs := by

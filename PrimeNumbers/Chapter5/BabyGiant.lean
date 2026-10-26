@@ -288,7 +288,7 @@ of `p`, `b = ⌊√n⌋ + 1` and `w = bsgsWidth p n`, at most
         (Nat.sqrt n + 1).size * (Nat.sqrt n + 1).size +
         (6 * (Nat.sqrt n + 1) + 6 * Nat.log 2 (Nat.sqrt n + 1) + 12) * (bsgsWidth p n + 2) := by
   have h₁ := bsgsCost_le school hg ht n
-  have h₂ := modInvCost_school_le hg0 (by omega : 0 < p) hg.le (le_refl p)
+  have h₂ := modInvCost_school_le (by omega : 0 < p) hg.le (le_refl p)
   have h₃ : school.divMod p.size p.size = p.size := by simp [school]
   have h₄ := sqrt_counted_cost_school_le n
   have h₅ : school.mul (Nat.sqrt n + 1).size (Nat.sqrt n + 1).size =
