@@ -17,6 +17,11 @@ from the factorization of `d` (`rootsMod`, Exercise 2.36), and splits `n` by
 * `mckee` — Algorithm 5.6.3, returning a factorization `(g, n/g)` or `none` ("n is prime").
 * `mckee_sound` — a returned pair is a nontrivial factorization of `n` (no hypothesis on
   `n`: the test `w ≢ ±x₀ v (mod n)` and `n ∣ (x₀ v - w)(x₀ v + w)` make the gcd proper).
+* `mckee_complete` — if `n` has no prime factor below `3n^{1/3}` and the test answers
+  "prime", `n` is prime: a composite `n` is then `p q` (`eq_mul_of_large_factors`), a root
+  `h ≡ x₀ (mod p)`, `h ≡ -x₀ (mod q)` of `-d` gives the form `(A, 2h, n)`, and its reduced
+  form represents `n` at a pair the search reaches (`exists_rep_of_reduce`,
+  `exists_witness`).
 -/
 
 namespace PrimeNumbers.Chapter5
@@ -211,3 +216,475 @@ theorem mckee_sound {n p q : ℕ} (hn : 1 < n) (h : mckee n = some (p, q)) :
       obtain ⟨hg₁, hg₂, hdvd⟩ := searchA_sound (by omega) hd hg
       exact ⟨Nat.mul_div_cancel' hdvd, hg₁, one_lt_div_of_proper hg₁ hg₂ hdvd⟩
     · simp at h
+
+/-! ### Completeness -/
+
+theorem ceilTwoThirdsLoop_spec (n : ℕ) (fuel : ℕ) :
+    ∀ {lo hi : ℕ}, lo < hi → lo * lo * lo < n * n → n * n ≤ hi * hi * hi → hi - lo ≤ 2 ^ fuel →
+      n * n ≤ ceilTwoThirdsLoop n lo hi fuel * ceilTwoThirdsLoop n lo hi fuel *
+        ceilTwoThirdsLoop n lo hi fuel ∧
+      (ceilTwoThirdsLoop n lo hi fuel - 1) * (ceilTwoThirdsLoop n lo hi fuel - 1) *
+        (ceilTwoThirdsLoop n lo hi fuel - 1) < n * n := by
+  induction fuel with
+  | zero =>
+    intro lo hi hlt hlo hhi hw
+    obtain rfl : hi = lo + 1 := by simp at hw; omega
+    simp only [ceilTwoThirdsLoop, Nat.add_sub_cancel]; exact ⟨hhi, hlo⟩
+  | succ fuel ih =>
+    intro lo hi hlt hlo hhi hw
+    rw [ceilTwoThirdsLoop]
+    rw [pow_succ] at hw
+    by_cases h₁ : lo + 1 < hi
+    · simp only [h₁, ↓reduceIte]
+      by_cases h₂ : n * n ≤ (lo + hi) / 2 * ((lo + hi) / 2) * ((lo + hi) / 2)
+      · simp only [h₂, ↓reduceIte]; exact ih (by omega) hlo h₂ (by omega)
+      · simp only [h₂, ↓reduceIte]; exact ih (by omega) (by omega) hhi (by omega)
+    · obtain rfl : hi = lo + 1 := by omega
+      simp only [h₁, ↓reduceIte, Nat.add_sub_cancel]; exact ⟨hhi, hlo⟩
+
+/-- `ceilTwoThirds n` is `⌈n^{2/3}⌉`: the least `t` with `n² ≤ t³`. -/
+theorem ceilTwoThirds_spec {n : ℕ} (hn : 1 ≤ n) :
+    n * n ≤ ceilTwoThirds n * ceilTwoThirds n * ceilTwoThirds n ∧
+      (ceilTwoThirds n - 1) * (ceilTwoThirds n - 1) * (ceilTwoThirds n - 1) < n * n := by
+  unfold ceilTwoThirds
+  refine ceilTwoThirdsLoop_spec n _ (by omega) (by simp; positivity)
+    (by nlinarith) ?_
+  have := Nat.lt_size_self n
+  rw [pow_succ]; omega
+
+theorem dedupNat_spec (L : List ℕ) : (dedupNat L).Nodup ∧ ∀ x, x ∈ dedupNat L ↔ x ∈ L := by
+  induction L with
+  | nil => simp [dedupNat]
+  | cons x xs ih =>
+    obtain ⟨h₁, h₂⟩ := ih
+    rw [dedupNat]
+    split_ifs with h
+    · have hx : x ∈ xs := by simpa using h
+      refine ⟨h₁, fun y ↦ ?_⟩
+      rw [h₂]; simp only [List.mem_cons]; constructor
+      · exact Or.inr
+      · rintro (rfl | h); exacts [hx, h]
+    · have hx : x ∉ xs := by simpa using h
+      refine ⟨List.nodup_cons.2 ⟨by rwa [h₂], h₁⟩, fun y ↦ ?_⟩
+      simp only [List.mem_cons, h₂]
+
+/-- The pairs of the factorization by trial division are a factorization of `d`. -/
+theorem factorPairs_spec {d : ℕ} (hd : 0 < d) :
+    IsFactorization (factorPairs (trialDivision d)) ∧
+      factorProd (factorPairs (trialDivision d)) = d := by
+  set L := trialDivision d
+  obtain ⟨hprod, hprime⟩ := trialDivision_spec hd
+  obtain ⟨hnd, hmem⟩ := dedupNat_spec L
+  have hcount : ∀ p, (L.filter fun y ↦ decide (y = p)).length = L.count p := fun p ↦ by
+    rw [List.count_eq_length_filter]; congr 1
+  refine ⟨⟨?_, fun pe hpe ↦ ?_⟩, ?_⟩
+  · simpa [factorPairs, List.map_map, Function.comp_def] using hnd
+  · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hpe
+    have hpL := (hmem p).1 hp
+    refine ⟨hprime p hpL, ?_⟩
+    simp only [hcount]; exact List.count_pos_iff.2 hpL
+  · simp only [factorProd, factorPairs, List.map_map, Function.comp_def, hcount]
+    rw [← List.prod_toFinset _ hnd, ← hprod]
+    have : (dedupNat L).toFinset = L.toFinset := by ext x; simp [hmem]
+    rw [this, Finset.prod_list_count]
+
+/-- A representation `a n = w² + d v²`, `v ≥ 1`, with `w ≢ ±x₀ v (mod n)`, is found by the
+search of its class `w mod d`. -/
+theorem searchClass_isSome {n d a x₀ w v : ℕ} (hd : 0 < d) (hv : 1 ≤ v)
+    (hrep : a * n = w * w + d * (v * v)) (hc : (x₀ * v % n + n - w % n) % n ≠ 0)
+    (hc' : (x₀ * v + w) % n ≠ 0) :
+    ∀ {i fuel w₀ : ℕ}, i < fuel → w = w₀ + d * i → (searchClass n d a x₀ w₀ fuel).isSome := by
+  intro i
+  induction i with
+  | zero =>
+    intro fuel w₀ hi hw
+    obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
+    simp only [mul_zero, add_zero] at hw; subst hw
+    have hlt : w * w < a * n := by nlinarith
+    have hr : a * n - w * w = d * (v * v) := by omega
+    rw [searchClass]
+    simp only [hlt, ↓reduceIte, hr, Nat.mul_mod_right, Nat.mul_div_cancel_left _ hd,
+      Nat.sqrt_eq, true_and]
+    simp [hc, hc']
+  | succ i ih =>
+    intro fuel w₀ hi hw
+    obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
+    have hlt : w₀ * w₀ < a * n := by
+      have : w₀ ≤ w := by rw [hw]; omega
+      nlinarith [Nat.mul_le_mul this this]
+    rw [searchClass]
+    simp only [hlt, ↓reduceIte]
+    split_ifs
+    · simp
+    · exact ih (by omega) (by rw [hw]; ring)
+
+theorem searchRoots_isSome {n d a x₀ w : ℕ} {ws : List ℕ} (hw : w ∈ ws)
+    (h : (searchClass n d a x₀ w (Nat.sqrt (a * n) / d + 1)).isSome) :
+    (searchRoots n d a x₀ ws).isSome := by
+  induction ws with
+  | nil => simp at hw
+  | cons w' ws ih =>
+    rw [searchRoots]
+    split
+    · simp
+    · next hnone =>
+      rcases List.mem_cons.1 hw with rfl | hw
+      · rw [hnone] at h; simp at h
+      · exact ih hw
+
+theorem searchA_isSome {n d x₀ : ℕ} {fs : List (ℕ × ℕ)} {a₀ : ℕ} (h₀ : 3 * (a₀ * a₀) ≤ 4 * d)
+    (h : (searchRoots n d a₀ x₀ (rootsMod (a₀ * n % d) fs).2).isSome) :
+    ∀ {k a fuel : ℕ}, k < fuel → a₀ = a + k → (searchA n d x₀ fs a fuel).isSome := by
+  intro k
+  induction k with
+  | zero =>
+    intro a fuel hk ha
+    obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
+    rw [Nat.add_zero] at ha; subst ha
+    rw [searchA]; simp only [h₀, ↓reduceIte]
+    split
+    · simp
+    · next hn => rw [hn] at h; simp at h
+  | succ k ih =>
+    intro a fuel hk ha
+    obtain ⟨f, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
+    have : 3 * (a * a) ≤ 4 * d := le_trans (by nlinarith) h₀
+    rw [searchA]; simp only [this, ↓reduceIte]
+    split
+    · simp
+    · exact ih (by omega) (by omega)
+
+/-- A composite `n` that is not a square, with every prime factor above `3 n^{1/3}`
+(`27 n ≤ p³`), is a product of two distinct primes. -/
+theorem eq_mul_of_large_factors {n : ℕ} (hn : 1 < n)
+    (hsmall : ∀ p, p.Prime → p ∣ n → 27 * n ≤ p ^ 3) (hnp : ¬n.Prime)
+    (hsq : ∀ s, s * s ≠ n) : ∃ p q, p.Prime ∧ q.Prime ∧ p ≠ q ∧ n = p * q := by
+  set p := n.minFac
+  have hp : p.Prime := Nat.minFac_prime (by omega)
+  have hpn : p ∣ n := Nat.minFac_dvd n
+  obtain ⟨q, hq⟩ := hpn
+  have hq1 : 1 < q := by
+    rcases Nat.lt_or_ge 1 q with h | h
+    · exact h
+    · interval_cases q
+      · omega
+      · exact absurd (by rw [hq, mul_one]; exact hp) hnp
+  have hqp : q.Prime := by
+    by_contra hqc
+    -- `q = r s` with prime factors `r ∣ q`, `t ∣ s`: then `(p r t)³ > n³`
+    set r := q.minFac
+    have hr : r.Prime := Nat.minFac_prime (by omega)
+    obtain ⟨s, hs⟩ := Nat.minFac_dvd q
+    have hs1 : 1 < s := by
+      rcases Nat.lt_or_ge 1 s with h | h
+      · exact h
+      · interval_cases s
+        · omega
+        · exact absurd (by rw [hs, mul_one]; exact hr) hqc
+    set t := s.minFac
+    have ht : t.Prime := Nat.minFac_prime (by omega)
+    obtain ⟨u, hu⟩ := Nat.minFac_dvd s
+    have hn' : n = p * r * t * u := by rw [hq, hs, hu]; ring
+    have h₁ := hsmall p hp ⟨q, hq⟩
+    have h₂ := hsmall r hr ⟨p * s, by rw [hq, hs]; ring⟩
+    have h₃ := hsmall t ht ⟨p * r * u, by rw [hn']; ring⟩
+    have hu1 : 1 ≤ u := by
+      rcases Nat.eq_zero_or_pos u with h | h
+      · simp [h] at hn'; omega
+      · exact h
+    have hle : p * r * t ≤ n := by rw [hn']; exact Nat.le_mul_of_pos_right _ hu1
+    have : (p * r * t) ^ 3 ≤ n ^ 3 := Nat.pow_le_pow_left hle 3
+    have : (27 * n) * (27 * n) * (27 * n) ≤ (p * r * t) ^ 3 := by
+      rw [mul_pow, mul_pow]; exact Nat.mul_le_mul (Nat.mul_le_mul h₁ h₂) h₃
+    nlinarith
+  refine ⟨p, q, hp, hqp, fun h ↦ hsq p (by rw [hq, h]), hq⟩
+
+open QF in
+/-- **The representation behind McKee's search.**  The form `(A, 2h, n)` of discriminant
+`-4d` represents `n` at `(0, 1)`; its reduced form `(a, b, c)` represents `n` at
+`(x, y) = (-β, α)`, which gives `W² + d V² = a n` with `W = a x + (b/2) y ≡ h V (mod n)`
+(Exercise 5.18) and `3a² ≤ 4d` (Exercise 5.14). -/
+theorem exists_rep_of_reduce {A h n d : ℤ} (hA : 0 < A) (hdisc : 4 * h ^ 2 - 4 * A * n = -4 * d)
+    (hd : 0 < d) :
+    ∃ a W V γ : ℤ, 0 < a ∧ 3 * a ^ 2 ≤ 4 * d ∧ W ^ 2 + d * V ^ 2 = a * n ∧ W = h * V + n * γ := by
+  have hP : Pos (A, 2 * h, n) := ⟨by simp only [ofTriple, disc]; nlinarith, hA⟩
+  have hred := reduce_reduced hP
+  obtain ⟨α, β, γ, δ, hdet, hg⟩ := reduce_equiv A (2 * h) n
+  set g := ofTriple (reduce A (2 * h) n)
+  obtain ⟨g₀, g₁, g₂, g₃⟩ := hred.bounds
+  have hgD : g.disc = -4 * d := by
+    rw [(Equiv.disc_eq ⟨α, β, γ, δ, hdet, hg⟩), disc]; simp only; linarith
+  have ha : g.a = A * α ^ 2 + 2 * h * α * γ + n * γ ^ 2 := by rw [hg]; simp [subst, eval]
+  have hb : g.b = 2 * (A * α * β + h * (α * δ + β * γ) + n * γ * δ) := by
+    rw [hg]; simp [subst]; ring
+  set b₀ := A * α * β + h * (α * δ + β * γ) + n * γ * δ
+  have hc : g.c = A * β ^ 2 + 2 * h * β * δ + n * δ ^ 2 := by rw [hg]; simp [subst, eval]
+  refine ⟨g.a, -g.a * β + b₀ * α, α, γ, g₀, ?_, ?_, ?_⟩
+  · simp only [disc] at hgD
+    have : g.b ^ 2 ≤ g.a ^ 2 := sq_le_sq' (by linarith) g₂
+    nlinarith
+  · simp only [disc] at hgD
+    rw [hb] at hgD
+    have hn : n = g.a * β ^ 2 - 2 * b₀ * α * β + g.c * α ^ 2 := by
+      rw [ha, hc]; linear_combination (-(n * (α * δ - β * γ + 1))) * hdet
+    have h' : b₀ ^ 2 + d = g.a * g.c := by linarith
+    rw [hn]; linear_combination α ^ 2 * h'
+  · rw [ha]; linear_combination (h * α + n * γ) * hdet
+
+/-- `v < p` when `d v² ≤ a n`, `3a² ≤ 4d`, `n² ≤ d³` and `27 n ≤ p³`: then
+`27 v¹² ≤ 64 n⁴ < 27 p¹²`. -/
+theorem lt_of_small {n d a v p : ℕ} (hn : 0 < n) (hd : 0 < d) (h₁ : d * (v * v) ≤ a * n)
+    (h₂ : 3 * (a * a) ≤ 4 * d) (h₃ : n * n ≤ d * d * d) (hp : 27 * n ≤ p ^ 3) : v < p := by
+  by_contra hc; push Not at hc
+  set S := v * v
+  -- `3 d S² ≤ 4 n²`
+  have e₁ : 3 * d * (S * S) ≤ 4 * (n * n) := by
+    have : 3 * (d * S) * (d * S) ≤ 3 * (a * n) * (a * n) := by
+      have := Nat.mul_le_mul h₁ h₁; nlinarith
+    have : d * (3 * d * (S * S)) ≤ d * (4 * (n * n)) := by nlinarith
+    exact Nat.le_of_mul_le_mul_left this hd
+  -- `27 S⁶ ≤ 64 n⁴`
+  have e₂ : 27 * (S * S) ^ 3 ≤ 64 * (n * n) ^ 2 := by
+    have h₄ := Nat.pow_le_pow_left e₁ 3
+    have : (n * n) * (27 * (S * S) ^ 3) ≤ (n * n) * (64 * (n * n) ^ 2) := by
+      calc (n * n) * (27 * (S * S) ^ 3) ≤ (d * d * d) * (27 * (S * S) ^ 3) :=
+            Nat.mul_le_mul_right _ h₃
+        _ = (3 * d * (S * S)) ^ 3 := by ring
+        _ ≤ (4 * (n * n)) ^ 3 := h₄
+        _ = (n * n) * (64 * (n * n) ^ 2) := by ring
+    exact Nat.le_of_mul_le_mul_left this (by positivity)
+  -- `S ≥ p²`, so `S⁶ ≥ p¹² ≥ 27⁴ n⁴`
+  have e₃ : p * p ≤ S := Nat.mul_le_mul hc hc
+  have e₄ : (27 * n) ^ 4 ≤ (p * p) ^ 6 := by
+    calc (27 * n) ^ 4 ≤ (p ^ 3) ^ 4 := Nat.pow_le_pow_left hp 4
+      _ = (p * p) ^ 6 := by ring
+  have e₅ : (p * p) ^ 6 ≤ (S * S) ^ 3 := by
+    calc (p * p) ^ 6 = ((p * p) * (p * p)) ^ 3 := by ring
+      _ ≤ (S * S) ^ 3 := Nat.pow_le_pow_left (Nat.mul_le_mul e₃ e₃) 3
+  have : 27 * (27 * n) ^ 4 ≤ 64 * (n * n) ^ 2 := by linarith
+  have : (n * n) ^ 2 * 64 < (n * n) ^ 2 * (27 * 27 ^ 4) := by
+    have : 0 < (n * n) ^ 2 := by positivity
+    omega
+  nlinarith
+
+/-- `n ∤ x₀ (±V) ∓ W` when `W ≡ h V (mod n)`, `V` is coprime to `n` and `n ∤ x₀ ± h`. -/
+theorem not_dvd_of_signs {n : ℤ} {x₀ h V W : ℤ} (hW : n ∣ W - h * V) (hV : IsCoprime V n)
+    (hx : ¬n ∣ x₀ - h) (hx' : ¬n ∣ x₀ + h) {s t : ℤ} (hs : s = 1 ∨ s = -1)
+    (ht : t = 1 ∨ t = -1) : ¬n ∣ x₀ * (s * V) - t * W := by
+  intro hd
+  have : n ∣ V * (s * x₀ - t * h) := by
+    have := dvd_sub hd (dvd_mul_of_dvd_right hW (-t))
+    convert this using 1; ring
+  have h₂ := hV.symm.dvd_of_dvd_mul_left this
+  rcases hs with rfl | rfl <;> rcases ht with rfl | rfl
+  · exact hx (by simpa using h₂)
+  · exact hx' (by simpa using h₂)
+  · exact hx' (by have := dvd_neg.2 h₂; convert this using 1; ring)
+  · exact hx (by have := dvd_neg.2 h₂; convert this using 1; ring)
+
+/-- **A second representation exists** (the heart of McKee's argument): for `n = p q`,
+`p ≠ q` primes above `3 n^{1/3}`, `n = x₀² + d` with `gcd(x₀, n) = 1` and `n² ≤ d³`, there
+are `a ≤ 2√(d/3)` and `a n = w² + d v²` with `v ≥ 1` and `w ≢ ±x₀ v (mod n)`. -/
+theorem exists_witness {n d x₀ p q : ℕ} (hp : p.Prime) (hq : q.Prime) (hne : p ≠ q)
+    (hn : n = p * q) (hp27 : 27 * n ≤ p ^ 3) (hq27 : 27 * n ≤ q ^ 3) (hd : n = x₀ * x₀ + d)
+    (hd0 : 0 < d) (hd3 : n * n ≤ d * d * d) (hcop : Nat.Coprime x₀ n) :
+    ∃ a w v, 1 ≤ a ∧ 3 * (a * a) ≤ 4 * d ∧ a * n = w * w + d * (v * v) ∧ 1 ≤ v ∧
+      (x₀ * v % n + n - w % n) % n ≠ 0 ∧ (x₀ * v + w) % n ≠ 0 := by
+  have hn0 : 0 < n := by rw [hn]; exact Nat.mul_pos hp.pos hq.pos
+  have hp2 : p ≠ 2 := by rintro rfl; have := hp27; rw [hn] at this; nlinarith [hq.two_le]
+  have hq2 : q ≠ 2 := by rintro rfl; have := hq27; rw [hn] at this; nlinarith [hp.two_le]
+  have hpq : Nat.Coprime p q := (Nat.coprime_primes hp hq).2 hne
+  -- `h ≡ x₀ (mod p)`, `h ≡ -x₀ (mod q)`
+  set k : ℕ := (Nat.chineseRemainder hpq x₀ (q - x₀ % q)).1
+  obtain ⟨hk₁, hk₂⟩ := (Nat.chineseRemainder hpq x₀ (q - x₀ % q)).2
+  have hxq : x₀ % q < q := Nat.mod_lt _ hq.pos
+  have hkp : (k : ZMod p) = x₀ := (ZMod.natCast_eq_natCast_iff _ _ _).2 hk₁
+  have hkq : (k : ZMod q) = -x₀ := by
+    rw [(ZMod.natCast_eq_natCast_iff _ _ _).2 hk₂, Nat.cast_sub hxq.le, ZMod.natCast_self,
+      ZMod.natCast_mod, zero_sub]
+  -- `n ∣ k² + d`
+  have hdvd : n ∣ k * k + d := by
+    rw [hn]
+    refine hpq.mul_dvd_of_dvd_of_dvd ((ZMod.natCast_eq_zero_iff _ _).1 ?_)
+      ((ZMod.natCast_eq_zero_iff _ _).1 ?_)
+    · have : ((n : ℕ) : ZMod p) = 0 := by rw [hn, Nat.cast_mul, ZMod.natCast_self, zero_mul]
+      rw [hd] at this; push_cast at this ⊢; rw [hkp]; exact this
+    · have : ((n : ℕ) : ZMod q) = 0 := by rw [hn, Nat.cast_mul, ZMod.natCast_self, mul_zero]
+      rw [hd] at this; push_cast at this ⊢; rw [hkq]; linear_combination this
+  obtain ⟨A, hA⟩ := hdvd
+  have hA0 : 0 < A := by
+    rcases Nat.eq_zero_or_pos A with h0 | h0
+    · rw [h0] at hA; omega
+    · exact h0
+  obtain ⟨a, W, V, γ, ha, h3a, hrep, hWV⟩ := exists_rep_of_reduce (A := (A : ℤ)) (h := (k : ℤ))
+    (n := (n : ℤ)) (d := (d : ℤ)) (by exact_mod_cast hA0)
+    (by have : ((k * k + d : ℕ) : ℤ) = n * A := by rw [hA]; push_cast; ring
+        push_cast at this; linear_combination 4 * this) (by exact_mod_cast hd0)
+  have hdn : d ≤ n := by omega
+  -- `V ≠ 0`: else `W = n γ` and `a = n γ² ≥ n`, against `3a² ≤ 4d ≤ 4n`
+  have hV0 : V ≠ 0 := by
+    rintro rfl
+    simp only [mul_zero, add_zero, zero_pow two_ne_zero] at hrep hWV
+    rw [hWV] at hrep
+    have hγ : γ ≠ 0 := by
+      rintro rfl; simp at hrep
+      rcases hrep with h | h
+      · linarith
+      · exact absurd h (by exact_mod_cast hn0.ne')
+    have : (n : ℤ) * γ ^ 2 = a := by
+      have h' : (n : ℤ) * (n * γ ^ 2) = n * a := by linear_combination hrep
+      exact mul_left_cancel₀ (by exact_mod_cast hn0.ne') h'
+    have : (n : ℤ) ≤ a := by rw [← this]; nlinarith [sq_pos_of_ne_zero hγ]
+    have : (n : ℤ) * n ≤ a * a := by nlinarith
+    have h4 : (3 : ℤ) * (n * n) ≤ 4 * n := by nlinarith [show (d : ℤ) ≤ n by exact_mod_cast hdn]
+    have : (2 : ℤ) ≤ n := by exact_mod_cast (show 2 ≤ n by rw [hn]; nlinarith [hp.two_le,
+      hq.two_le])
+    nlinarith
+  set v := V.natAbs
+  set w := W.natAbs
+  have hv1 : 1 ≤ v := Int.natAbs_pos.2 hV0
+  have hrep' : a.toNat * n = w * w + d * (v * v) := by
+    have ew : ((w * w : ℕ) : ℤ) = W ^ 2 := by
+      push_cast; rw [Int.natCast_natAbs, abs_mul_abs_self, sq]
+    have ev : ((v * v : ℕ) : ℤ) = V ^ 2 := by
+      push_cast; rw [Int.natCast_natAbs, abs_mul_abs_self, sq]
+    have : ((a.toNat * n : ℕ) : ℤ) = ((w * w + d * (v * v) : ℕ) : ℤ) := by
+      rw [Nat.cast_add, Nat.cast_mul d, ew, ev, Nat.cast_mul, Int.toNat_of_nonneg ha.le]
+      linear_combination -hrep
+    exact_mod_cast this
+  have h3 : 3 * (a.toNat * a.toNat) ≤ 4 * d := by
+    have : ((3 * (a.toNat * a.toNat) : ℕ) : ℤ) ≤ ((4 * d : ℕ) : ℤ) := by
+      push_cast [Int.toNat_of_nonneg ha.le]; linarith
+    exact_mod_cast this
+  have hle : d * (v * v) ≤ a.toNat * n := by omega
+  have hvp := lt_of_small hn0 hd0 hle h3 hd3 hp27
+  have hvq := lt_of_small hn0 hd0 hle h3 hd3 hq27
+  have hcopv : Nat.Coprime v n := by
+    rw [hn]
+    refine Nat.Coprime.mul_right ?_ ?_
+    · exact Nat.Coprime.symm ((Nat.Prime.coprime_iff_not_dvd hp).2 fun h ↦
+        absurd (Nat.le_of_dvd (by omega) h) (by omega))
+    · exact Nat.Coprime.symm ((Nat.Prime.coprime_iff_not_dvd hq).2 fun h ↦
+        absurd (Nat.le_of_dvd (by omega) h) (by omega))
+  have hVc : IsCoprime V (n : ℤ) := by
+    rw [Int.isCoprime_iff_gcd_eq_one]; simpa [Int.gcd] using hcopv
+  -- `n ∤ x₀ ∓ k`, by `p` and `q`
+  have hx : ¬(n : ℤ) ∣ x₀ - k := fun h ↦ by
+    have hqd : (q : ℤ) ∣ x₀ - k := (Int.natCast_dvd_natCast.2 ⟨p, by rw [hn]; ring⟩).trans h
+    have : ((2 * x₀ : ℕ) : ZMod q) = 0 := by
+      have := (ZMod.intCast_zmod_eq_zero_iff_dvd _ q).2 hqd
+      push_cast at this ⊢; rw [hkq] at this; linear_combination this
+    rcases (Nat.Prime.dvd_mul hq).1 ((ZMod.natCast_eq_zero_iff _ _).1 this) with h | h
+    · exact hq2 ((Nat.prime_dvd_prime_iff_eq hq Nat.prime_two).1 h)
+    · exact absurd (Nat.dvd_gcd h (show q ∣ n from ⟨p, by rw [hn]; ring⟩))
+        (by rw [hcop]; exact hq.not_dvd_one)
+  have hx' : ¬(n : ℤ) ∣ x₀ + k := fun h ↦ by
+    have hpd : (p : ℤ) ∣ x₀ + k := (Int.natCast_dvd_natCast.2 ⟨q, hn⟩).trans h
+    have : ((2 * x₀ : ℕ) : ZMod p) = 0 := by
+      have := (ZMod.intCast_zmod_eq_zero_iff_dvd _ p).2 hpd
+      push_cast at this ⊢; rw [hkp] at this; linear_combination this
+    rcases (Nat.Prime.dvd_mul hp).1 ((ZMod.natCast_eq_zero_iff _ _).1 this) with h | h
+    · exact hp2 ((Nat.prime_dvd_prime_iff_eq hp Nat.prime_two).1 h)
+    · exact absurd (Nat.dvd_gcd h (show p ∣ n from ⟨q, hn⟩))
+        (by rw [hcop]; exact hp.not_dvd_one)
+  have hW : (n : ℤ) ∣ W - k * V := ⟨γ, by rw [hWV]; ring⟩
+  -- the signs of `v = |V|`, `w = |W|`
+  obtain ⟨s, hs, hvs⟩ : ∃ s : ℤ, (s = 1 ∨ s = -1) ∧ (v : ℤ) = s * V := by
+    rcases Int.natAbs_eq V with h | h
+    · exact ⟨1, Or.inl rfl, by rw [one_mul]; exact h.symm⟩
+    · exact ⟨-1, Or.inr rfl, by linear_combination h⟩
+  obtain ⟨t, ht, hwt⟩ : ∃ t : ℤ, (t = 1 ∨ t = -1) ∧ (w : ℤ) = t * W := by
+    rcases Int.natAbs_eq W with h | h
+    · exact ⟨1, Or.inl rfl, by rw [one_mul]; exact h.symm⟩
+    · exact ⟨-1, Or.inr rfl, by linear_combination h⟩
+  refine ⟨a.toNat, w, v, by omega, h3, hrep', hv1, fun hc ↦ ?_, fun hc ↦ ?_⟩
+  · -- `x₀ v - w ≡ 0 (mod n)`
+    apply not_dvd_of_signs hW hVc hx hx' hs ht
+    have hle' : w % n ≤ x₀ * v % n + n := by have := Nat.mod_lt w hn0; omega
+    have : ((((x₀ * v % n + n - w % n) % n : ℕ)) : ZMod n) = x₀ * v - w := by
+      simp only [ZMod.natCast_mod]
+      push_cast [Nat.cast_sub hle', ZMod.natCast_mod, ZMod.natCast_self]; ring
+    rw [hc, Nat.cast_zero] at this
+    have := (ZMod.intCast_zmod_eq_zero_iff_dvd ((x₀ : ℤ) * v - w) n).1 (by
+      push_cast; rw [← this])
+    rwa [hvs, hwt] at this
+  · have := not_dvd_of_signs hW hVc hx hx' hs (t := -t) (by rcases ht with rfl | rfl <;> simp)
+    apply this
+    have := Int.natCast_dvd_natCast.2 (Nat.dvd_of_mod_eq_zero hc)
+    push_cast at this; rw [hvs, hwt] at this
+    convert this using 1; ring
+
+/-- **Completeness of Algorithm 5.6.3**: for `n > 1` with no prime factor below `3n^{1/3}`,
+if the test answers "n is prime" (`none`), `n` is prime. -/
+theorem mckee_complete {n : ℕ} (hn : 1 < n)
+    (hsmall : ∀ p, p.Prime → p ∣ n → 27 * n ≤ p ^ 3) (h : mckee n = none) : n.Prime := by
+  by_contra hnp
+  unfold mckee at h
+  dsimp only at h
+  split_ifs at h with h₁ h₂
+  have hsq : ∀ s, s * s ≠ n := fun s hs ↦ h₁ (by rw [← hs, Nat.sqrt_eq])
+  obtain ⟨p, q, hp, hq, hne, hpq⟩ := eq_mul_of_large_factors hn hsmall hnp hsq
+  have hp27 := hsmall p hp ⟨q, hpq⟩
+  have hq27 := hsmall q hq ⟨p, by rw [hpq]; ring⟩
+  have hn6 : 6 ≤ n := by
+    have hpn : p ≤ n := Nat.le_of_dvd (by omega) ⟨q, hpq⟩
+    have : 27 * n ≤ n ^ 3 := hp27.trans (Nat.pow_le_pow_left hpn 3)
+    by_contra hc; push Not at hc
+    interval_cases n <;> norm_num at this
+  -- `t = ⌈n^{2/3}⌉ < n`, `x₀ ≥ 1`, `t ≤ d < n`
+  obtain ⟨ht₁, ht₂⟩ := ceilTwoThirds_spec (n := n) (by omega)
+  set t := ceilTwoThirds n
+  have htn : t < n := by
+    by_contra hc; push Not at hc
+    have : (n - 1) * (n - 1) * (n - 1) ≤ (t - 1) * (t - 1) * (t - 1) := by
+      have := Nat.sub_le_sub_right hc 1; exact Nat.mul_le_mul (Nat.mul_le_mul this this) this
+    have : n * n ≤ (n - 1) * (n - 1) * (n - 1) := by
+      obtain ⟨m, rfl⟩ : ∃ m, n = m + 6 := ⟨n - 6, by omega⟩
+      rw [show m + 6 - 1 = m + 5 by omega]; nlinarith
+    omega
+  set x₀ := Nat.sqrt (n - t)
+  have hx₀ : x₀ * x₀ ≤ n - t := Nat.sqrt_le _
+  have hx₁ : 1 ≤ x₀ := Nat.le_sqrt.2 (by omega)
+  set d := n - x₀ * x₀
+  have hd : n = x₀ * x₀ + d := by omega
+  have hdt : t ≤ d := by omega
+  have hxx : 1 ≤ x₀ * x₀ := Nat.mul_le_mul hx₁ hx₁
+  have ht1 : 1 ≤ t := by nlinarith
+  have hd0 : 0 < d := by omega
+  have hd3 : n * n ≤ d * d * d := ht₁.trans (Nat.mul_le_mul (Nat.mul_le_mul hdt hdt) hdt)
+  -- `gcd(n, d) = 1`
+  have hg : Nat.gcd n d = 1 := by
+    have hpos : 0 < Nat.gcd n d := Nat.gcd_pos_of_pos_left _ (by omega)
+    have : Nat.gcd n d ≤ d := Nat.le_of_dvd hd0 (Nat.gcd_dvd_right _ _)
+    by_contra hc; exact h₂ ⟨by omega, by omega⟩
+  have hcop : Nat.Coprime x₀ n := by
+    rw [Nat.Coprime, ← Nat.dvd_one, ← hg]
+    refine Nat.dvd_gcd (Nat.gcd_dvd_right _ _) ?_
+    have h₁ : Nat.gcd x₀ n ∣ n := Nat.gcd_dvd_right _ _
+    have h₂ : Nat.gcd x₀ n ∣ x₀ * x₀ := dvd_mul_of_dvd_left (Nat.gcd_dvd_left _ _) _
+    exact Nat.dvd_sub h₁ h₂
+  obtain ⟨a, w, v, ha, h3a, hrep, hv, hc, hc'⟩ :=
+    exists_witness hp hq hne hpq hp27 hq27 hd hd0 hd3 hcop
+  -- the search finds it
+  obtain ⟨hfs, hfd⟩ := factorPairs_spec hd0
+  obtain ⟨-, hroots⟩ := rootsMod_spec (a * n % d) hfs
+  rw [hfd] at hroots
+  have hwd : w % d ∈ (rootsMod (a * n % d) (factorPairs (trialDivision d))).2 := by
+    refine (hroots _).2 ⟨Nat.mod_lt _ hd0, ?_⟩
+    rw [Nat.mod_mod, ← Nat.mul_mod, hrep, Nat.add_mul_mod_self_left]
+  have hcls := searchClass_isSome (n := n) (d := d) (a := a) (x₀ := x₀) hd0 hv hrep hc hc'
+    (i := w / d) (fuel := Nat.sqrt (a * n) / d + 1) (w₀ := w % d)
+    (by have : w ≤ Nat.sqrt (a * n) := Nat.le_sqrt.2 (by omega)
+        have := Nat.div_le_div_right (c := d) this; omega)
+    (Nat.mod_add_div w d).symm
+  have hroot := searchRoots_isSome hwd hcls
+  have had : a ≤ d := by
+    by_contra hc; push Not at hc
+    rcases Nat.lt_or_ge d 2 with hd2 | hd2
+    · nlinarith
+    · nlinarith
+  have hA := searchA_isSome (fs := factorPairs (trialDivision d)) h3a hroot
+    (k := a - 1) (a := 1) (fuel := d) (by omega) (by omega)
+  split at h
+  · simp at h
+  · next hn' => rw [hn'] at hA; simp at hA
