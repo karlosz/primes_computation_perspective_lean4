@@ -15,8 +15,8 @@ Crandall & Pomerance, *Prime Numbers: A Computational Perspective*, Section 5.6.
   `existsUnique_reduced_equiv`: **Theorem 5.6.1**, every form of negative discriminant with
   `a > 0` is equivalent to exactly one reduced form.
 * `reduce` — **Algorithm 5.6.2** (Gauss reduction): `reduce_reduced`, `reduce_equiv`; its
-  running time `reduce_cost_le` (at most `2A + 2` passes on numbers of `O(log N)` bits,
-  `N = |A| + |B| + |C|`), with grammar-school arithmetic `O((A + 1) log² N)`
+  running time `reduce_cost_le` (at most `size A + 2` passes on numbers of `O(log N)` bits,
+  `N = |A| + |B| + |C|`), with grammar-school arithmetic `O(log³ N)`
   (`reduceCost_school`).
 * `sumTwoSquares_factor` — §5.6.2: two representations `n = x₁² + y₁² = x₂² + y₂²` give the
   proper factor `gcd(x₁ y₂ - y₁ x₂, n)`; `mckee_factor` — McKee's observation behind
@@ -247,10 +247,10 @@ counted_def reduceLoop : (A B C : ℤ) → ℕ → ℤ × ℤ × ℤ
    return (A, B, C);
 ```
 (After a type (1) move `A ≤ C` holds, so the test `A ≤ C` of the type (2) move is implied.)
-The loop needs at most `2A + 1` passes (`reduceLoop_final`): a type (1) move lowers `A`, and
-two type (2) moves never follow each other. -/
+The loop needs at most `size A + 2` passes (`reduceLoop_final`): from a normal form
+(`-A < B ≤ A`) a pass halves `A` while `A² ≥ |D|`, and ends the loop once `A² < |D|`. -/
 counted_def reduce (A B C : ℤ) : ℤ × ℤ × ℤ :=
-  let (A, B, C) := reduceLoop A B C (2 * A.toNat + 2)
+  let (A, B, C) := reduceLoop A B C (A.toNat.size + 2)
   if A = C ∧ -A < B ∧ B < 0 then (A, -B, C) else (A, B, C)
 
 /-- The form of a triple. -/
@@ -341,34 +341,106 @@ theorem reduceLoop_equiv (A B C : ℤ) (fuel : ℕ) :
     · exact (reduceStep_equiv A B C).trans (ih ..)
     · exact Equiv.refl _
 
-/-- The loop ends with `-A < B ≤ A ≤ C`, still `Pos`, after at most `2A + 2` passes (with the
-potential `2A + [B ∉ (-A, A]]`, which every pass lowers). -/
+/-- The test of the loop fails: the loop stops at once. -/
+theorem reduceLoop_of_not {A B C : ℤ} (h : ¬(C < A ∨ A < B ∨ B ≤ -A)) (fuel : ℕ) :
+    reduceLoop A B C fuel = (A, B, C) := by
+  cases fuel with
+  | zero => rfl
+  | succ fuel => simp only [reduceLoop_succ, h, ↓reduceIte]
+
+/-- `C'' ≥ C` after the swap `(A, B, C) ↦ (C, -B, A)` of a normal form with `A² < |D|`
+and the shift `B'' = -B + 2Ck ∈ (-C, C]`. -/
+private theorem le_after_swap {A B C k : ℤ} (hC : 0 < C) (hB₁ : -A < B) (hB₂ : B ≤ A)
+    (hCA : C < A) (hD : A ^ 2 < 4 * A * C - B ^ 2) (hk₁ : -C < -B + 2 * C * k)
+    (hk₂ : -B + 2 * C * k ≤ C) : C ≤ A + k * (-B + C * k) := by
+  have hA4 : A < 4 * C := by nlinarith
+  rcases le_or_gt k (-2) with hk | hk
+  · nlinarith
+  rcases le_or_gt 2 k with hk' | hk'
+  · nlinarith
+  interval_cases k <;> nlinarith
+
+/-- From a normal form with `A² < |D|` that is not reduced, one pass reaches `A ≤ C`. -/
+theorem reduceStep_le_of_sq_lt {A B C : ℤ} (h : Pos (A, B, C)) (hB₁ : -A < B) (hB₂ : B ≤ A)
+    (hCA : C < A) (hD : A ^ 2 < -(ofTriple (A, B, C)).disc) :
+    (reduceStep A B C).1 ≤ (reduceStep A B C).2.2 := by
+  have hC := h.c_pos
+  simp only [ofTriple, disc] at hD hC
+  rw [reduceStep_eq]
+  simp only [swapMove, hCA, ite_true]
+  unfold shiftMove
+  split_ifs with hs
+  · have h₁ := Int.emod_add_mul_ediv (C - -B) (2 * C)
+    have h₂ := Int.emod_nonneg (C - -B) (show 2 * C ≠ 0 by omega)
+    have h₃ := Int.emod_lt_of_pos (C - -B) (show 0 < 2 * C by omega)
+    exact le_after_swap hC hB₁ hB₂ hCA (by linarith) (by linarith) (by linarith)
+  · exact hCA.le
+
+/-- From a normal form with `A² ≥ |D|` that is not reduced, one pass at least halves `A`. -/
+theorem reduceStep_halves {A B C : ℤ} (h : Pos (A, B, C)) (hB₁ : -A < B) (hB₂ : B ≤ A)
+    (hCA : C < A) (hD : -(ofTriple (A, B, C)).disc ≤ A ^ 2) :
+    2 * (reduceStep A B C).1 ≤ A := by
+  have hA := h.2
+  simp only [ofTriple, disc] at hD hA
+  rw [reduceStep_eq, (shiftMove_spec (by simp [swapMove, hCA, h.c_pos])).1]
+  simp only [swapMove, hCA, ite_true]
+  nlinarith
+
+private theorem size_lt_of_two_mul_le {x y : ℕ} (hx : 0 < x) (h : 2 * x ≤ y) :
+    x.size < y.size := by
+  rw [Nat.lt_size]
+  have h₁ : x.size - 1 < x.size := by have := Nat.size_pos.2 hx; omega
+  have h₂ := Nat.lt_size.1 h₁
+  calc 2 ^ x.size = 2 * 2 ^ (x.size - 1) := by
+        rw [← pow_succ']; congr 1; have := Nat.size_pos.2 hx; omega
+    _ ≤ y := by omega
+
+/-- The loop ends with `-A < B ≤ A ≤ C`, still `Pos`, after at most `size A + 2` passes:
+a pass makes the form normal (`-A < B ≤ A`); from a normal form a pass halves `A` while
+`A² ≥ |D|`, and once `A² < |D|` one pass ends the loop (`reduceStep_halves`,
+`reduceStep_le_of_sq_lt`). -/
 theorem reduceLoop_final {A B C : ℤ} (h : Pos (A, B, C)) {fuel : ℕ}
-    (hf : 2 * A + (if -A < B ∧ B ≤ A then 1 else 2) ≤ fuel) :
+    (hf : A.toNat.size + (if -A < B ∧ B ≤ A then 1 else 2) ≤ fuel) :
     let r := reduceLoop A B C fuel
     Pos r ∧ -r.1 < r.2.1 ∧ r.2.1 ≤ r.1 ∧ r.1 ≤ r.2.2 := by
   induction fuel generalizing A B C with
-  | zero => have := h.2; split_ifs at hf <;> simp only at this <;> omega
+  | zero => split_ifs at hf <;> omega
   | succ fuel ih =>
     intro r
     simp only [r, reduceLoop_succ]
     split_ifs with hc
     · obtain ⟨hP, h₁, h₂, h₃⟩ := reduceStep_spec h
-      refine ih hP ?_
-      have hA := h.2; simp only at hA
-      simp only [h₁, h₂, and_self, ↓reduceIte]
-      split_ifs at h₃ hf <;> omega
+      have hA := h.2; have hA' := hP.2; simp only at hA hA'
+      by_cases hn : -A < B ∧ B ≤ A
+      · have hCA : C < A := by omega
+        simp only [hn, and_self, ↓reduceIte] at hf
+        by_cases hD : A ^ 2 < -(ofTriple (A, B, C)).disc
+        · -- one pass ends the loop
+          have h₄ := reduceStep_le_of_sq_lt h hn.1 hn.2 hCA hD
+          rw [reduceLoop_of_not (by omega)]
+          exact ⟨hP, h₁, h₂, h₄⟩
+        · -- `A` halves
+          have h₄ := reduceStep_halves h hn.1 hn.2 hCA (by omega)
+          refine ih hP ?_
+          have := size_lt_of_two_mul_le (x := (reduceStep A B C).1.toNat)
+            (y := A.toNat) (by omega) (by omega)
+          simp only [h₁, h₂, and_self, ↓reduceIte]; omega
+      · simp only [hn, ↓reduceIte] at hf
+        refine ih hP ?_
+        have : (reduceStep A B C).1.toNat.size ≤ A.toNat.size :=
+          Nat.size_le_size (by split_ifs at h₃ <;> omega)
+        simp only [h₁, h₂, and_self, ↓reduceIte]; omega
     · refine ⟨h, ?_, ?_, ?_⟩ <;> dsimp only <;> omega
 
 theorem reduce_eq (A B C : ℤ) :
-    reduce A B C = let r := reduceLoop A B C (2 * A.toNat + 2)
+    reduce A B C = let r := reduceLoop A B C (A.toNat.size + 2)
       if r.1 = r.2.2 ∧ -r.1 < r.2.1 ∧ r.2.1 < 0 then (r.1, -r.2.1, r.2.2) else r := by
   rw [reduce]
 
 theorem reduce_equiv (A B C : ℤ) : Equiv ⟨A, B, C⟩ (ofTriple (reduce A B C)) := by
   rw [reduce_eq]; dsimp only
-  have h := reduceLoop_equiv A B C (2 * A.toNat + 2)
-  generalize reduceLoop A B C (2 * A.toNat + 2) = r at h ⊢
+  have h := reduceLoop_equiv A B C (A.toNat.size + 2)
+  generalize reduceLoop A B C (A.toNat.size + 2) = r at h ⊢
   obtain ⟨a, b, c⟩ := r
   dsimp only
   split_ifs with hc
@@ -379,11 +451,11 @@ theorem reduce_equiv (A B C : ℤ) : Equiv ⟨A, B, C⟩ (ofTriple (reduce A B C
 
 theorem reduce_reduced {A B C : ℤ} (h : Pos (A, B, C)) : (ofTriple (reduce A B C)).Reduced := by
   have hA := h.2; simp only at hA
-  obtain ⟨⟨hD, -⟩, h₁, h₂, h₃⟩ := reduceLoop_final h (fuel := 2 * A.toNat + 2) (by
+  obtain ⟨⟨hD, -⟩, h₁, h₂, h₃⟩ := reduceLoop_final h (fuel := A.toNat.size + 2) (by
     split_ifs <;> omega)
   rw [reduce_eq]; dsimp only
   have hD' := (reduce_equiv A B C).disc_eq
-  generalize reduceLoop A B C (2 * A.toNat + 2) = r at *
+  generalize reduceLoop A B C (A.toNat.size + 2) = r at *
   obtain ⟨a, b, c⟩ := r
   simp only [ofTriple, disc] at hD h₁ h₂ h₃
   split_ifs with hc <;> dsimp only at hc <;> simp only [Reduced, ofTriple, disc]
@@ -674,27 +746,28 @@ def loopBound (C : CostModel) (K : ℕ) : ℕ := passBound C K + 4 * C.lin K
     split_ifs <;> cost_bound
 
 /-- **Running time of Algorithm 5.6.2**: for a form of negative discriminant with `A > 0`
-and `N = |A| + |B| + |C|`, at most `2A + 2` passes, each a few operations on numbers of
+and `N = |A| + |B| + |C|`, at most `size A + 2` passes, each a few operations on numbers of
 `O(log N)` bits.  (The count of passes is crude: a type (1) move lowers `A` by at least
 one.) -/
 @[cost_le] theorem reduce_cost_le (C : CostModel) {A B C₀ : ℤ} (h : Pos (A, B, C₀)) :
-    costOf C (reduce A B C₀) ≤ (2 * A.toNat + 2) *
+    costOf C (reduce A B C₀) ≤ (A.toNat.size + 2) *
       loopBound C (8 * (A.natAbs + B.natAbs + C₀.natAbs) ^ 3).size +
         10 * C.lin (8 * (A.natAbs + B.natAbs + C₀.natAbs) ^ 3).size := by
   have h₀ := small_init h
   have hA := h.2; simp only at hA
   obtain ⟨s₁, -, -, -⟩ := h₀.sizes
-  obtain ⟨r₁, r₂, r₃, r₄⟩ := (reduceLoop_small (2 * A.toNat + 2) h₀).sizes
+  obtain ⟨r₁, r₂, r₃, r₄⟩ := (reduceLoop_small (A.toNat.size + 2) h₀).sizes
   set N := A.natAbs + B.natAbs + C₀.natAbs
   have hT : A.toNat = A.natAbs := by omega
   have hN : 1 ≤ N := by omega
-  have h2A : 2 * A.toNat + 2 ≤ 8 * N ^ 3 := by
+  have h2A : A.toNat + 2 ≤ 8 * N ^ 3 := by
     have := Nat.le_self_pow (show 3 ≠ 0 by norm_num) N; omega
   have t₁ : A.toNat.size ≤ (8 * N ^ 3).size := Nat.size_le_size (by omega)
-  have t₂ : (2 * A.toNat).size ≤ (8 * N ^ 3).size := Nat.size_le_size (by omega)
+  have t₂ : A.toNat.size.size ≤ (8 * N ^ 3).size :=
+    Nat.size_le_size ((size_le_self A.toNat).trans (by omega))
   have t₃ : (2 : ℕ).size ≤ (8 * N ^ 3).size := Nat.size_le_size (by omega)
   cost_unfold reduce.counted
-  have h₁ := reduceLoop_cost_le C (2 * A.toNat + 2) h₀
+  have h₁ := reduceLoop_cost_le C (A.toNat.size + 2) h₀
   split_ifs <;> cost_bound
 
 theorem size_eight_cube_le (N : ℕ) : (8 * N ^ 3).size ≤ 3 * N.size + 4 := by
@@ -709,13 +782,13 @@ theorem loopBound_school_le (K : ℕ) : loopBound school K ≤ 60 * (K + 1) ^ 2 
     school_unit, school_addRate, max_self] at *
   nlinarith
 
-/-- **Algorithm 5.6.2 with grammar-school arithmetic**: `O((A + 1) log² N)` bit operations,
+/-- **Algorithm 5.6.2 with grammar-school arithmetic**: `O(log³ N)` bit operations,
 `N = |A| + |B| + |C|`. -/
 theorem reduceCost_school : ∀ᴼ (A B C : ℤ), Pos (A, B, C) →
-    costOf school (reduce A B C) ≤
-      O((A.toNat + 1) * ((A.natAbs + B.natAbs + C.natAbs).size + 1) ^ 2) := by
+    costOf school (reduce A B C) ≤ O(((A.natAbs + B.natAbs + C.natAbs).size + 1) ^ 3) := by
   cost_O [size_eight_cube_le (A.natAbs + B.natAbs + C.natAbs),
-    loopBound_school_le (8 * (A.natAbs + B.natAbs + C.natAbs) ^ 3).size]
+    loopBound_school_le (8 * (A.natAbs + B.natAbs + C.natAbs) ^ 3).size,
+    (Nat.size_le_size (show A.toNat ≤ A.natAbs + B.natAbs + C.natAbs by omega))]
 
 end RunningTime
 
