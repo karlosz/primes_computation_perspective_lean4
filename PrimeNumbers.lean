@@ -40,4 +40,5 @@ import PrimeNumbers.Chapter5.PollardPMinusOne
 import PrimeNumbers.Chapter5.RhoLog
 import PrimeNumbers.Chapter5.PolyEval
 import PrimeNumbers.Chapter5.QuadForms
+import PrimeNumbers.Chapter5.McKee
 import PrimeNumbers.Examples
